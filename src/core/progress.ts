@@ -73,6 +73,12 @@ export function currentChapter(chapters: readonly ChapterInfo[], states: Readonl
   return (next ?? ordered[ordered.length - 1]).chapter
 }
 
+/** The newest chapter whose material counts as taught: 4 at the least, 26 (nothing hidden) when progress is unknown. */
+export function taughtChapter(chapters: readonly ChapterInfo[], states: ReadonlyMap<number, ChapterState>): number {
+  if (chapters.length === 0 || states.size === 0) return 26
+  return Math.max(FIRST_GATED, currentChapter(chapters, states))
+}
+
 /**
  * The chapters that keep `chapter` locked: every chapter from 4 up to the one before it that has a state and is
  * not cleared, ascending. Empty when none do, or when there are no states (progress not ready: nothing is locked).

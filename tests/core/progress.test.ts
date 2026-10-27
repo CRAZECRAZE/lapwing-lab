@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { blockingChapters, chapterList, chapterStates, currentChapter, requirementText } from '../../src/core/progress.ts'
+import {
+  blockingChapters,
+  chapterList,
+  chapterStates,
+  currentChapter,
+  requirementText,
+  taughtChapter,
+} from '../../src/core/progress.ts'
 import type { ChapterState, ResultsByMode } from '../../src/core/progress.ts'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
 import type { ProgressMark, SectionResult } from '../../server/archive.ts'
@@ -152,6 +159,35 @@ describe('currentChapter', () => {
       ...CHAPTERS.slice(1),
     ]
     expect(currentChapter(list, chapterStates(list, results(), []))).toBe(5)
+  })
+})
+
+describe('taughtChapter', () => {
+  it('is 4 when nothing is cleared and moves on as chapters clear', () => {
+    expect(taughtChapter(CHAPTERS, chapterStates(CHAPTERS, results(), []))).toBe(4)
+    expect(taughtChapter(CHAPTERS, chapterStates(CHAPTERS, STAGE0_PASSED, []))).toBe(5)
+    expect(taughtChapter(CHAPTERS, chapterStates(CHAPTERS, STAGE0_PASSED, [mark(5, 'override')]))).toBe(6)
+  })
+
+  it('stops at the last chapter when everything is cleared', () => {
+    const all = [mark(5, 'override'), mark(6, 'override'), mark(12, 'override'), mark(18, 'read')]
+    expect(taughtChapter(CHAPTERS, chapterStates(CHAPTERS, STAGE0_PASSED, all))).toBe(18)
+  })
+
+  it('hides nothing (26) while progress is not ready', () => {
+    expect(taughtChapter(CHAPTERS, new Map())).toBe(26)
+  })
+
+  it('hides nothing (26) when there are no chapters', () => {
+    expect(taughtChapter([], chapterStates(CHAPTERS, results(), []))).toBe(26)
+    expect(taughtChapter([], new Map())).toBe(26)
+  })
+
+  it('is never below 4, even when the list only has earlier chapters', () => {
+    const early: ChapterInfo[] = [{ chapter: 2, pageId: 'c2', title: 'Two', gate: 'read', listIds: [] }]
+    const states = chapterStates(early, results(), [])
+    expect(currentChapter(early, states)).toBe(2)
+    expect(taughtChapter(early, states)).toBe(4)
   })
 })
 
