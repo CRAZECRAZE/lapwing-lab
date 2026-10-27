@@ -78,7 +78,7 @@ Everything the app writes lives in `data/`:
 - `settings.json`
 - `journal/YYYY-MM-DD.md`, your notes: plain markdown, one file per local day
 
-Each is created on first save (the journal folder when you first write a note), so `data/` does not exist until you first use a drill or change a setting, and merely opening a tab writes nothing. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
+Each is created on first save (the journal folder when you first write a note), so `data/` does not exist until you first use a drill or change a setting, and on a fresh install merely opening a tab writes nothing. The first start after upgrading from an earlier version adds the empty `progress_marks` table to an existing `steno.db` in place (your tests and strokes are not changed), so copy `data/` first if you want a backup. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
 
 Opening a drill and leaving without a stroke writes nothing. Leaving a drill early (Exit or Esc) keeps the strokes you already did and closes the test as left early: it shows in History as "Left early" with the partial numbers. A run left early is never shown as the last result on the Chapter 4 panel or the Practice tab. A test whose `ended_at` is still empty means the browser tab was closed mid-drill.
 
