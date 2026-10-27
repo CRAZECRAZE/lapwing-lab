@@ -37,8 +37,8 @@ export class UniLink {
   private readonly accumulator = new ChordAccumulator()
   private device: HidDeviceLike | null = null
   private listening = false
-  /** True from the moment a lookup starts until it has attached or failed. */
-  private busy = false
+  /** The attach attempt in flight, from the moment a lookup starts until it has attached or failed. */
+  private pending: Promise<boolean> | null = null
   /** Bumped by close() so a lookup that was in flight cannot attach afterwards. */
   private epoch = 0
 
@@ -54,11 +54,15 @@ export class UniLink {
   /** Needs a user gesture: shows the browser's device picker. */
   async request(): Promise<void> {
     this.listen()
+    const epoch = this.epoch
+    // The click must still produce the prompt if an earlier attach found nothing.
+    if (this.pending) await this.pending
+    if (this.device || epoch !== this.epoch) return
     await this.attachFrom(async () => {
       const devices = await this.hid.requestDevice({
         filters: [{ usagePage: UNI_USAGE_PAGE, usage: UNI_USAGE }],
       })
-      return devices[0]
+      return devices.find(isUni) ?? devices[0]
     })
   }
 
@@ -94,9 +98,17 @@ export class UniLink {
     this.hid.addEventListener('disconnect', this.onDisconnect)
   }
 
-  private async attachFrom(find: () => Promise<HidDeviceLike | undefined>): Promise<boolean> {
-    if (this.device || this.busy) return false
-    this.busy = true
+  private attachFrom(find: () => Promise<HidDeviceLike | undefined>): Promise<boolean> {
+    if (this.device || this.pending) return Promise.resolve(false)
+    const attempt = this.attach(find).finally(() => {
+      this.pending = null
+    })
+    this.pending = attempt
+    return attempt
+  }
+
+  /** Never rejects. */
+  private async attach(find: () => Promise<HidDeviceLike | undefined>): Promise<boolean> {
     const epoch = this.epoch
     try {
       const device = await find()
@@ -112,10 +124,8 @@ export class UniLink {
       this.handlers.onStatus({ state: 'connected' })
       return true
     } catch (error) {
-      this.handlers.onStatus({ state: 'disconnected', reason: messageOf(error) })
+      if (epoch === this.epoch) this.handlers.onStatus({ state: 'disconnected', reason: messageOf(error) })
       return false
-    } finally {
-      this.busy = false
     }
   }
 

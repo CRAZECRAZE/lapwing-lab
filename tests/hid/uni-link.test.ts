@@ -73,6 +73,16 @@ class FakeHid implements HidLike {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 function setup() {
@@ -213,6 +223,56 @@ describe('UniLink.request', () => {
     expect(statuses.at(-1)).toEqual({ state: 'connected' })
   })
 
+  it('prefers the Uni among the returned devices', async () => {
+    const { hid, link } = setup()
+    const keyboard = new FakeDevice()
+    keyboard.collections = [{ usagePage: 0x0001, usage: 0x0006 }]
+    const uni = new FakeDevice()
+    hid.requestResult = [keyboard, uni]
+    await link.request()
+    expect(keyboard.listeners.size).toBe(0)
+    expect(uni.listeners.size).toBe(1)
+  })
+
+  it('still prompts after an attach that was already in flight finds nothing', async () => {
+    const { hid, link } = setup()
+    const lookup = deferred<HidDeviceLike[]>()
+    hid.getDevices = async () => lookup.promise
+    const device = new FakeDevice()
+    hid.requestResult = [device]
+    const auto = link.autoConnect()
+    const request = link.request()
+    lookup.resolve([])
+    await Promise.all([auto, request])
+    expect(hid.requested).toHaveLength(1)
+    expect(link.connected).toBe(true)
+  })
+
+  it('does not prompt when the attach that was in flight connects', async () => {
+    const { hid, link } = setup()
+    const lookup = deferred<HidDeviceLike[]>()
+    hid.getDevices = async () => lookup.promise
+    const device = new FakeDevice()
+    const auto = link.autoConnect()
+    const request = link.request()
+    lookup.resolve([device])
+    await Promise.all([auto, request])
+    expect(hid.requested).toEqual([])
+    expect(device.addCalls).toBe(1)
+  })
+
+  it('does not prompt when closed while waiting for an attach in flight', async () => {
+    const { hid, link } = setup()
+    const lookup = deferred<HidDeviceLike[]>()
+    hid.getDevices = async () => lookup.promise
+    const auto = link.autoConnect()
+    const request = link.request()
+    await link.close()
+    lookup.resolve([])
+    await Promise.all([auto, request])
+    expect(hid.requested).toEqual([])
+  })
+
   it('reports a rejected permission request and stays reusable', async () => {
     const { hid, link, statuses } = setup()
     hid.requestError = new Error('Must be handling a user gesture')
@@ -321,6 +381,44 @@ describe('UniLink.close', () => {
     await link.close()
     await expect(pending).resolves.toBe(false)
     expect(device.listeners.size).toBe(0)
+    expect(statuses).toEqual([])
+  })
+})
+
+describe('UniLink.close while an attach is in flight', () => {
+  it('leaves nothing attached when closed during a deferred open()', async () => {
+    const { hid, link, statuses } = setup()
+    const opening = deferred<void>()
+    const device = new FakeDevice()
+    device.open = async () => {
+      device.openCalls++
+      await opening.promise
+      device.opened = true
+    }
+    hid.requestResult = [device]
+    const request = link.request()
+    await flush()
+    expect(device.openCalls).toBe(1)
+    await link.close()
+    opening.resolve()
+    await request
+    expect(link.connected).toBe(false)
+    expect(device.listeners.size).toBe(0)
+    expect(device.addCalls).toBe(0)
+    expect(hid.listeners.connect.size).toBe(0)
+    expect(hid.listeners.disconnect.size).toBe(0)
+    expect(device.closeCalls).toBe(1)
+    expect(statuses).toEqual([])
+  })
+
+  it('stays quiet when the attempt in flight rejects after close()', async () => {
+    const { hid, link, statuses } = setup()
+    const lookup = deferred<HidDeviceLike[]>()
+    hid.getDevices = async () => lookup.promise
+    const pending = link.autoConnect()
+    await link.close()
+    lookup.reject(new Error('lookup failed'))
+    await expect(pending).resolves.toBe(false)
     expect(statuses).toEqual([])
   })
 })
