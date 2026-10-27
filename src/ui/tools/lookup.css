@@ -71,7 +71,15 @@
   outline-offset: 2px;
 }
 
+/* Stays at the top of the scrolling drawer body while the results scroll under it, so the board is always in view
+   next to the chip being hovered. The sticky offset is measured from the scrollport (the body's padding box), not
+   from its padding, so top: 0 sits flush with the top edge. The shadow is a solid band in the drawer's colour under
+   the card, so rows scrolling up never show in the gap below it. z-index 1 keeps it above the rows and below the
+   drawer header, which is not inside the scrolling body. */
 .lookup__preview {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -80,6 +88,7 @@
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 0.3rem 0 0 var(--panel);
 }
 
 .lookup__preview-stroke {

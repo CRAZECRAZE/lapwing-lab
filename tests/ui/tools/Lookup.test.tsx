@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import type { JSX } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -359,6 +360,25 @@ describe('Lookup preview board', () => {
     fireEvent.focus(document.querySelector('code.stroke[data-stroke="SKAT"]')!)
     fireEvent.input(input(), { target: { value: 'dad' } })
     expect(lit()).toEqual(keys('T-', 'K-', 'A-', '-D'))
+  })
+})
+
+describe('Lookup preview stays in view', () => {
+  it('carries the class the sticky rule is on', async () => {
+    stubFetch(INDEX)
+    await type('cat')
+    expect(document.querySelector('.lookup__preview .board')).not.toBeNull()
+  })
+
+  // jsdom does not lay anything out, so the only way to guard that the preview sticks to the top of the scrolling
+  // drawer body (and does not let rows show through) is to read the rule itself.
+  it('is sticky at the top of the scrolling body, with a solid background, below the drawer header', () => {
+    const css = readFileSync('src/ui/tools/lookup.css', 'utf8') // vitest runs from the project root
+    const rule = /\.lookup__preview\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(rule).toMatch(/position:\s*sticky/)
+    expect(rule).toMatch(/top:\s*0\s*;/)
+    expect(rule).toMatch(/background:\s*var\(--bg\)/)
+    expect(rule).toMatch(/z-index:\s*1\s*;/)
   })
 })
 
