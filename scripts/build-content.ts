@@ -21,6 +21,16 @@ export type PageFile = {
   passMark?: PassMark
 }
 export type PracticeIndexEntry = { id: string; chapter: number; items: number }
+export type GateKind = 'stage0' | 'test' | 'drills' | 'read'
+export type ChapterInfo = {
+  chapter: number
+  pageId: string
+  title: string
+  gate: GateKind
+  passMark?: PassMark
+  testListId?: string
+  listIds: string[]
+}
 export type BuildStats = {
   pages: number
   practiceLists: number
@@ -60,9 +70,49 @@ export function practiceChapter(id: string): number {
   return Number(match[1])
 }
 
+export function gateFor(
+  chapter: number,
+  passMark: PassMark | undefined,
+  hasTestList: boolean,
+  listIds: string[],
+): Pick<ChapterInfo, 'gate' | 'passMark' | 'testListId' | 'listIds'> {
+  if (chapter === 4) {
+    if (!passMark) throw new Error(`chapter 4: the stage 0 gate needs a pass mark on the page`)
+    return { gate: 'stage0', passMark, listIds: [] }
+  }
+  if (hasTestList) {
+    if (!passMark || passMark.minWpm === undefined) {
+      throw new Error(`chapter ${chapter}: has a ${chapter}-test list but its page has no pass mark with minWpm`)
+    }
+    return { gate: 'test', passMark, testListId: `${chapter}-test`, listIds }
+  }
+  return { gate: listIds.length > 0 ? 'drills' : 'read', listIds }
+}
+
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, JSON.stringify(value))
+}
+
+function chapterInfos(
+  entries: PageEntry[],
+  practiceIndex: PracticeIndexEntry[],
+  passMarks: Map<string, PassMark | undefined>,
+): ChapterInfo[] {
+  const infos: ChapterInfo[] = []
+  for (const entry of entries) {
+    if (entry.kind !== 'chapter' || entry.number === undefined) continue
+    const n = entry.number
+    const own = practiceIndex.filter((p) => p.chapter === n).map((p) => p.id)
+    const gate = gateFor(
+      n,
+      passMarks.get(entry.id),
+      own.includes(`${n}-test`),
+      own.filter((id) => id !== `${n}-test`),
+    )
+    infos.push({ chapter: n, pageId: entry.id, title: entry.title, ...gate })
+  }
+  return infos.sort((a, b) => a.chapter - b.chapter)
 }
 
 export async function buildContent(opts: { bookDir: string; outDir: string }): Promise<BuildStats> {
@@ -92,6 +142,7 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   }
 
   const briefs: BriefRow[] = []
+  const passMarks = new Map<string, PassMark | undefined>()
   const sentences: SentenceRow[] = []
   let outlineTags = 0
   for (const entry of entries) {
@@ -101,13 +152,15 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
       if (!practiceIds.has(link.listId)) throw new Error(`${entry.file}: link to unknown practice list ${link.listId}`)
     }
     outlineTags += rendered.outlineTagCount
+    const passMark = parsePassMark(markdown)
+    passMarks.set(entry.id, passMark)
     const page: PageFile = {
       id: entry.id,
       title: entry.title,
       html: rendered.html,
       headings: rendered.headings,
       practiceLinks: rendered.practiceLinks,
-      passMark: parsePassMark(markdown),
+      passMark,
     }
     await writeJson(join(outDir, 'pages', `${entry.id}.json`), page)
 
@@ -124,6 +177,7 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   await writeJson(join(outDir, 'book.json'), book)
   practiceIndex.sort((a, b) => a.chapter - b.chapter || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   await writeJson(join(outDir, 'practice-index.json'), practiceIndex)
+  await writeJson(join(outDir, 'chapters.json'), chapterInfos(entries, practiceIndex, passMarks))
   await writeJson(join(outDir, 'briefs.json'), briefs)
   await writeJson(join(outDir, 'sentences.json'), sentences)
 

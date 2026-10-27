@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, readFileSync, existsSync, renameSync, rmSync, w
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildContent, practiceChapter } from '../../scripts/build-content.ts'
-import type { BuildStats, PracticeIndexEntry } from '../../scripts/build-content.ts'
+import { buildContent, gateFor, practiceChapter } from '../../scripts/build-content.ts'
+import type { BuildStats, ChapterInfo, PracticeIndexEntry } from '../../scripts/build-content.ts'
 
 const bookDir = join(import.meta.dirname, '..', '..', 'content', 'lapwing-book')
 const PINNED = '46b53e1ebec3b19fb402da046d6dc0a13b530787'
@@ -107,6 +107,92 @@ describe('practice-index.json', () => {
   })
 })
 
+describe('chapters.json', () => {
+  const chapters = (): ChapterInfo[] => readJson('chapters.json')
+  const chapter = (n: number): ChapterInfo => chapters().find((c) => c.chapter === n)!
+
+  it('has one entry per chapter page, ascending 1 to 26', () => {
+    expect(chapters().map((c) => c.chapter)).toEqual(Array.from({ length: 26 }, (_, i) => i + 1))
+    expect(chapter(5).pageId).toBe('ch05')
+    expect(chapter(5).title).toBe('Chapter 5: Lapwing setup and basics')
+  })
+
+  it('gates chapter 4 as stage 0 with its time-limited pass mark and no lists', () => {
+    const ch4 = chapter(4)
+    expect(ch4.gate).toBe('stage0')
+    expect(ch4.passMark).toEqual({ accuracy: 0.9, maxMinutes: 10 })
+    expect(ch4.listIds).toEqual([])
+    expect(ch4).not.toHaveProperty('testListId')
+  })
+
+  it('gates test chapters on their test list and a pass mark with minWpm', () => {
+    const ch5 = chapter(5)
+    expect(ch5.gate).toBe('test')
+    expect(ch5.testListId).toBe('5-test')
+    expect(ch5.passMark).toMatchObject({ accuracy: 0.9, minWpm: 10 })
+    expect(ch5.listIds).toEqual(['5-EU', '5-basic-left-hand', '5-cvc', '5-dbl'])
+    for (const n of [7, 8, 9, 10]) expect(chapter(n).passMark?.minWpm).toBe(5)
+    expect(chapter(13).passMark?.maxWpm).toBe(40)
+    const tests = chapters().filter((c) => c.gate === 'test')
+    expect(tests.map((c) => c.chapter)).toEqual([5, 6, 7, 8, 9, 10, 11, 13, 15, 16])
+    for (const c of tests) {
+      expect(c.passMark?.minWpm).toBeGreaterThan(0)
+      expect(c.testListId).toBe(`${c.chapter}-test`)
+    }
+  })
+
+  it('lists each chapter\'s non-test lists in practice-index order', () => {
+    const index: PracticeIndexEntry[] = readJson('practice-index.json')
+    for (const c of chapters()) {
+      const expected = index.filter((e) => e.chapter === c.chapter && e.id !== `${c.chapter}-test`).map((e) => e.id)
+      expect(c.listIds).toEqual(c.chapter === 4 ? [] : expected)
+    }
+  })
+
+  it('gates chapters with lists but no test as drills without a pass mark', () => {
+    expect(chapter(12)).toMatchObject({ gate: 'drills', listIds: ['12-left-orthographic-chords', '12-words-with-f-as-s'] })
+    expect(chapter(14)).toMatchObject({ gate: 'drills', listIds: ['14-compound-words', '14-suffix-keys'] })
+    expect(chapter(17).gate).toBe('drills')
+    expect(chapter(17).listIds).toHaveLength(7)
+    for (const n of [12, 14, 17]) {
+      expect(chapter(n)).not.toHaveProperty('passMark')
+      expect(chapter(n)).not.toHaveProperty('testListId')
+    }
+  })
+
+  it('gates chapters without lists as read', () => {
+    for (const n of [1, 18, 20, 21, 26]) {
+      expect(chapter(n)).toMatchObject({ gate: 'read', listIds: [] })
+      expect(chapter(n)).not.toHaveProperty('passMark')
+      expect(chapter(n)).not.toHaveProperty('testListId')
+    }
+  })
+})
+
+describe('gateFor', () => {
+  const mark = { accuracy: 0.9, minWpm: 10, maxWpm: 20 }
+
+  it('applies the gate rules in order', () => {
+    expect(gateFor(4, { accuracy: 0.9, maxMinutes: 10 }, false, [])).toEqual({
+      gate: 'stage0',
+      passMark: { accuracy: 0.9, maxMinutes: 10 },
+      listIds: [],
+    })
+    expect(gateFor(5, mark, true, ['5-a'])).toEqual({ gate: 'test', passMark: mark, testListId: '5-test', listIds: ['5-a'] })
+    expect(gateFor(12, undefined, false, ['12-a'])).toEqual({ gate: 'drills', listIds: ['12-a'] })
+    expect(gateFor(1, undefined, false, [])).toEqual({ gate: 'read', listIds: [] })
+  })
+
+  it('throws naming the chapter when a test chapter lacks a pass mark or minWpm', () => {
+    expect(() => gateFor(9, undefined, true, [])).toThrow(/chapter 9/i)
+    expect(() => gateFor(9, { accuracy: 0.9, maxMinutes: 10 }, true, [])).toThrow(/chapter 9.*minWpm/i)
+  })
+
+  it('throws naming chapter 4 when it has no pass mark', () => {
+    expect(() => gateFor(4, undefined, false, [])).toThrow(/chapter 4/i)
+  })
+})
+
 describe('practiceChapter', () => {
   it('reads the integer before the first dash', () => {
     expect(practiceChapter('5-basic-left-hand')).toBe(5)
@@ -150,5 +236,13 @@ describe('buildContent on a fixture book', () => {
     const dir = fixture('Hello\n', 'a\tA\n')
     renameSync(join(dir, 'src', 'practice', '1-bad.txt'), join(dir, 'src', 'practice', 'nochapter.txt'))
     await expect(buildContent({ bookDir: dir, outDir: join(work, 'fixture-nochapter') })).rejects.toThrow(/nochapter/)
+  })
+
+  it('rejects when a test chapter page has no pass mark', async () => {
+    const dir = fixture('Hello\n', 'a\tA\n')
+    writeFileSync(join(dir, 'src', 'SUMMARY.md'), '# Summary\n-[Chapter 5](Chapter-05.md)\n')
+    writeFileSync(join(dir, 'src', 'Chapter-05.md'), 'No pass mark here\n')
+    writeFileSync(join(dir, 'src', 'practice', '5-test.txt'), 'a\tA\n')
+    await expect(buildContent({ bookDir: dir, outDir: join(work, 'fixture-nomark') })).rejects.toThrow(/chapter 5/i)
   })
 })
