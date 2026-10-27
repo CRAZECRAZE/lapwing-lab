@@ -105,3 +105,59 @@
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* Section drills and chapter tests: the intro line, the result links and the locked notice */
+
+.runner__intro {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.runner__actions {
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 4rem 1rem;
+  text-align: center;
+}
+
+.locked__title {
+  margin: 0;
+  color: var(--heading);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.locked__requirement {
+  margin: 0;
+  color: var(--muted);
+}
+
+.locked__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.locked__actions .stage0-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.locked__error {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}

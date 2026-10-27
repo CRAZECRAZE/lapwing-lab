@@ -68,6 +68,17 @@ describe('App shell', () => {
     expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
   })
 
+  it('runs a section drill at /drill/list/:id and a chapter test at /drill/test/:chapter', async () => {
+    history.replaceState(null, '', '/drill/list/8-x')
+    render(<App />)
+    expect(await screen.findByRole('region', { name: 'Chapter 8 · 8-x' })).toBeTruthy()
+    cleanup()
+    // No chapters in this content: an unknown chapter, with a way home.
+    history.replaceState(null, '', '/drill/test/8')
+    render(<App />)
+    expect(await screen.findByText(/No such chapter/)).toBeTruthy()
+  })
+
   it('shows the month calendar at /days, under the Days tab', async () => {
     history.replaceState(null, '', '/days')
     render(<App />)

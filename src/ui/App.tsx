@@ -3,10 +3,12 @@ import { localDate } from '../core/days.ts'
 import { tabOf, useRoute } from '../router.ts'
 import { ProgressProvider } from '../state/progress.tsx'
 import { UniProvider } from '../state/uni-context.tsx'
+import { ChapterTestRoute } from './ChapterTestRoute.tsx'
 import { Days } from './Days.tsx'
 import { FreeRoute } from './FreeRoute.tsx'
 import { History } from './History.tsx'
 import { Journal } from './Journal.tsx'
+import { ListDrillRoute } from './ListDrillRoute.tsx'
 import { Nav } from './Nav.tsx'
 import { Practice } from './Practice.tsx'
 import { Reader } from './Reader.tsx'
@@ -38,6 +40,10 @@ export function App(): JSX.Element {
             {route.name === 'drill' &&
               (route.id.startsWith('stage0/') ? (
                 <Stage0Route key={route.id} id={route.id.slice('stage0/'.length)} />
+              ) : route.id.startsWith('list/') ? (
+                <ListDrillRoute key={route.id} listId={route.id.slice('list/'.length)} />
+              ) : route.id.startsWith('test/') ? (
+                <ChapterTestRoute key={route.id} chapter={route.id.slice('test/'.length)} />
               ) : (
                 <p class="page__status">No such drill. Pick a chapter from the list.</p>
               ))}
