@@ -1,0 +1,107 @@
+/* Practice tab: free type above the Chapter 4 drills; and the free-type result card */
+
+.practice {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.practice__title {
+  margin: 0 0 1rem;
+  color: var(--heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* Matches the Stage 0 panel below it, so the two boxes read as one page. */
+.practice__box {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.practice__heading {
+  margin: 0 0 0.75rem;
+  color: var(--heading);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.free-type__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.free-type__source,
+.free-type__modes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.free-type__label {
+  min-width: 6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.free-type__source select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.free-type__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.free-type__mode input {
+  accent-color: var(--left);
+}
+
+.free-type__go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+
+.free-type__start {
+  padding: 0.3rem 1.1rem;
+  border: 1px solid var(--muted);
+  border-radius: 0.4rem;
+  background: var(--raised);
+  color: var(--heading);
+  text-decoration: none;
+}
+
+.free-type__start:hover,
+.free-type__start:focus-visible {
+  border-color: var(--left);
+}
+
+.free-type__last {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.practice__drills .stage0 {
+  margin-bottom: 1.5rem;
+}
+
+.free-result .stage0-summary__stats {
+  flex-wrap: wrap;
+  justify-content: center;
+}

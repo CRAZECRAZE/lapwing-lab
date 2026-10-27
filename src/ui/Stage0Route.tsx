@@ -1,16 +1,13 @@
 import type { JSX } from 'preact'
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import type { Stage0Words } from '../../scripts/lib/stage0.ts'
-import type { Settings } from '../../server/settings.ts'
-import { createTestLogger, getSettings, putSettings } from '../api.ts'
+import { createTestLogger } from '../api.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { ROW_DRILLS, STAGE0_INFO, buildStage0Drills, itemsForRun } from '../stage0/lists.ts'
 import type { Stage0Drill } from '../stage0/lists.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
-
-type Visibility = Settings['boardVisibility']
-const VISIBILITY: Visibility[] = ['always', 'hover', 'hidden']
+import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 
 const CHAPTER_HREF = '/page/ch04'
 
@@ -74,18 +71,9 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
   const known = STAGE0_INFO.some((info) => info.id === id)
   const rowDrill = ROW_DRILLS.find((d) => d.id === id)
   const [words, setWords] = useState<Words>({ status: 'loading' })
-  const [visibility, setVisibility] = useState<Visibility>('always')
-  const chosen = useRef(false) // the owner picked a value before the stored one arrived
+  const [visibility, pick] = useBoardVisibility()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
-
-  useEffect(() => {
-    let live = true
-    void getSettings().then((s) => live && !chosen.current && setVisibility(s.boardVisibility))
-    return () => {
-      live = false
-    }
-  }, [])
 
   useEffect(() => {
     if (!known || rowDrill) return
@@ -117,12 +105,6 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
   if (!rowDrill && words.status === 'loading') return <p class="page__status">Loading…</p>
   if (!drill || !attempt) return <Message>Couldn't load the word lists. Check that the Lapwing Lab server is still running, then try again.</Message>
 
-  const pick = (next: Visibility): void => {
-    chosen.current = true
-    setVisibility(next)
-    putSettings({ boardVisibility: next }).catch(() => {}) // still applies for this session
-  }
-
   if (result) {
     return (
       <Summary
@@ -138,20 +120,7 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
 
   return (
     <div class="stage0-run">
-      <div class="stage0-visibility" role="group" aria-label="Board visibility">
-        <span class="stage0-visibility__label">Board</span>
-        {VISIBILITY.map((v) => (
-          <button
-            key={v}
-            type="button"
-            class="stage0-visibility__option"
-            aria-pressed={visibility === v}
-            onClick={() => pick(v)}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
+      <VisibilityPicker value={visibility} onPick={pick} />
       <Drill
         key={run}
         title={drill.title}

@@ -91,4 +91,15 @@ describe('describeTest', () => {
     expect(describeTest({ mode: 'stage0', section: 'mystery', chapter: 4 })).toBe('Chapter 4 · mystery')
     expect(describeTest({ mode: 'weird', section: 'x-1', chapter: null })).toBe('weird · x-1')
   })
+
+  it('names a free-type run by its source and mode', () => {
+    expect(describeTest({ mode: 'free', section: 'pseudo/words-25', chapter: 4 })).toBe(
+      'Free type · Chapter 4 pseudo-words · 25 words',
+    )
+    expect(describeTest({ mode: 'free', section: 'ch-8/time-60', chapter: 8 })).toBe(
+      'Free type · Chapters 5–8 word lists · 60 seconds',
+    )
+    expect(describeTest({ mode: 'free', section: 'ch-x/what', chapter: null })).toBe('Free type · ch-x/what')
+    expect(describeTest({ mode: 'free', section: null, chapter: null })).toBe('Free type')
+  })
 })
