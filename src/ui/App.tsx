@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { localDate } from '../core/days.ts'
 import { tabOf, useRoute } from '../router.ts'
 import { UniProvider } from '../state/uni-context.tsx'
+import { Days } from './Days.tsx'
 import { FreeRoute } from './FreeRoute.tsx'
 import { History } from './History.tsx'
 import { Journal } from './Journal.tsx'
@@ -13,11 +14,6 @@ import { Stage0Route } from './Stage0Route.tsx'
 import { TestDetail } from './TestDetail.tsx'
 import { TopBar } from './TopBar.tsx'
 import './reader.css'
-
-/** Stand-in for a tab whose view is not built yet. Replaced by: Days (Task 13). */
-function Soon({ name }: { name: string }): JSX.Element {
-  return <p class="page__status">The {name} tab is coming in this milestone.</p>
-}
 
 export function App(): JSX.Element {
   const route = useRoute()
@@ -34,7 +30,7 @@ export function App(): JSX.Element {
           )}
           {route.name === 'history' && <History />}
           {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
-          {route.name === 'days' && <Soon name="Days" />}
+          {route.name === 'days' && <Days key={route.date ?? 'month'} date={route.date} />}
           {route.name === 'journal' && <Journal key={route.date ?? localDate(Date.now())} date={route.date} />}
           {route.name === 'page' && <Reader id={route.id} />}
           {route.name === 'drill' &&

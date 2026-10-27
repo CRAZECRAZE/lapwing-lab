@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/preact'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../src/ui/App.tsx'
 
@@ -8,6 +8,7 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string) => {
       if (url === '/api/tests' || url.startsWith('/api/tests?')) return new Response('[]', { status: 200 })
+      if (url.startsWith('/api/days')) return new Response('[]', { status: 200 })
       if (url === '/api/journal') return new Response('[]', { status: 200 })
       if (url.startsWith('/api/journal/')) {
         return new Response(JSON.stringify({ date: url.slice('/api/journal/'.length), text: 'Kept words.' }), { status: 200 })
@@ -64,11 +65,35 @@ describe('App shell', () => {
     expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
   })
 
-  it('shows the placeholder at /days', () => {
+  it('shows the month calendar at /days, under the Days tab', async () => {
     history.replaceState(null, '', '/days')
     render(<App />)
-    expect(screen.getByText('The Days tab is coming in this milestone.')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: /^[A-Z][a-z]+ \d{4}$/ })).toBeTruthy()
+    expect(await screen.findByText('0 days practiced · <1 min · 0 tests')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Days' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows one day at /days/:date, and resets when going back to the month', async () => {
+    history.replaceState(null, '', '/days/2026-10-26')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Mon 26 Oct 2026', level: 1 })).toBeTruthy()
+    expect(await screen.findByText('Kept words.')).toBeTruthy()
+    expect(await screen.findByText('No practice recorded this day.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Days' }).getAttribute('aria-current')).toBe('page')
+    fireEvent.click(screen.getByRole('link', { name: 'Back to month' }))
+    expect(await screen.findByText('0 days practiced · <1 min · 0 tests')).toBeTruthy()
+    expect(screen.queryByText('Kept words.')).toBeNull()
+  })
+
+  it('reloads the status line streak when the route changes', async () => {
+    const dayCalls = (): number => vi.mocked(fetch).mock.calls.filter(([u]) => String(u).startsWith('/api/days')).length
+    history.replaceState(null, '', '/history')
+    render(<App />)
+    await screen.findByRole('heading', { name: 'History' })
+    const before = dayCalls()
+    fireEvent.click(screen.getByRole('link', { name: 'Practice' }))
+    await screen.findByRole('heading', { name: 'Practice', level: 1 })
+    await waitFor(() => expect(dayCalls()).toBeGreaterThan(before))
   })
 
   it('shows the Journal for a day at /journal/:date, under the Journal tab', async () => {
