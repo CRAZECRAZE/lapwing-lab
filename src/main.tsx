@@ -1,3 +1,4 @@
-import { render } from 'preact';
+import { render } from 'preact'
+import { App } from './ui/App.tsx'
 
-render(<h1>Lapwing Lab</h1>, document.getElementById('app')!);
+render(<App />, document.getElementById('app')!)
