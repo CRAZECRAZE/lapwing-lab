@@ -417,6 +417,7 @@ describe('practice links and the chapter panel', () => {
       states: status === 'ready' ? chapterStates(CHAPTERS, results, marks) : new Map(),
       reload: async () => {},
       setMark: async () => {},
+      setMarks: async () => {},
       clearMark: async () => {},
     }
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { chapterStates, currentChapter, requirementText } from '../../src/core/progress.ts'
-import type { ResultsByMode } from '../../src/core/progress.ts'
+import { blockingChapters, chapterList, chapterStates, currentChapter, requirementText } from '../../src/core/progress.ts'
+import type { ChapterState, ResultsByMode } from '../../src/core/progress.ts'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
 import type { ProgressMark, SectionResult } from '../../server/archive.ts'
 
@@ -174,5 +174,68 @@ describe('requirementText', () => {
     )
     expect(requirementText({ ...base, gate: 'test', passMark: { accuracy: 0.9 } })).toBe('Pass the chapter test: 90% accuracy')
     expect(requirementText({ ...base, gate: 'test' })).toBe('Pass the chapter test')
+  })
+})
+
+/** A state map from `[chapter, cleared]` pairs; the lock fields do not matter to `blockingChapters`. */
+function states(pairs: [number, boolean][]): Map<number, ChapterState> {
+  return new Map(pairs.map(([chapter, cleared]) => [chapter, { chapter, cleared, locked: false }]))
+}
+
+describe('blockingChapters', () => {
+  it('is empty when every chapter from 4 up to the one before is cleared', () => {
+    expect(blockingChapters(states([[4, true], [5, true], [6, true], [7, false]]), 7)).toEqual([])
+  })
+
+  it('lists the one chapter that blocks', () => {
+    expect(blockingChapters(states([[4, true], [5, false], [6, false]]), 6)).toEqual([5])
+  })
+
+  it('lists every uncleared chapter from 4 up to the one before, ascending', () => {
+    const map = new Map([...states([[7, false], [6, false], [4, false], [5, false], [8, false]])])
+    expect(blockingChapters(map, 8)).toEqual([4, 5, 6, 7])
+  })
+
+  it('skips the cleared chapters in between', () => {
+    expect(blockingChapters(states([[4, true], [5, false], [6, true], [7, false], [8, false]]), 8)).toEqual([5, 7])
+  })
+
+  it('ignores chapters before 4, the chapter itself and the ones after it', () => {
+    expect(blockingChapters(states([[1, false], [2, false], [3, false], [4, true], [5, false], [6, false], [7, false]]), 6)).toEqual([5])
+  })
+
+  it('skips a chapter number that has no state', () => {
+    expect(blockingChapters(states([[4, true], [5, false], [7, false], [9, false]]), 9)).toEqual([5, 7])
+  })
+
+  it('is empty for an empty map (progress not ready: nothing is locked)', () => {
+    expect(blockingChapters(new Map(), 7)).toEqual([])
+  })
+
+  it('is empty for chapter 4 and below', () => {
+    const map = states([[1, false], [2, false], [3, false], [4, false]])
+    expect(blockingChapters(map, 4)).toEqual([])
+    expect(blockingChapters(map, 3)).toEqual([])
+  })
+
+  it('agrees with chapterStates on a real chain', () => {
+    const chain = chapterStates(CHAPTERS, results(), [mark(6, 'override')])
+    expect(blockingChapters(chain, 12)).toEqual([4, 5])
+    expect(blockingChapters(chain, 18)).toEqual([4, 5, 12])
+  })
+})
+
+describe('chapterList', () => {
+  it('names one chapter', () => {
+    expect(chapterList([5])).toBe('Chapter 5')
+  })
+
+  it('joins two with and', () => {
+    expect(chapterList([5, 6])).toBe('Chapters 5 and 6')
+  })
+
+  it('joins three or more with commas and a final and', () => {
+    expect(chapterList([5, 6, 7])).toBe('Chapters 5, 6 and 7')
+    expect(chapterList([4, 5, 6, 12])).toBe('Chapters 4, 5, 6 and 12')
   })
 })

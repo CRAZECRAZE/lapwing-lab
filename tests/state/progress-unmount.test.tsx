@@ -109,4 +109,23 @@ describe('ProgressProvider after unmount', () => {
     expect(getProgress.mock.calls.length).toBeGreaterThan(callsBefore) // the reload did run
     expect(stateSets).toEqual([])
   })
+
+  it('sets no state when setMarks is in flight at the unmount, even though it finishes its writes and reloads', async () => {
+    const { out, unmount } = mount()
+    await waitFor(() => expect(out.latest?.status).toBe('ready'))
+    const write = deferred<ProgressMark>()
+    putMark.mockReturnValueOnce(write.promise)
+    const done = out.latest!.setMarks([4, 5], 'override')
+    unmount()
+    stateSets.length = 0
+    const callsBefore = getProgress.mock.calls.length
+    write.resolve({ chapter: 4, kind: 'override', at: 1 })
+    await act(async () => {
+      await done
+    })
+    await settle()
+    expect(putMark).toHaveBeenCalledTimes(2)
+    expect(getProgress.mock.calls.length).toBeGreaterThan(callsBefore)
+    expect(stateSets).toEqual([])
+  })
 })

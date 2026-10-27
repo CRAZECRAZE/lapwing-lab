@@ -19,6 +19,12 @@ export type Progress = {
   reload(): Promise<void>
   /** Rejects if the write fails; resolves once the new state has loaded. */
   setMark(chapter: number, kind: 'read' | 'override'): Promise<void>
+  /**
+   * Writes one mark per chapter, one at a time in ascending order, then reloads once. If a write fails the rest
+   * are not tried, the reload still runs (so the state shows the marks that did land) and this rejects with that
+   * error. An empty list does nothing.
+   */
+  setMarks(chapters: readonly number[], kind: 'read' | 'override'): Promise<void>
   /** Rejects if the write fails; resolves once the new state has loaded. */
   clearMark(chapter: number): Promise<void>
 }
@@ -116,6 +122,24 @@ export function ProgressProvider({ children }: { children: ComponentChildren }):
     },
     [reload],
   )
+  const setMarks = useCallback(
+    async (chapters: readonly number[], kind: 'read' | 'override'): Promise<void> => {
+      if (chapters.length === 0) return
+      const ordered = [...chapters].sort((a, b) => a - b)
+      let failure: { error: unknown } | undefined
+      for (const chapter of ordered) {
+        try {
+          await putMark(chapter, kind)
+        } catch (error) {
+          failure = { error }
+          break
+        }
+      }
+      await reload()
+      if (failure) throw failure.error
+    },
+    [reload],
+  )
   const clearMark = useCallback(
     async (chapter: number): Promise<void> => {
       await deleteMark(chapter)
@@ -137,9 +161,10 @@ export function ProgressProvider({ children }: { children: ComponentChildren }):
       states: data.status === 'ready' ? chapterStates(chapters, results, marks) : new Map(),
       reload,
       setMark,
+      setMarks,
       clearMark,
     }
-  }, [data, reload, setMark, clearMark])
+  }, [data, reload, setMark, setMarks, clearMark])
 
   return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>
 }

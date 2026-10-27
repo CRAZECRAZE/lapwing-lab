@@ -73,6 +73,24 @@ export function currentChapter(chapters: readonly ChapterInfo[], states: Readonl
   return (next ?? ordered[ordered.length - 1]).chapter
 }
 
+/**
+ * The chapters that keep `chapter` locked: every chapter from 4 up to the one before it that has a state and is
+ * not cleared, ascending. Empty when none do, or when there are no states (progress not ready: nothing is locked).
+ */
+export function blockingChapters(states: ReadonlyMap<number, ChapterState>, chapter: number): number[] {
+  return [...states.values()]
+    .filter((s) => s.chapter >= FIRST_GATED && s.chapter < chapter && !s.cleared)
+    .map((s) => s.chapter)
+    .sort((a, b) => a - b)
+}
+
+/** `Chapter 5`, `Chapters 5 and 6`, `Chapters 5, 6 and 7`. */
+export function chapterList(chapters: readonly number[]): string {
+  if (chapters.length === 1) return `Chapter ${chapters[0]}`
+  const head = chapters.slice(0, -1).join(', ')
+  return `Chapters ${head} and ${chapters[chapters.length - 1]}`
+}
+
 function percent(accuracy: number): string {
   return `${Math.round(accuracy * 100)}%`
 }

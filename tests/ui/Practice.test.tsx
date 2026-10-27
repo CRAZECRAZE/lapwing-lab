@@ -38,6 +38,7 @@ function progress(status: Progress['status'], opts: { chapters?: ChapterInfo[]; 
     states: status === 'ready' ? chapterStates(chapters, results, marks) : new Map(),
     reload: async () => {},
     setMark: async () => {},
+    setMarks: async () => {},
     clearMark: async () => {},
   }
 }

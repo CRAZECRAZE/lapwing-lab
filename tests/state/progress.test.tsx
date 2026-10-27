@@ -44,6 +44,8 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: 
 }
 
 let failContent = false
+/** The chapter list the fake server hands out; most tests use `chapters`. */
+let servedChapters: ChapterInfo[] = chapters
 let fetchMock: ReturnType<typeof vi.fn>
 
 function mount(): { out: { latest: Progress | undefined }; unmount: () => void } {
@@ -63,9 +65,10 @@ const settled = (out: { latest: Progress | undefined }): Promise<void> =>
 
 beforeEach(() => {
   failContent = false
+  servedChapters = chapters
   fetchMock = vi.fn(async (url: string) => {
     if (failContent) return new Response('boom', { status: 500 })
-    if (url === '/content/chapters.json') return new Response(JSON.stringify(chapters), { status: 200 })
+    if (url === '/content/chapters.json') return new Response(JSON.stringify(servedChapters), { status: 200 })
     if (url === '/content/practice-index.json') return new Response(JSON.stringify(index), { status: 200 })
     return new Response('{}', { status: 404 })
   })
@@ -368,6 +371,102 @@ describe('ProgressProvider', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(out.latest?.marks).toEqual([override4])
     expect(isLocked(out.latest!, 5)).toBe(false)
+  })
+})
+
+describe('ProgressProvider setMarks', () => {
+  // Chapter 4 not passed, so 5, 6 and 7 are all locked behind it.
+  const longer: ChapterInfo[] = [
+    ...chapters,
+    { chapter: 6, pageId: 'ch-6', title: 'Chapter 6', gate: 'drills', listIds: ['6-a'] },
+    { chapter: 7, pageId: 'ch-7', title: 'Chapter 7', gate: 'read', listIds: [] },
+  ]
+  /** The marks the fake server holds: `putMark` adds to them and `getProgress` returns them. */
+  let stored: ProgressMark[] = []
+
+  beforeEach(() => {
+    servedChapters = longer
+    stored = []
+    putMark.mockImplementation(async (chapter, kind) => {
+      const written: ProgressMark = { chapter, kind, at: 1 }
+      stored = [...stored.filter((m) => m.chapter !== chapter), written]
+      return written
+    })
+    getProgress.mockImplementation(async () => stored)
+  })
+
+  const ready = async (): Promise<{ latest: Progress | undefined }> => {
+    const { out } = mount()
+    await settled(out)
+    expect(out.latest?.status).toBe('ready')
+    expect(out.latest!.states.get(7)).toMatchObject({ locked: true, blockedBy: 4 })
+    return out
+  }
+
+  it('writes every mark one at a time in ascending order, then reloads once and the chapter opens', async () => {
+    const out = await ready()
+    const progressCalls = getProgress.mock.calls.length
+    const resultsCalls = getResults.mock.calls.length
+    const first = deferred<ProgressMark>()
+    putMark.mockImplementationOnce(async (chapter, kind) => {
+      await first.promise
+      stored = [...stored, { chapter, kind, at: 1 }]
+      return { chapter, kind, at: 1 }
+    })
+    let done!: Promise<void>
+    await act(async () => {
+      done = out.latest!.setMarks([6, 4, 5], 'override')
+    })
+    expect(putMark).toHaveBeenCalledTimes(1) // the next write waits for the first one
+    await act(async () => {
+      first.resolve({ chapter: 4, kind: 'override', at: 1 })
+      await done
+    })
+    expect(putMark.mock.calls).toEqual([
+      [4, 'override'],
+      [5, 'override'],
+      [6, 'override'],
+    ])
+    expect(getProgress.mock.calls.length - progressCalls).toBe(1)
+    expect(getResults.mock.calls.length - resultsCalls).toBe(3) // one reload: its three results calls
+    expect(out.latest?.marks.map((m) => m.chapter)).toEqual([4, 5, 6])
+    expect(out.latest!.states.get(7)).toMatchObject({ locked: false })
+    expect(isLocked(out.latest!, 7)).toBe(false)
+  })
+
+  it('stops at a failed write, still reloads once to show the marks that landed, and rejects with that error', async () => {
+    const out = await ready()
+    const progressCalls = getProgress.mock.calls.length
+    const real = putMark.getMockImplementation()!
+    putMark.mockImplementationOnce(real).mockImplementationOnce(async () => {
+      throw new Error('second failed')
+    })
+    let error: unknown
+    await act(async () => {
+      await out.latest!.setMarks([4, 5, 6], 'override').catch((e: unknown) => (error = e))
+    })
+    expect((error as Error).message).toBe('second failed')
+    expect(putMark.mock.calls).toEqual([
+      [4, 'override'],
+      [5, 'override'],
+    ]) // the third is never tried
+    expect(getProgress.mock.calls.length - progressCalls).toBe(1)
+    expect(out.latest?.status).toBe('ready')
+    expect(out.latest?.marks.map((m) => m.chapter)).toEqual([4])
+    expect(out.latest!.states.get(4)).toMatchObject({ cleared: true, how: 'override' })
+    expect(out.latest!.states.get(7)).toMatchObject({ locked: true, blockedBy: 5 })
+  })
+
+  it('does nothing for an empty list: no write and no reload', async () => {
+    const out = await ready()
+    const progressCalls = getProgress.mock.calls.length
+    const resultsCalls = getResults.mock.calls.length
+    await act(async () => {
+      await out.latest!.setMarks([], 'override')
+    })
+    expect(putMark).not.toHaveBeenCalled()
+    expect(getProgress.mock.calls.length).toBe(progressCalls)
+    expect(getResults.mock.calls.length).toBe(resultsCalls)
   })
 })
 

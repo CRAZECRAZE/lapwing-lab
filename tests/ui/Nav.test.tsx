@@ -58,6 +58,7 @@ function progress(status: Progress['status'], stage0: SectionResult[] = [], mark
     states: status === 'ready' ? chapterStates(CHAPTERS, results, marks) : new Map(),
     reload: async () => {},
     setMark: async () => {},
+    setMarks: async () => {},
     clearMark: async () => {},
   }
 }

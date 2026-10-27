@@ -63,6 +63,7 @@ type Setup = {
 
 const calls = {
   setMark: vi.fn<(chapter: number, kind: 'read' | 'override') => void>(),
+  setMarks: vi.fn<(chapters: readonly number[], kind: 'read' | 'override') => void>(),
   clearMark: vi.fn<(chapter: number) => void>(),
   reload: vi.fn<() => void>(),
 }
@@ -92,6 +93,11 @@ function build(setup: Setup, marks: ProgressMark[], write: (next: ProgressMark[]
       calls.setMark(chapter, kind)
       await pending()
       write([...marks.filter((m) => m.chapter !== chapter), mark(chapter, kind)])
+    },
+    setMarks: async (chapters, kind) => {
+      calls.setMarks([...chapters], kind)
+      await pending()
+      write([...marks.filter((m) => !chapters.includes(m.chapter)), ...chapters.map((c) => mark(c, kind))])
     },
     clearMark: async (chapter) => {
       calls.clearMark(chapter)
@@ -124,6 +130,7 @@ afterEach(() => {
   cleanup()
   fake.value = null
   calls.setMark.mockClear()
+  calls.setMarks.mockClear()
   calls.clearMark.mockClear()
   calls.reload.mockClear()
 })
