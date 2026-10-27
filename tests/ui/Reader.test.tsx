@@ -1,11 +1,25 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parseStroke } from '../../src/core/steno.ts'
 import { parseRoute } from '../../src/router.ts'
 import { App } from '../../src/ui/App.tsx'
 import { Nav } from '../../src/ui/Nav.tsx'
 import { Reader } from '../../src/ui/Reader.tsx'
 import { StrokeInspector } from '../../src/ui/StrokeInspector.tsx'
+
+// Records the `target` of every Board render, so a test can see renders that never reach the DOM for long.
+const boardTargets = vi.hoisted(() => [] as number[])
+vi.mock('../../src/ui/Board.tsx', async (importActual) => {
+  const actual = await importActual<typeof import('../../src/ui/Board.tsx')>()
+  return {
+    ...actual,
+    Board: (props: Parameters<typeof actual.Board>[0]) => {
+      boardTargets.push(props.target ?? 0)
+      return actual.Board(props)
+    },
+  }
+})
 
 type Json = Record<string, unknown>
 type Reply = Json | Error | Promise<Json> | 404
@@ -52,6 +66,20 @@ describe('parseRoute', () => {
     expect(parseRoute('/page/')).toEqual({ name: 'notfound' })
     expect(parseRoute('/page/a/b')).toEqual({ name: 'notfound' })
   })
+
+  it('decodes drill ids and sends malformed escapes to notfound instead of throwing', () => {
+    expect(parseRoute('/drill/stage0/a%20b')).toEqual({ name: 'drill', id: 'stage0/a b' })
+    expect(parseRoute('/drill/%zz')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/drill/stage0/100%')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/page/%zz')).toEqual({ name: 'notfound' })
+  })
+
+  it('renders the app at a malformed URL without crashing', async () => {
+    mockFetch({ '/content/book.json': { commit: 'abc', pages: [] } })
+    history.replaceState(null, '', '/drill/%zz')
+    render(<App />)
+    expect(await screen.findByText(/no such page/i)).toBeTruthy()
+  })
 })
 
 describe('StrokeInspector', () => {
@@ -79,6 +107,18 @@ describe('StrokeInspector', () => {
     expect(screen.getByText('1/3')).toBeTruthy()
   })
 
+  it('shows stroke 1 on the very first render of a new outline', () => {
+    vi.useFakeTimers()
+    const { rerender } = render(<StrokeInspector outline="TKAD/PWAOD/-T" />)
+    act(() => void vi.advanceTimersByTime(800))
+    expect(screen.getByText('2/3')).toBeTruthy()
+    boardTargets.length = 0
+    rerender(<StrokeInspector outline="SAP/TKAD/-T" />)
+    expect(boardTargets.length).toBeGreaterThan(0)
+    expect(boardTargets[0]).toBe(parseStroke('SAP'))
+    expect(boardTargets.every((t) => t === parseStroke('SAP'))).toBe(true)
+  })
+
   it('restarts at the first stroke when the outline changes, and invites a hover when empty', () => {
     vi.useFakeTimers()
     const { rerender } = render(<StrokeInspector outline="TKAD/PWAOD" />)
@@ -92,6 +132,21 @@ describe('StrokeInspector', () => {
 })
 
 describe('Reader', () => {
+  it('survives a malformed percent-escape in the URL hash and ends up at the top', async () => {
+    mockFetch({ '/content/pages/ch05.json': pageFile('ch05', '<h2 id="intro">Intro</h2><a href="/page/ch05#%zz">odd</a>') })
+    history.replaceState(null, '', '/page/ch05#%')
+    render(<Reader id="ch05" />)
+    await screen.findByText('Intro')
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledWith(0, 0))
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).toBeNull()
+    ;(window.scrollTo as ReturnType<typeof vi.fn>).mockClear()
+    fireEvent.click(screen.getByText('odd')) // same-page link: scrolls from the click handler
+    expect(location.hash).toBe('#%zz')
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   const strokePage = pageFile(
     'ch05',
     '<h1>Five</h1><p>Try <code class="stroke" data-stroke="TKAD" tabindex="0">TKAD</code> and ' +

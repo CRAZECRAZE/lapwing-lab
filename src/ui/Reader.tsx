@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { PageFile } from '../../scripts/build-content.ts'
-import { isPlainClick, navigate } from '../router.ts'
+import { isPlainClick, navigate, safeDecode } from '../router.ts'
 import { StrokeInspector } from './StrokeInspector.tsx'
 
 type Loaded =
@@ -11,7 +11,8 @@ type Loaded =
   | { status: 'ready'; page: PageFile }
 
 function scrollToHash(): void {
-  const id = decodeURIComponent(location.hash.slice(1))
+  const raw = location.hash.slice(1)
+  const id = safeDecode(raw) ?? raw
   const target = id === '' ? null : document.getElementById(id)
   if (target) target.scrollIntoView()
   else window.scrollTo(0, 0)

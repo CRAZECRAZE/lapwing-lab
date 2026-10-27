@@ -17,16 +17,20 @@ function masksOf(outline: string | null): SlotMask[] {
 
 export function StrokeInspector({ outline }: { outline: string | null }): JSX.Element {
   const masks = useMemo(() => masksOf(outline), [outline])
-  const [index, setIndex] = useState(0)
+  // The index belongs to one outline: a different outline always renders from stroke 1, with no stale frame.
+  const [position, setPosition] = useState({ outline, index: 0 })
 
   useEffect(() => {
-    setIndex(0)
+    setPosition({ outline, index: 0 })
     if (masks.length < 2) return
-    const timer = setInterval(() => setIndex((i) => (i + 1) % masks.length), CYCLE_MS)
+    const timer = setInterval(
+      () => setPosition((p) => ({ outline, index: ((p.outline === outline ? p.index : 0) + 1) % masks.length })),
+      CYCLE_MS,
+    )
     return () => clearInterval(timer)
-  }, [masks])
+  }, [outline, masks])
 
-  const current = index < masks.length ? index : 0
+  const current = position.outline === outline && position.index < masks.length ? position.index : 0
   return (
     <div class="inspector">
       <Board size={22} target={masks[current] ?? 0} />

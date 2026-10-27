@@ -57,9 +57,60 @@ body {
   top: 1.5rem;
 }
 
-@media (max-width: 1100px) {
+/*
+ * Widths: nav 17rem + main padding 4rem + column + gap 3rem + dock 22rem. A full 70ch column
+ * (about 620px) needs roughly 1375px; the three columns hold the column above ~60ch down to
+ * 1300px, then the dock becomes a compact bar that stays at the top while reading.
+ */
+@media (max-width: 1300px) {
+  .reader {
+    grid-template-columns: minmax(0, 70ch);
+    gap: 0;
+  }
+
+  .dock {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    order: -1;
+    margin: 0 -0.5rem 1rem;
+    padding: 0.5rem 0.5rem 0;
+    background: var(--bg);
+  }
+
+  .dock .inspector {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .dock .board {
+    --s: 14px !important; /* beats the inline size the inspector passes */
+  }
+
+  .dock .inspector__notation,
+  .dock .inspector__hint {
+    margin: 0;
+  }
+
+  .dock .inspector__hint {
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+
+  html {
+    scroll-padding-top: 6rem;
+  }
+}
+
+@media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding: 1rem 1rem 4rem;
   }
 
   .nav {
@@ -67,15 +118,6 @@ body {
     height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--line);
-  }
-
-  .reader {
-    grid-template-columns: minmax(0, 70ch);
-  }
-
-  .dock {
-    position: static;
-    order: -1;
   }
 }
 
@@ -363,5 +405,9 @@ body {
 .stroke:focus-visible {
   border-left-color: var(--left);
   background: color-mix(in srgb, var(--left) 14%, var(--raised));
-  outline: none;
+}
+
+.stroke:focus-visible {
+  outline: 2px solid var(--left);
+  outline-offset: 2px;
 }

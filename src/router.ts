@@ -5,12 +5,24 @@ export type Route = { name: 'page'; id: string } | { name: 'drill'; id: string }
 const PAGE_PATH = /^\/page\/([A-Za-z0-9_-]+)\/?$/
 const DRILL_PATH = /^\/drill\/(.+?)\/?$/
 
+/** decodeURIComponent that returns null instead of throwing on a malformed escape such as `%zz`. */
+export function safeDecode(text: string): string | null {
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return null
+  }
+}
+
 export function parseRoute(pathname: string): Route {
   if (pathname === '/') return { name: 'page', id: 'home' }
   const page = PAGE_PATH.exec(pathname)
   if (page) return { name: 'page', id: page[1] }
   const drill = DRILL_PATH.exec(pathname)
-  if (drill) return { name: 'drill', id: decodeURIComponent(drill[1]) }
+  if (drill) {
+    const id = safeDecode(drill[1])
+    if (id !== null) return { name: 'drill', id }
+  }
   return { name: 'notfound' }
 }
 
