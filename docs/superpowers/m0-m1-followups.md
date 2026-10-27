@@ -18,7 +18,9 @@ If 1–3 fail, the fix is in `src/core/uni.ts` or `src/hid/uni-link.ts`, not a r
 
 ## Decide before M2
 
-- **Abandoned tests.** Leaving a drill early keeps its strokes but never sets `ended_at`, and opening a drill writes a session and an unfinished test row even if no stroke is pressed. Choose: start the logger lazily on the first stroke, and/or finish-on-exit with partial stats. M5 reports must treat `ended_at IS NULL` consistently.
+M2 resolved only the first item (abandoned tests); the others stayed open.
+
+- **Abandoned tests.** Resolved by M2. A drill or free-type run left early is now closed with the partial stats and `meta.abandoned: true` (History shows it as `Left early`). `ended_at IS NULL` now only means the browser tab was closed mid-drill. The logger starts lazily on the first stroke, so a test with no strokes is never created. M5 reports should still treat `ended_at IS NULL` and `meta.abandoned` consistently.
 - **Sessions** are one per attempt and never ended; use stroke timestamps for timelines rather than trusting `sessions`.
 - **Single sources of truth:** the Stage 0 pass mark is defined in `src/stage0/lists.ts` and parsed from the book by `scripts/lib/passmark.ts`; the board-visibility values are listed in four places (`server/settings.ts`, `server/server.ts`, `src/api.ts`, `src/ui/Stage0Route.tsx`).
 - **API writes** accept any content type. Requiring `application/json` on POST/PUT (forces a preflight) needs the client and server changed together.
@@ -31,3 +33,17 @@ If 1–3 fail, the fix is in `src/core/uni.ts` or `src/hid/uni-link.ts`, not a r
 - **Server / API:** no Range support for the 25 mp4s; `nosniff` header missing; a dedicated `ValidationError` instead of mapping every `RangeError` to 400; `startTest` does not validate `mode`/`section` at the archive layer; `meta` has no size or shape check beyond the 1 MB cap; settings write leaves a temp file if the rename fails; the DB handle leaks if schema creation throws on a corrupt file; `finishTest`/`addStroke` are allowed on an already-finished test (clients may retry finish, so no 409); unknown `sessionId` returns 404 (400 would be more precise).
 - **Tests:** no test pins "visibility change keeps the run" or "Again gets a fresh logger and reshuffle"; the double-click Connect test passes without the ref guard (needs a post-settle `requestDevice` count of 1); no test for the single-logger refactor; `slotMask` has no runtime guard for non-`Slot` input (matters when M4 imports a dictionary); CRLF and three-field practice lines are untested; a missed-flag-style gap check for new engine code.
 - **Styling:** `#14151a` and `#6fbf8a` are hard-coded in places; the `|| flash` term in the inspector's cycle guard is dead at the current constants (add a comment).
+
+## Left open by M2
+
+Deferred from the M2 reviews; M3 plans start from these and the items above.
+
+- A QuickNote/journal append in one browser tab is overwritten by another tab's autosave (needs a server-side version check).
+- Text still unsaved when the page closes, or after 10 minutes of failed orphan retries, is lost (no client-side persistence).
+- A 400 on an over-long journal note (200000 chars) retries forever with no reason shown, and the textarea has no `maxLength`.
+- `timeLimitMs` of 0, negative or NaN on `Drill` would finish on any stroke without logging (no caller passes one).
+- The flow line has no live announcement for screen readers.
+- The Journal date check is duplicated between `server/journal.ts` and `src/ui/Journal.tsx`, and `isCalendarDate` lives in `Journal.tsx`.
+- `isJournalDate` refuses `0000-02-29`.
+- History rows show `0%` / `0 wpm` for a finished test with null numbers.
+- A POST to a `GET /api/tests/:id`-style path now answers 405 instead of 404.
