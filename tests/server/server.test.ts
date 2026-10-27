@@ -666,6 +666,8 @@ describe('lab routes', () => {
     expect(await json('GET', '/api/days?from=2026-10-01&to=2026-10-31')).toEqual([])
     expect(await json('GET', '/api/journal')).toEqual([])
     expect(await json('GET', '/api/journal/2026-10-27')).toEqual({ date: '2026-10-27', text: '' })
+    expect(await json('GET', '/api/notes')).toEqual([])
+    expect(await json('GET', '/api/notes/5')).toEqual({ chapter: 5, text: '' })
     expect((await call('GET', '/api/tests/1')).status).toBe(404)
     expect(existsSync(dataDir)).toBe(false)
   })
@@ -800,5 +802,86 @@ describe('lab routes', () => {
       expect(res.headers.get('allow'), `${method} ${path}`).toBe(allowed)
     }
     expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('round-trips a note through PUT, GET and the list', async () => {
+    expect(await json('PUT', '/api/notes/5', { text: 'héllo\r\nworld' })).toEqual({ chapter: 5, text: 'héllo\r\nworld' })
+    expect(await json('GET', '/api/notes/5')).toEqual({ chapter: 5, text: 'héllo\r\nworld' })
+    expect(await json('GET', '/api/notes')).toEqual([{ chapter: 5, chars: 12 }])
+    expect(readFileSync(join(dataDir, 'notes', 'ch05.md'), 'utf8')).toBe('héllo\r\nworld')
+    await json('PUT', '/api/notes/12', { text: 'b' })
+    expect(await json('GET', '/api/notes')).toEqual([
+      { chapter: 5, chars: 12 },
+      { chapter: 12, chars: 1 },
+    ])
+    expect(await json('PUT', '/api/notes/5', { text: '' })).toEqual({ chapter: 5, text: '' })
+    expect(await json('GET', '/api/notes/5')).toEqual({ chapter: 5, text: '' })
+    expect(await json('GET', '/api/notes')).toEqual([{ chapter: 12, chars: 1 }])
+  })
+
+  it('accepts a leading zero in the chapter segment', async () => {
+    expect(await json('PUT', '/api/notes/05', { text: 'five' })).toEqual({ chapter: 5, text: 'five' })
+    expect(await json('GET', '/api/notes/5')).toEqual({ chapter: 5, text: 'five' })
+    expect(await json('GET', '/api/notes/05')).toEqual({ chapter: 5, text: 'five' })
+    expect(readdirSync(join(dataDir, 'notes'))).toEqual(['ch05.md'])
+  })
+
+  it('accepts text of exactly 200000 characters', async () => {
+    expect((await call('PUT', '/api/notes/26', { text: 'x'.repeat(200000) })).status).toBe(200)
+  })
+
+  it('400s bad note bodies and chapters, and creates nothing for them', async () => {
+    const long = 'x'.repeat(200001)
+    const cases: [string, string, unknown][] = [
+      ['PUT', '/api/notes/5', { text: 5 }],
+      ['PUT', '/api/notes/5', { text: null }],
+      ['PUT', '/api/notes/5', {}],
+      ['PUT', '/api/notes/5', []],
+      ['PUT', '/api/notes/5', { text: long }],
+      ['PUT', '/api/notes/0', { text: 'x' }],
+      ['PUT', '/api/notes/27', { text: 'x' }],
+      ['PUT', '/api/notes/abc', { text: 'x' }],
+      ['PUT', '/api/notes/05x', { text: 'x' }],
+      ['PUT', '/api/notes/1e1', { text: 'x' }],
+      ['PUT', '/api/notes/%35x', { text: 'x' }],
+      ['PUT', '/api/notes/-1', { text: 'x' }],
+      ['GET', '/api/notes/0', undefined],
+      ['GET', '/api/notes/27', undefined],
+      ['GET', '/api/notes/abc', undefined],
+      ['GET', '/api/notes/05x', undefined],
+      ['GET', '/api/notes/1e1', undefined],
+      ['GET', '/api/notes/%35x', undefined],
+    ]
+    for (const [method, path, body] of cases) {
+      const res = await call(method, path, body)
+      expect(res.status, `${method} ${path} ${JSON.stringify(body)?.slice(0, 40)}`).toBe(400)
+      expect(typeof ((await res.json()) as { error: string }).error).toBe('string')
+    }
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('405s wrong note methods with an Allow header', async () => {
+    const cases: [string, string, string][] = [
+      ['DELETE', '/api/notes/5', 'GET, PUT'],
+      ['POST', '/api/notes/5', 'GET, PUT'],
+      ['POST', '/api/notes', 'GET'],
+      ['PUT', '/api/notes', 'GET'],
+      ['DELETE', '/api/notes', 'GET'],
+    ]
+    for (const [method, path, allowed] of cases) {
+      const res = await call(method, path)
+      expect(res.status, `${method} ${path}`).toBe(405)
+      expect(res.headers.get('allow'), `${method} ${path}`).toBe(allowed)
+    }
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('does not let the notes routes shadow the journal or tests routes', async () => {
+    expect(await json('GET', '/api/journal')).toEqual([])
+    expect(await json('GET', '/api/tests')).toEqual([])
+    expect(await json('PUT', '/api/journal/2026-10-27', { text: 'j' })).toEqual({ date: '2026-10-27', text: 'j' })
+    await json('PUT', '/api/notes/5', { text: 'n' })
+    expect(await json('GET', '/api/journal')).toEqual([{ date: '2026-10-27', chars: 1 }])
+    expect(await json('GET', '/api/notes')).toEqual([{ chapter: 5, chars: 1 }])
   })
 })

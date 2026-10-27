@@ -9,6 +9,7 @@ import type { Lever } from '../src/core/uni.ts'
 import { MissingRowError, openArchive } from './archive.ts'
 import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
+import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
 import { readSettings, writeSettings } from './settings.ts'
 
 export interface ServerOptions {
@@ -222,6 +223,12 @@ function chapterParam(raw: string): number {
   return /^\d+$/.test(raw) && v >= 1 && v <= 99 ? v : bad('chapter', 'an integer between 1 and 99')
 }
 
+// A note chapter from a path segment: digits only (05 is chapter 5) and 1-26.
+function noteChapter(raw: string): number {
+  const v = Number(raw)
+  return /^\d+$/.test(raw) && isNoteChapter(v) ? v : bad('chapter', 'an integer between 1 and 26')
+}
+
 const RESULT_MODES = ['stage0', 'section', 'chapter-test']
 
 function allow(res: ServerResponse, ...methods: string[]): never {
@@ -235,6 +242,7 @@ interface ApiContext {
   existingArchive(): Archive | null
   settingsFile: string
   journalDir: string
+  notesDir: string
   ensureDataDir(): void
 }
 
@@ -447,6 +455,27 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     return
   }
 
+  if (pathname === '/api/notes') {
+    if (method !== 'GET') allow(res, 'GET')
+    sendJson(res, 200, listNotes(ctx.notesDir))
+    return
+  }
+
+  // The chapter segment excludes '/', and noteChapter admits only digits in 1-26 before any file access.
+  const note = /^\/api\/notes\/([^/]+)$/.exec(pathname)
+  if (note) {
+    if (method !== 'GET' && method !== 'PUT') allow(res, 'GET', 'PUT')
+    const chapter = noteChapter(note[1])
+    if (method === 'GET') {
+      sendJson(res, 200, { chapter, text: readNote(ctx.notesDir, chapter) })
+      return
+    }
+    const text = journalText(asObject(await readBody(req, res)), true)
+    writeNote(ctx.notesDir, chapter, text)
+    sendJson(res, 200, { chapter, text })
+    return
+  }
+
   throw new HttpError(404, 'Not found')
 }
 
@@ -462,6 +491,7 @@ export function createServer(opts: ServerOptions): Server {
   const ctx: ApiContext = {
     settingsFile: join(dataDir, 'settings.json'),
     journalDir: join(dataDir, 'journal'),
+    notesDir: join(dataDir, 'notes'),
     ensureDataDir: () => {
       mkdirSync(dataDir, { recursive: true })
     },
