@@ -385,6 +385,70 @@ body {
   background: color-mix(in srgb, var(--panel) 55%, transparent);
 }
 
+/* Status line: pinned to the bottom of the reading area, clear of the sticky dock at the top. */
+
+.status {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 17rem;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 1.5rem;
+  padding: 0.5rem 2rem;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.status p {
+  margin: 0;
+}
+
+.status__device--on {
+  color: var(--heading);
+}
+
+.status__device--on .status__dot {
+  color: #6fbf8a;
+}
+
+.status__connect {
+  margin-left: 0.75rem;
+  padding: 0.15rem 0.7rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--heading);
+  font: inherit;
+  cursor: pointer;
+}
+
+.status__connect:hover {
+  border-color: var(--muted);
+}
+
+.status__reason {
+  margin-left: 0.75rem;
+  color: var(--left);
+}
+
+@media (max-width: 760px) {
+  .status {
+    left: 0;
+    padding: 0.5rem 1rem;
+  }
+
+  .main {
+    padding-bottom: 6rem;
+  }
+}
+
 /* Live strokes */
 
 .stroke {
