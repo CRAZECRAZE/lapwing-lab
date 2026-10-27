@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { extname, join, resolve, sep } from 'node:path'
+import { pipeline } from 'node:stream'
 
 export interface ServerOptions {
   root: string
@@ -56,9 +57,8 @@ async function sendFile(req: IncomingMessage, res: ServerResponse, file: string)
     res.end()
     return true
   }
-  createReadStream(file)
-    .on('error', () => res.destroy())
-    .pipe(res)
+  // pipeline destroys the file stream if the client goes away mid-download.
+  pipeline(createReadStream(file), res, () => {})
   return true
 }
 
@@ -83,12 +83,6 @@ export function createServer(opts: ServerOptions): Server {
   const distRoot = join(root, 'dist')
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.setHeader('allow', 'GET, HEAD')
-      send(res, 405, 'text/plain; charset=utf-8', 'Method not allowed')
-      return
-    }
-
     // Decode exactly once. Anything that still looks like a traversal afterwards
     // (backslash, NUL, ..) is caught by the containment check or rejected here.
     let pathname: string
@@ -103,8 +97,15 @@ export function createServer(opts: ServerOptions): Server {
       return
     }
 
+    // API routes own their methods; the GET/HEAD restriction is for static files only.
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       await handleApi(req, res, pathname, opts)
+      return
+    }
+
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.setHeader('allow', 'GET, HEAD')
+      send(res, 405, 'text/plain; charset=utf-8', 'Method not allowed')
       return
     }
 
@@ -160,4 +161,14 @@ export function listen(server: Server, port: number, host = '127.0.0.1'): Promis
       resolvePort(typeof address === 'object' && address ? address.port : port)
     })
   })
+}
+
+// PORT env value -> port number. Unset or empty means the default.
+export function parsePort(raw: string | undefined): number {
+  if (raw === undefined || raw === '') return 5757
+  const port = Number(raw)
+  if (!/^\d+$/.test(raw) || port > 65535) {
+    throw new Error(`Invalid PORT "${raw}". Use a number between 0 and 65535.`)
+  }
+  return port
 }

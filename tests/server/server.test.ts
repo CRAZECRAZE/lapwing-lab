@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
+import { connect } from 'node:net'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createServer, listen } from '../../server/server.ts'
+import { createServer, listen, parsePort } from '../../server/server.ts'
 
 let root: string
 let server: Server
@@ -42,6 +43,7 @@ beforeAll(async () => {
   write('dist/assets/app.css', 'body{}')
   write('dist/clip.mp4', 'mp4')
   write('dist/font.woff2', 'woff2')
+  write('dist/big.bin', Buffer.alloc(32 * 1024 * 1024))
   write('package.json', '{"name":"outside"}')
   write('secret.txt', 'outside secret')
   server = createServer({ root, dataDir: join(root, 'data') })
@@ -117,8 +119,17 @@ describe('routes', () => {
     expect(await res.text()).toBe('')
   })
 
-  it('rejects other methods', async () => {
-    expect((await raw('/api/health', 'POST')).status).toBe(405)
+  it('rejects non-GET/HEAD on static paths with an Allow header', async () => {
+    for (const path of ['/content/book.json', '/media/x.png', '/index.html', '/page/ch05']) {
+      const res = await fetch(`${base}${path}`, { method: 'POST' })
+      expect(res.status, path).toBe(405)
+      expect(res.headers.get('allow'), path).toBe('GET, HEAD')
+    }
+  })
+
+  it('leaves methods on /api paths to the API handler', async () => {
+    expect((await fetch(`${base}/api/nope`, { method: 'POST' })).status).toBe(404)
+    expect((await fetch(`${base}/api/nope`, { method: 'PUT', body: '{}' })).status).toBe(404)
   })
 })
 
@@ -181,5 +192,47 @@ describe('listen', () => {
     expect(err).toBeInstanceOf(Error)
     expect((err as Error).message).toContain(String(taken))
     expect((err as Error).message).toContain('PORT')
+  })
+})
+
+describe('aborted downloads', () => {
+  function openFds(suffix: string): string[] {
+    return readdirSync('/proc/self/fd').filter((fd) => {
+      try {
+        return readlinkSync(`/proc/self/fd/${fd}`).endsWith(suffix)
+      } catch {
+        return false
+      }
+    })
+  }
+
+  it.skipIf(process.platform !== 'linux')('closes the file when the client disconnects mid-download', async () => {
+    const { port } = new URL(base)
+    const socket = connect(Number(port), '127.0.0.1')
+    await new Promise<void>((ok) => socket.once('connect', () => ok()))
+    socket.write('GET /big.bin HTTP/1.1\r\nHost: x\r\n\r\n')
+    await new Promise<void>((ok) => socket.once('data', () => ok()))
+    expect(openFds('big.bin')).toHaveLength(1)
+    socket.destroy()
+    for (let i = 0; i < 50 && openFds('big.bin').length > 0; i++) await new Promise((r) => setTimeout(r, 20))
+    expect(openFds('big.bin')).toEqual([])
+  })
+})
+
+describe('parsePort', () => {
+  it('defaults to 5757 when unset or empty', () => {
+    expect(parsePort(undefined)).toBe(5757)
+    expect(parsePort('')).toBe(5757)
+  })
+
+  it('accepts valid ports', () => {
+    expect(parsePort('8080')).toBe(8080)
+    expect(parsePort('0')).toBe(0)
+  })
+
+  it('rejects non-numeric and out-of-range values', () => {
+    for (const bad of ['abc', '12x', '-1', '65536', '1.5', ' ']) {
+      expect(() => parsePort(bad), bad).toThrow(/PORT/)
+    }
   })
 })
