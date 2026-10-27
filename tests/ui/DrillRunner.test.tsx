@@ -119,6 +119,36 @@ describe('DrillRunner', () => {
     expect(within(card).queryByText('Passed')).toBeNull()
   })
 
+  it('shows one decimal beside Not yet when a score is just below the mark but would round up to it', async () => {
+    const words = Array.from({ length: 29 }, (_, i) => ({ prompt: `w${i}`, outlines: ['SAP'] }))
+    const rig = await mountRig(runner({ items: () => words, passMark: { accuracy: 0.9, minWpm: 10 } }))
+    let now = 1_000_000_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    // 26 of 29 first try is 89.66%; 29 words in 181.25 seconds is 9.6 wpm.
+    for (let i = 0; i < 29; i++) {
+      if (i < 3) rig.stroke(TAP)
+      if (i === 28) now += 181_250
+      rig.stroke(SAP)
+    }
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(within(card).getByText('Not yet')).toBeTruthy()
+    expect(within(card).getByText('89.6%')).toBeTruthy()
+    expect(within(card).getByText('9.6 wpm')).toBeTruthy()
+    expect(within(card).queryByText('90%')).toBeNull()
+    expect(within(card).queryByText('10 wpm')).toBeNull()
+  })
+
+  it('rounds a score that has no pass mark beside it', async () => {
+    const words = Array.from({ length: 29 }, (_, i) => ({ prompt: `w${i}`, outlines: ['SAP'] }))
+    const rig = await mountRig(runner({ items: () => words, passMark: undefined, requirement: undefined }))
+    for (let i = 0; i < 29; i++) {
+      if (i < 3) rig.stroke(TAP)
+      rig.stroke(SAP)
+    }
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(within(card).getByText('90%')).toBeTruthy()
+  })
+
   it('shows no verdict and no requirement without a pass mark', async () => {
     const rig = await mountRig(runner({ passMark: undefined, requirement: undefined }))
     rig.stroke(SAP)

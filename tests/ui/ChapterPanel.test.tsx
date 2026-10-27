@@ -18,6 +18,9 @@ vi.mock('../../src/state/progress.tsx', async (importActual) => {
 })
 
 const CHAPTERS: ChapterInfo[] = [
+  { chapter: 1, pageId: 'ch01', title: 'Chapter 1', gate: 'read', listIds: [] },
+  { chapter: 2, pageId: 'ch02', title: 'Chapter 2', gate: 'read', listIds: [] },
+  { chapter: 3, pageId: 'ch03', title: 'Chapter 3', gate: 'read', listIds: [] },
   { chapter: 4, pageId: 'ch04', title: 'Chapter 4: The layout', gate: 'stage0', passMark: { accuracy: 0.9, maxMinutes: 10 }, listIds: [] },
   {
     chapter: 5,
@@ -270,6 +273,58 @@ describe('ChapterPanel: read gate and marks', () => {
     fireEvent.click(button('Move on anyway'))
     await waitFor(() => expect(status()).toBe('Cleared · moved on anyway'))
     expect(screen.queryByText("Couldn't save that. Try again.")).toBeNull()
+  })
+})
+
+describe('ChapterPanel: Move on anyway', () => {
+  it.each([1, 2, 3])('is not offered on chapter %i, which never blocks anything, but Mark as read is', (chapter) => {
+    show(chapter)
+    expect(status()).toBe('Open')
+    expect(screen.queryByRole('button', { name: 'Move on anyway' })).toBeNull()
+    expect(button('Mark as read')).toBeTruthy()
+  })
+
+  it('is still offered on chapters 4 and 5', () => {
+    show(4)
+    expect(button('Move on anyway')).toBeTruthy()
+    cleanup()
+    show(5, { results: { stage0: [STAGE0_PASSED] } })
+    expect(button('Move on anyway')).toBeTruthy()
+  })
+})
+
+describe('ChapterPanel: a score just below a pass mark', () => {
+  it('shows the chapter test Best and Last with one decimal when they round up to the mark', () => {
+    show(5, {
+      results: {
+        stage0: [STAGE0_PASSED],
+        'chapter-test': [result('5-test', false, [121 / 135, 29.6], [0.896, 29.6])],
+      },
+    })
+    const test = document.querySelector('.chapter-panel__test')!.textContent!
+    expect(test).toContain('Best: 89.6% · 29.6 wpm')
+    expect(test).toContain('Last: 89.6% · 29.6 wpm')
+  })
+
+  it('rounds a chapter test score that is not an edge case as before', () => {
+    show(5, { results: { stage0: [STAGE0_PASSED], 'chapter-test': [result('5-test', false, [0.85, 25.4], [0.85, 25.4])] } })
+    expect(document.querySelector('.chapter-panel__test')!.textContent).toContain('Last: 85% · 25 wpm')
+  })
+
+  it('judges a drills-gate section row by 90%, with no wpm mark', () => {
+    show(6, { results: { stage0: [STAGE0_PASSED], section: [result('6-fqm', false, [0.896, 9.6], [0.896, 9.6])] }, marks: [mark(5, 'override')] })
+    expect(rows()[0]).toContain('Last: 89.6% · 10 wpm')
+  })
+
+  it('leaves a section row in a test-gate chapter as plain practice', () => {
+    show(5, { results: { stage0: [STAGE0_PASSED], section: [result('5-cvc', false, [0.896, 31], [0.896, 31])] } })
+    expect(rows()[0]).toContain('Last: 90% · 31 wpm')
+  })
+
+  it('shows the Stage 0 Best and Last against its pass mark', () => {
+    show(4, { results: { stage0: [result('pseudo-test', false, [0.896, 22], [0.896, 22])] } })
+    expect(panel().textContent).toContain('Best: 89.6% · 22 wpm')
+    expect(panel().textContent).toContain('Last: 89.6% · 22 wpm')
   })
 })
 

@@ -1,10 +1,11 @@
 import type { JSX } from 'preact'
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { PageFile } from '../../scripts/build-content.ts'
+import { CHAPTER_TEST } from '../core/chaptertest.ts'
 import { isPlainClick, navigate, safeDecode } from '../router.ts'
 import { isLocked, useProgress } from '../state/progress.tsx'
 import type { Progress } from '../state/progress.tsx'
-import { ChapterPanel, describeScore } from './ChapterPanel.tsx'
+import { ChapterPanel, describeScore, scoreMarks } from './ChapterPanel.tsx'
 import { Stage0Panel } from './Stage0Panel.tsx'
 import { StrokeInspector } from './StrokeInspector.tsx'
 
@@ -38,8 +39,10 @@ function practiceMeta(listId: string, progress: Progress): string {
   const results = isTest ? progress.results['chapter-test'] : progress.results.section
   const last = results.find((r) => r.section === listId)?.last
   const chapter = entry?.chapter ?? Number(/^(\d+)-/.exec(listId)?.[1])
-  let text = entry ? ` · ${entry.items} words` : ''
-  text += last ? ` · last ${describeScore(last)}` : ' · not tried'
+  // The chapter test always draws its fixed number of words from the list, so the list's size would mislead.
+  let text = isTest ? ` · ${CHAPTER_TEST.words} words, ${CHAPTER_TEST.repetitions} times each` : entry ? ` · ${entry.items} words` : ''
+  const info = progress.chapters.find((c) => c.chapter === chapter)
+  text += last ? ` · last ${describeScore(last, scoreMarks(info, isTest ? 'test' : 'section'))}` : ' · not tried'
   if (Number.isInteger(chapter) && isLocked(progress, chapter)) text += ' · locked'
   return text
 }

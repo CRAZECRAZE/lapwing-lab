@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useMemo, useState } from 'preact/hooks'
 import { createTestLogger } from '../api.ts'
 import type { DrillItem } from '../core/drill.ts'
+import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { navigate } from '../router.ts'
 import { useProgress } from '../state/progress.tsx'
 import { AppLink } from './AppLink.tsx'
@@ -48,13 +49,14 @@ type ResultProps = {
   title: string
   result: DrillResult
   requirement?: string
+  passMark?: DrillProps['passMark']
   backHref: string
   backLabel: string
   nextHref: string | null
   onAgain(): void
 }
 
-function RunnerResult({ title, result, requirement, backHref, backLabel, nextHref, onAgain }: ResultProps): JSX.Element {
+function RunnerResult({ title, result, requirement, passMark, backHref, backLabel, nextHref, onAgain }: ResultProps): JSX.Element {
   const { stats, passed } = result
   return (
     <section class="stage0-run stage0-summary free-result" aria-label="Result">
@@ -62,8 +64,8 @@ function RunnerResult({ title, result, requirement, backHref, backLabel, nextHre
       {passed !== null && <p class="stage0-summary__verdict">{passed ? 'Passed' : 'Not yet'}</p>}
       {passed !== null && requirement && <p class="stage0-summary__note">{requirement}</p>}
       <dl class="stage0-summary__stats">
-        <div><dt>Accuracy</dt><dd>{Math.round(stats.accuracy * 100)}%</dd></div>
-        <div><dt>Speed</dt><dd>{Math.round(stats.wpm)} wpm</dd></div>
+        <div><dt>Accuracy</dt><dd>{formatAccuracy(stats.accuracy, passMark?.accuracy)}</dd></div>
+        <div><dt>Speed</dt><dd>{formatWpm(stats.wpm, passMark?.minWpm)}</dd></div>
         <div><dt>Words</dt><dd>{stats.completed}</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
@@ -97,6 +99,7 @@ export function DrillRunner(props: DrillRunnerProps): JSX.Element {
         title={title}
         result={result}
         requirement={requirement}
+        passMark={passMark}
         backHref={backHref}
         backLabel={backLabel}
         nextHref={cleared && next ? `/page/${next.pageId}` : null}

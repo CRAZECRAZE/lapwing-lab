@@ -2,7 +2,8 @@ import type { JSX } from 'preact'
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
 import type { SectionResult } from '../../server/archive.ts'
-import { CHAPTER_TEST } from '../core/chaptertest.ts'
+import { CHAPTER_TEST, drillPassMark } from '../core/chaptertest.ts'
+import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { requirementText } from '../core/progress.ts'
 import type { ChapterState } from '../core/progress.ts'
 import { useProgress } from '../state/progress.tsx'
@@ -14,13 +15,25 @@ export function drillName(listId: string): string {
   return listId.replace(/^\d+-/, '').replace(/-/g, ' ')
 }
 
-/** `92% · 31 wpm` for one result. */
-export function describeScore(score: { accuracy: number; wpm: number }): string {
-  return `${Math.round(score.accuracy * 100)}% · ${Math.round(score.wpm)} wpm`
+type Marks = { accuracy: number; minWpm?: number }
+
+/** `92% · 31 wpm` for one result; against a pass mark, a score just below it keeps one decimal (`89.6%`). */
+export function describeScore(score: { accuracy: number; wpm: number }, marks?: Marks): string {
+  return `${formatAccuracy(score.accuracy, marks?.accuracy)} · ${formatWpm(score.wpm, marks?.minWpm)}`
 }
 
-const scoreText = (label: string, score: { accuracy: number; wpm: number } | null | undefined): string =>
-  `${label}: ${score ? describeScore(score) : '—'}`
+/**
+ * The pass mark a score of this kind is shown against: the chapter test's and Stage 0's own, the 90% of a
+ * `drills` chapter's section lists, and none for anything that is only practice.
+ */
+export function scoreMarks(info: ChapterInfo | undefined, kind: 'stage0' | 'test' | 'section'): Marks | undefined {
+  if (!info) return undefined
+  const gate = kind === 'section' ? 'drills' : kind
+  return info.gate === gate ? drillPassMark(info) : undefined
+}
+
+const scoreText = (label: string, score: { accuracy: number; wpm: number } | null | undefined, marks?: Marks): string =>
+  `${label}: ${score ? describeScore(score, marks) : '—'}`
 
 function statusText(state: ChapterState | undefined): string {
   if (state?.cleared) {
@@ -59,6 +72,7 @@ function InAppLink({ href, class: className, children }: { href: string; class: 
 
 function DrillRows({ info, results, ticks }: { info: ChapterInfo; results: SectionResult[]; ticks: boolean }): JSX.Element {
   const progress = useProgress()
+  const marks = scoreMarks(info, 'section')
   return (
     <ul class="chapter-panel__list">
       {info.listIds.map((id) => {
@@ -69,7 +83,7 @@ function DrillRows({ info, results, ticks }: { info: ChapterInfo; results: Secti
             <span class="chapter-panel__tick">{ticks && result?.passed ? '✓' : ''}</span>
             <span class="chapter-panel__name">{drillName(id)}</span>
             {count !== undefined && <span class="chapter-panel__count">{` · ${count} words`}</span>}
-            <span class="chapter-panel__last">{result?.last ? scoreText('Last', result.last) : '—'}</span>
+            <span class="chapter-panel__last">{result?.last ? scoreText('Last', result.last, marks) : '—'}</span>
             <InAppLink class="chapter-panel__start" href={`/drill/list/${encodeURIComponent(id)}`}>
               Start
             </InAppLink>
@@ -135,6 +149,8 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
   const testCount = info.testListId !== undefined ? progress.index.find((e) => e.id === info.testListId)?.items : undefined
   const testWords = Math.min(CHAPTER_TEST.words, testCount ?? CHAPTER_TEST.words)
   const stage0 = info.gate === 'stage0' ? results.stage0.find((r) => r.section === 'pseudo-test') : undefined
+  const testMarks = scoreMarks(info, 'test')
+  const stage0Marks = scoreMarks(info, 'stage0')
 
   return (
     <section class="chapter-panel" aria-label="Chapter progress">
@@ -146,7 +162,7 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
 
       {stage0 && (
         <p class="chapter-panel__scores">
-          {scoreText('Best', stage0.best)} <span aria-hidden="true">·</span> {scoreText('Last', stage0.last)}
+          {scoreText('Best', stage0.best, stage0Marks)} <span aria-hidden="true">·</span> {scoreText('Last', stage0.last, stage0Marks)}
         </p>
       )}
 
@@ -162,7 +178,7 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
             <span class="chapter-panel__count">{` · ${testWords} words, ${CHAPTER_TEST.repetitions} times each`}</span>
           </p>
           <p class="chapter-panel__scores">
-            {scoreText('Best', test?.best)} <span aria-hidden="true">·</span> {scoreText('Last', test?.last)}
+            {scoreText('Best', test?.best, testMarks)} <span aria-hidden="true">·</span> {scoreText('Last', test?.last, testMarks)}
           </p>
           <InAppLink class="chapter-panel__take" href={`/drill/test/${chapter}`}>
             Take the chapter test
@@ -176,7 +192,7 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
             Mark as read
           </button>
         )}
-        {!cleared && !locked && (
+        {!cleared && !locked && chapter >= 4 && (
           <button type="button" class="stage0-button" disabled={saving} onClick={() => write(() => progress.setMark(chapter, 'override'))}>
             Move on anyway
           </button>

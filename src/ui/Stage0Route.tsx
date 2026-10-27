@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import type { Stage0Words } from '../../scripts/lib/stage0.ts'
 import { createTestLogger } from '../api.ts'
+import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useProgress } from '../state/progress.tsx'
 import { ROW_DRILLS, STAGE0_INFO, buildStage0Drills, itemsForRun } from '../stage0/lists.ts'
@@ -56,8 +57,8 @@ function Summary({ drill, result, onAgain }: { drill: Stage0Drill; result: Drill
         </p>
       )}
       <dl class="stage0-summary__stats">
-        <div><dt>Accuracy</dt><dd>{Math.round(stats.accuracy * 100)}%</dd></div>
-        <div><dt>Speed</dt><dd>{Math.round(stats.wpm)} wpm</dd></div>
+        <div><dt>Accuracy</dt><dd>{formatAccuracy(stats.accuracy, drill.passMark?.accuracy)}</dd></div>
+        <div><dt>Speed</dt><dd>{formatWpm(stats.wpm)}</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
       <QuickNote title={drill.title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />

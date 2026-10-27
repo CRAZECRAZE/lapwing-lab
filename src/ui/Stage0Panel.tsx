@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import type { TestRow } from '../../server/archive.ts'
 import { getLastTest } from '../api.ts'
+import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { STAGE0_INFO } from '../stage0/lists.ts'
 import type { Stage0Info } from '../stage0/lists.ts'
@@ -11,14 +12,13 @@ const minutes = (ms: number): number => Math.max(1, Math.ceil(ms / 60000))
 /** The quiet "last time" text for one drill. */
 export function describeLast(info: Stage0Info, row: TestRow | null): string {
   if (row === null || row.accuracy === null) return '—'
-  const percent = `${Math.round(row.accuracy * 100)}%`
   const meta = (row.meta ?? {}) as { elapsedMs?: unknown; passed?: unknown }
   if (info.passMark) {
     const time = typeof meta.elapsedMs === 'number' ? ` · ${minutes(meta.elapsedMs)} min` : ''
     const verdict = meta.passed === true ? 'Passed ' : meta.passed === false ? 'Not yet · ' : ''
-    return `${verdict}${percent}${time}`
+    return `${verdict}${formatAccuracy(row.accuracy, info.passMark.accuracy)}${time}`
   }
-  return `${percent} · ${Math.round(row.wpm ?? 0)} wpm`
+  return `${formatAccuracy(row.accuracy)} · ${formatWpm(row.wpm ?? 0)}`
 }
 
 export function Stage0Panel(): JSX.Element {

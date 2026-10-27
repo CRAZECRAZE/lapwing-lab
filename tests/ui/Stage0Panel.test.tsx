@@ -129,6 +129,17 @@ describe('Stage0Panel on the Chapter 4 page', () => {
     expect(await screen.findByText('Not yet · 82% · 11 min')).toBeTruthy()
   })
 
+  it('shows one decimal beside Not yet when the accuracy is just below the mark but would round up to it', async () => {
+    mockServer({
+      [lastUrl('pseudo-test')]: lastRow({ accuracy: 121 / 135, meta: { elapsedMs: 8 * 60000, passed: false } }),
+      [lastUrl('pseudo-extra-1')]: lastRow({ accuracy: 0.896, wpm: 12.4, meta: {} }),
+    })
+    render(<Stage0Panel />)
+    expect(await screen.findByText('Not yet · 89.6% · 8 min')).toBeTruthy()
+    // a drill with no pass mark rounds as it always did
+    expect(screen.getByText('90% · 12 wpm')).toBeTruthy()
+  })
+
   it('shows a dash, not an error, when the last-result lookup fails', async () => {
     const server = mockServer({ [lastUrl('pseudo-test')]: new Error('offline'), [lastUrl('rows-star')]: 'fail' })
     render(<Stage0Panel />)
@@ -261,6 +272,18 @@ describe('Stage 0 drill route', () => {
     rig.stroke(SAP)
     expect(await screen.findByText('Not yet')).toBeTruthy()
     expect(screen.getByText('0%')).toBeTruthy()
+  })
+
+  it('shows one decimal beside Not yet on the summary when the accuracy is just below the mark', async () => {
+    // 26 of 29 first try is 89.66%, which would round up to the 90% pass mark.
+    const rig = await mountRoute('pseudo-test', { '/content/stage0.json': { test: Array(29).fill('SAP'), extra: [['SAP'], ['SAP']] } })
+    for (let i = 0; i < 29; i++) {
+      if (i < 3) rig.stroke(TAP)
+      rig.stroke(SAP)
+    }
+    expect(await screen.findByText('Not yet')).toBeTruthy()
+    expect(screen.getByText('89.6%')).toBeTruthy()
+    expect(screen.queryByText('90%')).toBeNull()
   })
 
   it('gives a drill without a pass mark a summary with no verdict', async () => {

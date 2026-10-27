@@ -450,7 +450,8 @@ describe('practice links and the chapter panel', () => {
     expect(unknown.getAttribute('href')).toBe('/drill/list/9-unknown')
     expect(meta(unknown)).toBe(' · not tried')
     expect(test.getAttribute('href')).toBe('/drill/test/5')
-    expect(meta(test)).toBe(' · 300 words · not tried')
+    // the test draws 45 words, 3 times each, whatever the list holds
+    expect(meta(test)).toBe(' · 45 words, 3 times each · not tried')
     // the book's own link text is left as it was
     expect(row.firstChild!.textContent).toBe('Basic words drill')
     expect(test.firstChild!.textContent).toBe('Click here to access the chapter 5 test')
@@ -466,7 +467,28 @@ describe('practice links and the chapter panel', () => {
 
   it('reads chapter-test results for test links', async () => {
     await showPage(progress('ready', { 'chapter-test': [result('5-test', 0.95, 34)] }))
-    expect(meta(links()[4])).toBe(' · 300 words · last 95% · 34 wpm')
+    expect(meta(links()[4])).toBe(' · 45 words, 3 times each · last 95% · 34 wpm')
+  })
+
+  it('keeps the locked part after the test size', async () => {
+    await showPage(progress('ready', { stage0: [] }))
+    expect(meta(links()[4])).toBe(' · 45 words, 3 times each · not tried · locked')
+  })
+
+  it('shows one decimal for a score just below the mark that would round up to it', async () => {
+    // Chapter 5's test wants 90% and 30 wpm; chapter 6's drills want 90%.
+    await showPage(
+      progress('ready', {
+        'chapter-test': [result('5-test', 121 / 135, 29.6)],
+        section: [result('5-cvc', 0.896, 31.2), result('6-fqm', 0.896, 31.2)],
+      }),
+    )
+    const [row, , next, , test] = links()
+    expect(meta(test)).toBe(' · 45 words, 3 times each · last 89.6% · 29.6 wpm')
+    // a drills-gate list has the 90% mark and no wpm mark
+    expect(meta(next)).toBe(' · 40 words · last 89.6% · 31 wpm · locked')
+    // a section list in a chapter that is judged by its test is only practice
+    expect(meta(row)).toBe(' · 120 words · last 90% · 31 wpm')
   })
 
   it('replaces the meta when progress changes instead of adding more, without re-rendering the page HTML', async () => {
