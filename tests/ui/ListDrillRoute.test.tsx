@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProgressProvider } from '../../src/state/progress.tsx'
 import { ListDrillRoute } from '../../src/ui/ListDrillRoute.tsx'
@@ -114,8 +114,73 @@ describe('ListDrillRoute', () => {
     for (const logger of loggers) expect(logger.start).not.toHaveBeenCalled()
     getProgress.mockResolvedValue([{ chapter: 5, kind: 'override', at: 1 }])
     fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Open anyway' }))
     expect(putMark).toHaveBeenCalledWith(5, 'override')
     await waitFor(() => expect(prompt()).toBe('sap'))
+  })
+
+  describe('Open anyway on a chapter two ahead', () => {
+    // Chapter 4 not passed and nothing marked: 6 is locked by 4, and 5 would block it next.
+    let stored: { chapter: number; kind: 'read' | 'override'; at: number }[] = []
+    beforeEach(() => {
+      stored = []
+      getResults.mockReset().mockResolvedValue([])
+      getProgress.mockReset().mockImplementation(async () => stored)
+      putMark.mockReset().mockImplementation(async (chapter, kind) => {
+        const written = { chapter, kind, at: 1 }
+        stored = [...stored, written]
+        return written
+      })
+    })
+
+    const dialog = (): HTMLElement => screen.getByRole('alertdialog')
+    const confirm = (): HTMLElement => within(dialog()).getByRole('button', { name: 'Open anyway' })
+
+    it('asks first, naming every blocking chapter, and writes nothing until Confirm', async () => {
+      stubContent(CONTENT)
+      await mountRig(<ListDrillRoute listId="6-fqm" />)
+      expect(screen.getByRole('heading', { name: 'Chapter 6 opens after Chapter 4' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+      expect(screen.getByRole('alertdialog', { name: 'Open Chapter 6 anyway?' })).toBe(dialog())
+      expect(dialog().textContent).toContain('Chapters 4 and 5 will be marked as moved on anyway so Chapter 6 opens.')
+      expect(putMark).not.toHaveBeenCalled()
+      fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      await act(async () => {})
+      expect(putMark).not.toHaveBeenCalled()
+      expect(screen.getByRole('region', { name: 'Locked' })).toBeTruthy()
+      expect(prompt()).toBeNull()
+    })
+
+    it('on Confirm moves on from every blocking chapter in order, and the drill appears without a reload of the page', async () => {
+      stubContent(CONTENT)
+      await mountRig(<ListDrillRoute listId="6-fqm" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+      fireEvent.click(confirm())
+      await waitFor(() => expect(prompt()).toBe('sap'))
+      expect(putMark.mock.calls).toEqual([
+        [4, 'override'],
+        [5, 'override'],
+      ])
+      expect(screen.queryByRole('region', { name: 'Locked' })).toBeNull()
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+    })
+
+    it('keeps the notice with its error and a working button when a write fails', async () => {
+      putMark.mockReset().mockRejectedValue(new Error('offline'))
+      stubContent(CONTENT)
+      await mountRig(<ListDrillRoute listId="6-fqm" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+      fireEvent.click(confirm())
+      expect(await screen.findByRole('alert')).toBeTruthy()
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      expect(screen.getByRole('region', { name: 'Locked' })).toBeTruthy()
+      expect((screen.getByRole('button', { name: 'Open anyway' }) as HTMLButtonElement).disabled).toBe(false)
+      expect(prompt()).toBeNull()
+    })
   })
 
   it('says so for a list id that is not in the index, with a link home', async () => {

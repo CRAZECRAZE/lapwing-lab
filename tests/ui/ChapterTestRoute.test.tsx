@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, screen, waitFor, within } from '@testing-library/preact'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChapterTestRoute } from '../../src/ui/ChapterTestRoute.tsx'
 import { CONTENT, SAP, drillStats, fakeLogger, mountRig, passed, stubContent } from './helpers/practice-rig.tsx'
@@ -22,6 +22,7 @@ const getSettings = vi.mocked(api.getSettings)
 const putSettings = vi.mocked(api.putSettings)
 const getResults = vi.mocked(api.getResults)
 const getProgress = vi.mocked(api.getProgress)
+const putMark = vi.mocked(api.putMark)
 
 let loggers: FakeLogger[] = []
 
@@ -40,6 +41,7 @@ beforeEach(() => {
   putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', ...s }))
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([])
+  putMark.mockReset().mockResolvedValue({ chapter: 4, kind: 'override', at: 1 })
 })
 
 afterEach(() => {
@@ -142,5 +144,37 @@ describe('ChapterTestRoute', () => {
     rig.stroke(SAP)
     expect(document.querySelector('.drill__prompt')).toBeNull()
     for (const logger of loggers) expect(logger.start).not.toHaveBeenCalled()
+  })
+
+  it('Open anyway asks first, writes nothing on Cancel, and on Confirm moves on from Chapter 4 and the test appears', async () => {
+    getResults.mockResolvedValue([]) // Chapter 4 not passed
+    await mountRig(<ChapterTestRoute chapter="5" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Open Chapter 5 anyway?' })
+    expect(dialog.textContent).toContain('Chapter 4 will be marked as moved on anyway so Chapter 5 opens.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+    expect(putMark).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: 'Locked' })).toBeTruthy()
+
+    getProgress.mockResolvedValue([{ chapter: 4, kind: 'override', at: 1 }])
+    fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Open anyway' }))
+    await waitFor(() => expect(document.querySelector('.drill__prompt')).not.toBeNull())
+    expect(putMark.mock.calls).toEqual([[4, 'override']])
+    expect(screen.queryByRole('region', { name: 'Locked' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Chapter 5 test' })).toBeTruthy()
+  })
+
+  it('keeps the locked notice with its error when the override fails', async () => {
+    getResults.mockResolvedValue([])
+    putMark.mockRejectedValue(new Error('offline'))
+    await mountRig(<ChapterTestRoute chapter="5" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open anyway' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Open anyway' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Locked' })).toBeTruthy()
+    expect(document.querySelector('.drill__prompt')).toBeNull()
   })
 })

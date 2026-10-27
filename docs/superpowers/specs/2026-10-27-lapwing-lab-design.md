@@ -106,6 +106,7 @@ Every chapter has a pass mark, parsed from the book's text ("Aim for 10–20 WPM
 - **Passing** needs the book's accuracy **and** at least the low end of its wpm range (Chapter 4: the accuracy within its time limit). The verdict is recorded with each run (`meta.passed`), so history keeps what the rule was when the run happened.
 - **Where drills live in the reader:** the book already ends each section with a link to its practice list. M3 makes those links live and shows them as a row with the word count and the last result. A panel at the top of every chapter page shows the gate, its requirement, the chapter's drills and the test, with "mark as read" / "move on anyway".
 - **Mistake review** stays what M2 built: the miss overlay while drilling and the miss table in History. M3 adds nothing new there.
+- **Skipping ahead** (owner request 2026-10-27, after trying M3): "open anyway" on a locked chapter marks every chapter from 4 up to the one before it that is not cleared as "moved on anyway", so that chapter opens in one step (each mark can still be undone on its own). "Move on anyway" still marks only the chapter it is on. Both ask "Are you sure?" in a dialog before writing anything; cancelling writes nothing. "Mark as read" and "undo" do not ask.
 
 ### 4.2 Briefs memory (SRS)
 A deck of briefs taught by the book, scheduled SM-2-style, with a daily due queue. The book says briefs are optional until Chapter 16 and that write-outs come first. *My call:* the deck is **opt-in per chapter** (one button "add this chapter's briefs to my deck") and everything auto-enrolls at Chapter 16. Only briefs the book explicitly teaches are enrolled; derivable spellings never are.
@@ -243,3 +244,7 @@ Added 2026-10-27 with the M3 plan (4.1, "Settled for M3"):
 19. Stage 0 stays always open; chapters 1–3 only get a read tick and never block; the chain starts at Chapter 4.
 20. Chapters 18+ clear by "marked read" until M4 adds their generated drills.
 21. The book's own practice links become the "Practice this section" rows (live links with word count and last result) instead of a separately inserted row; a panel at the top of each chapter page carries the gate.
+
+Added 2026-10-27 at the owner's request, after trying M3 (4.1, "Skipping ahead"):
+22. "Open anyway" marks every uncleared chapter from 4 up to the one before as "moved on anyway", so the chapter opens in one step; each mark can be undone on its own.
+23. "Move on anyway" and "Open anyway" ask for confirmation in a dialog before writing; Cancel, Esc or a click outside writes nothing.

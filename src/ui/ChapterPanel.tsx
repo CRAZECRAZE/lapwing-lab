@@ -4,10 +4,11 @@ import type { ChapterInfo } from '../../scripts/build-content.ts'
 import type { SectionResult } from '../../server/archive.ts'
 import { CHAPTER_TEST, drillPassMark } from '../core/chaptertest.ts'
 import { formatAccuracy, formatWpm } from '../core/format.ts'
-import { requirementText } from '../core/progress.ts'
+import { blockingChapters, chapterList, requirementText } from '../core/progress.ts'
 import type { ChapterState } from '../core/progress.ts'
 import { useProgress } from '../state/progress.tsx'
 import { isPlainClick, navigate } from '../router.ts'
+import { ConfirmDialog } from './ConfirmDialog.tsx'
 import './chapterpanel.css'
 
 /** `5-basic-left-hand` → `basic left hand`. */
@@ -94,11 +95,18 @@ function DrillRows({ info, results, ticks }: { info: ChapterInfo; results: Secti
   )
 }
 
+/**
+ * Which "Are you sure?" is open: moving on from this chapter, or opening it past `chapters` (fixed when the dialog
+ * opens, so its text does not change while the write lands).
+ */
+type Asking = { kind: 'move' } | { kind: 'open'; chapters: number[] } | null
+
 /** The chapter's progress on its own page: status, requirement, drills, the chapter test, and the marks. */
 export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | null {
   const progress = useProgress()
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [asking, setAsking] = useState<Asking>(null)
   const live = useRef(true)
 
   useLayoutEffect(() => {
@@ -132,14 +140,25 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
     if (saving) return
     setSaving(true)
     setFailed(false)
+    // Either way the dialog, if one asked, closes once the write has finished.
     action().then(
-      () => live.current && setSaving(false),
       () => {
         if (!live.current) return
         setSaving(false)
+        setAsking(null)
+      },
+      () => {
+        if (!live.current) return
+        setSaving(false)
+        setAsking(null)
         setFailed(true)
       },
     )
+  }
+
+  const askOpen = (): void => {
+    const blocking = blockingChapters(progress.states, chapter)
+    setAsking({ kind: 'open', chapters: blocking.length > 0 ? blocking : [state!.blockedBy!] })
   }
 
   const { results } = progress
@@ -193,7 +212,7 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
           </button>
         )}
         {!cleared && !locked && chapter >= 4 && (
-          <button type="button" class="stage0-button" disabled={saving} onClick={() => write(() => progress.setMark(chapter, 'override'))}>
+          <button type="button" class="stage0-button" disabled={saving} onClick={() => setAsking({ kind: 'move' })}>
             Move on anyway
           </button>
         )}
@@ -203,12 +222,7 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
           </button>
         )}
         {locked && (
-          <button
-            type="button"
-            class="stage0-button"
-            disabled={saving}
-            onClick={() => write(() => progress.setMark(state!.blockedBy!, 'override'))}
-          >
+          <button type="button" class="stage0-button" disabled={saving} onClick={askOpen}>
             Open anyway
           </button>
         )}
@@ -217,6 +231,26 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
         <p class="chapter-panel__error" role="alert">
           Couldn't save that. Try again.
         </p>
+      )}
+      {asking?.kind === 'move' && (
+        <ConfirmDialog
+          title="Move on anyway?"
+          message={`Mark Chapter ${chapter} as done without clearing it? You can undo this later.`}
+          confirmLabel="Move on anyway"
+          busy={saving}
+          onConfirm={() => write(() => progress.setMark(chapter, 'override'))}
+          onCancel={() => setAsking(null)}
+        />
+      )}
+      {asking?.kind === 'open' && (
+        <ConfirmDialog
+          title={`Open Chapter ${chapter} anyway?`}
+          message={`${chapterList(asking.chapters)} will be marked as moved on anyway so Chapter ${chapter} opens. You can undo each one later.`}
+          confirmLabel="Open anyway"
+          busy={saving}
+          onConfirm={() => write(() => progress.setMarks(asking.chapters, 'override'))}
+          onCancel={() => setAsking(null)}
+        />
       )}
     </section>
   )

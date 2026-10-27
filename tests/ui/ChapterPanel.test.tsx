@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import type { JSX } from 'preact'
 import { useState } from 'preact/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -69,6 +69,8 @@ const calls = {
 }
 /** When set, the next write waits for it; `fail` makes the next write reject. */
 let gate: Promise<void> | null = null
+/** When set, `setMarks` waits for it after its marks have landed, as the real one does while it reloads. */
+let settle: Promise<void> | null = null
 let failNext = false
 
 function build(setup: Setup, marks: ProgressMark[], write: (next: ProgressMark[]) => void): Progress {
@@ -98,6 +100,7 @@ function build(setup: Setup, marks: ProgressMark[], write: (next: ProgressMark[]
       calls.setMarks([...chapters], kind)
       await pending()
       write([...marks.filter((m) => !chapters.includes(m.chapter)), ...chapters.map((c) => mark(c, kind))])
+      if (settle) await settle
     },
     clearMark: async (chapter) => {
       calls.clearMark(chapter)
@@ -118,11 +121,25 @@ const show = (chapter: number, setup: Setup = {}) => render(<Live chapter={chapt
 const panel = (): HTMLElement => document.querySelector('.chapter-panel') as HTMLElement
 const status = (): string => document.querySelector('.chapter-panel__status')?.textContent ?? ''
 const rows = (): string[] => [...document.querySelectorAll('.chapter-panel__row')].map((r) => r.textContent ?? '')
-const button = (name: string): HTMLButtonElement => screen.getByRole('button', { name }) as HTMLButtonElement
+/** A button of the panel itself (outside the confirmation dialog, whose confirm button can share its name). */
+const button = (name: string): HTMLButtonElement =>
+  within((document.querySelector('.chapter-panel__actions') as HTMLElement | null) ?? document.body).getByRole('button', {
+    name,
+  }) as HTMLButtonElement
+const dialog = (): HTMLElement => screen.getByRole('alertdialog')
+const noDialog = (): void => expect(screen.queryByRole('alertdialog')).toBeNull()
+/** A button inside the confirmation dialog. */
+const inDialog = (name: string): HTMLButtonElement => within(dialog()).getByRole('button', { name }) as HTMLButtonElement
+const noWrites = (): void => {
+  expect(calls.setMark).not.toHaveBeenCalled()
+  expect(calls.setMarks).not.toHaveBeenCalled()
+  expect(calls.clearMark).not.toHaveBeenCalled()
+}
 
 beforeEach(() => {
   history.replaceState(null, '', '/page/ch05')
   gate = null
+  settle = null
   failNext = false
 })
 
@@ -260,6 +277,7 @@ describe('ChapterPanel: read gate and marks', () => {
     gate = new Promise((resolve) => (release = resolve))
     show(5, { results: { stage0: [STAGE0_PASSED] } })
     fireEvent.click(button('Move on anyway'))
+    fireEvent.click(inDialog('Move on anyway'))
     expect(calls.setMark).toHaveBeenCalledWith(5, 'override')
     await waitFor(() => expect(button('Move on anyway').disabled).toBe(true))
     await act(async () => release())
@@ -274,10 +292,13 @@ describe('ChapterPanel: read gate and marks', () => {
     failNext = true
     show(5, { results: { stage0: [STAGE0_PASSED] } })
     fireEvent.click(button('Move on anyway'))
+    fireEvent.click(inDialog('Move on anyway'))
     expect(await screen.findByText("Couldn't save that. Try again.")).toBeTruthy()
+    noDialog()
     expect(button('Move on anyway').disabled).toBe(false)
     expect(status()).toBe('Open')
     fireEvent.click(button('Move on anyway'))
+    fireEvent.click(inDialog('Move on anyway'))
     await waitFor(() => expect(status()).toBe('Cleared · moved on anyway'))
     expect(screen.queryByText("Couldn't save that. Try again.")).toBeNull()
   })
@@ -341,8 +362,9 @@ describe('ChapterPanel: locks, loading and errors', () => {
     expect(status()).toBe('Locked until Chapter 5 is cleared')
     expect(screen.queryByRole('button', { name: 'Move on anyway' })).toBeNull()
     fireEvent.click(button('Open anyway'))
-    expect(calls.setMark).toHaveBeenCalledWith(5, 'override')
-    expect(calls.setMark).not.toHaveBeenCalledWith(6, 'override')
+    fireEvent.click(inDialog('Open anyway'))
+    expect(calls.setMarks).toHaveBeenCalledWith([5], 'override')
+    expect(calls.setMark).not.toHaveBeenCalled()
     await waitFor(() => expect(status()).toBe('Open'))
     expect(screen.queryByRole('button', { name: 'Open anyway' })).toBeNull()
   })
@@ -364,5 +386,162 @@ describe('ChapterPanel: locks, loading and errors', () => {
     expect(screen.queryByRole('button', { name: 'Open anyway' })).toBeNull()
     fireEvent.click(button('Try again'))
     expect(calls.reload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ChapterPanel: Move on anyway asks first', () => {
+  const open5: Setup = { results: { stage0: [STAGE0_PASSED] } }
+
+  it('opens a dialog and writes nothing until Confirm', () => {
+    show(5, open5)
+    const opener = button('Move on anyway')
+    opener.focus()
+    fireEvent.click(opener)
+    expect(screen.getByRole('alertdialog', { name: 'Move on anyway?' })).toBe(dialog())
+    expect(dialog().textContent).toContain('Mark Chapter 5 as done without clearing it? You can undo this later.')
+    expect(document.activeElement).toBe(inDialog('Cancel'))
+    noWrites()
+    expect(status()).toBe('Open')
+  })
+
+  it('writes nothing on Cancel, closes, and gives the focus back to the button', () => {
+    show(5, open5)
+    const opener = button('Move on anyway')
+    opener.focus()
+    fireEvent.click(opener)
+    fireEvent.click(inDialog('Cancel'))
+    noDialog()
+    noWrites()
+    expect(status()).toBe('Open')
+    expect(document.activeElement).toBe(button('Move on anyway'))
+  })
+
+  it('writes nothing on Esc or a click outside', () => {
+    show(5, open5)
+    fireEvent.click(button('Move on anyway'))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    noDialog()
+    fireEvent.click(button('Move on anyway'))
+    fireEvent.click(document.querySelector('.confirm-dialog')!)
+    noDialog()
+    noWrites()
+  })
+
+  it('writes an override for the viewed chapter only on Confirm, then closes', async () => {
+    show(5, open5)
+    fireEvent.click(button('Move on anyway'))
+    fireEvent.click(inDialog('Move on anyway'))
+    expect(calls.setMark).toHaveBeenCalledTimes(1)
+    expect(calls.setMark).toHaveBeenCalledWith(5, 'override')
+    expect(calls.setMarks).not.toHaveBeenCalled()
+    await waitFor(() => expect(status()).toBe('Cleared · moved on anyway'))
+    noDialog()
+  })
+
+  it('keeps the dialog open and busy while the write is in flight', async () => {
+    let release!: () => void
+    gate = new Promise((resolve) => (release = resolve))
+    show(5, open5)
+    fireEvent.click(button('Move on anyway'))
+    fireEvent.click(inDialog('Move on anyway'))
+    await waitFor(() => expect(inDialog('Move on anyway').disabled).toBe(true))
+    expect(inDialog('Cancel').disabled).toBe(true)
+    fireEvent.click(inDialog('Move on anyway'))
+    expect(calls.setMark).toHaveBeenCalledTimes(1)
+    await act(async () => release())
+    await waitFor(() => expect(status()).toBe('Cleared · moved on anyway'))
+    noDialog()
+  })
+
+  it('closes the dialog and shows the error line when the write fails', async () => {
+    failNext = true
+    show(5, open5)
+    fireEvent.click(button('Move on anyway'))
+    fireEvent.click(inDialog('Move on anyway'))
+    expect(await screen.findByText("Couldn't save that. Try again.")).toBeTruthy()
+    noDialog()
+    expect(status()).toBe('Open')
+  })
+
+  it('Mark as read and Undo still write at once, with no dialog', async () => {
+    show(7, { results: { stage0: [STAGE0_PASSED] }, marks: [mark(5, 'override'), mark(6, 'override')] })
+    fireEvent.click(button('Mark as read'))
+    noDialog()
+    expect(calls.setMark).toHaveBeenCalledWith(7, 'read')
+    await waitFor(() => expect(status()).toBe('Cleared · marked read'))
+    fireEvent.click(button('Undo'))
+    noDialog()
+    expect(calls.clearMark).toHaveBeenCalledWith(7)
+  })
+})
+
+describe('ChapterPanel: Open anyway opens the chapter and every one before it', () => {
+  // Chapter 4 passed, 5 and 6 not cleared: 7 is locked by 5, and 6 would block it next.
+  const locked7: Setup = { results: { stage0: [STAGE0_PASSED] } }
+
+  it('names every blocking chapter in the dialog and writes nothing until Confirm', () => {
+    show(7, locked7)
+    expect(status()).toBe('Locked until Chapter 5 is cleared')
+    fireEvent.click(button('Open anyway'))
+    expect(screen.getByRole('alertdialog', { name: 'Open Chapter 7 anyway?' })).toBe(dialog())
+    expect(dialog().textContent).toContain(
+      'Chapters 5 and 6 will be marked as moved on anyway so Chapter 7 opens. You can undo each one later.',
+    )
+    expect(document.activeElement).toBe(inDialog('Cancel'))
+    noWrites()
+  })
+
+  it('writes nothing on Cancel', () => {
+    show(7, locked7)
+    fireEvent.click(button('Open anyway'))
+    fireEvent.click(inDialog('Cancel'))
+    noDialog()
+    noWrites()
+    expect(status()).toBe('Locked until Chapter 5 is cleared')
+  })
+
+  it('on Confirm overrides 5 and 6 in one call, and Chapter 7 opens', async () => {
+    show(7, locked7)
+    fireEvent.click(button('Open anyway'))
+    fireEvent.click(inDialog('Open anyway'))
+    expect(calls.setMarks).toHaveBeenCalledTimes(1)
+    expect(calls.setMarks).toHaveBeenCalledWith([5, 6], 'override')
+    expect(calls.setMark).not.toHaveBeenCalled()
+    await waitFor(() => expect(status()).toBe('Open'))
+    noDialog()
+    expect(screen.queryByRole('button', { name: 'Open anyway' })).toBeNull()
+  })
+
+  it('skips a chapter in between that is already cleared', () => {
+    show(7, { results: { stage0: [STAGE0_PASSED] }, marks: [mark(5, 'override')] })
+    expect(status()).toBe('Locked until Chapter 6 is cleared')
+    fireEvent.click(button('Open anyway'))
+    expect(dialog().textContent).toContain('Chapter 6 will be marked as moved on anyway so Chapter 7 opens.')
+    fireEvent.click(inDialog('Open anyway'))
+    expect(calls.setMarks).toHaveBeenCalledWith([6], 'override')
+  })
+
+  it('keeps the dialog text steady when the marks have landed but the write has not finished', async () => {
+    let release!: () => void
+    settle = new Promise((resolve) => (release = resolve))
+    show(7, locked7)
+    fireEvent.click(button('Open anyway'))
+    fireEvent.click(inDialog('Open anyway'))
+    await waitFor(() => expect(status()).toBe('Open')) // the new state is in, nothing blocks Chapter 7 now
+    expect(inDialog('Open anyway').disabled).toBe(true)
+    expect(dialog().textContent).toContain('Chapters 5 and 6 will be marked as moved on anyway so Chapter 7 opens.')
+    await act(async () => release())
+    await waitFor(() => noDialog())
+  })
+
+  it('closes the dialog, stays locked and shows the error line when the write fails', async () => {
+    failNext = true
+    show(7, locked7)
+    fireEvent.click(button('Open anyway'))
+    fireEvent.click(inDialog('Open anyway'))
+    expect(await screen.findByText("Couldn't save that. Try again.")).toBeTruthy()
+    noDialog()
+    expect(status()).toBe('Locked until Chapter 5 is cleared')
+    expect(button('Open anyway').disabled).toBe(false)
   })
 })
