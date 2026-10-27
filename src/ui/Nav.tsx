@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import type { BookIndex, PageEntry } from '../../scripts/build-content.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { useProgress } from '../state/progress.tsx'
 
 const GROUPS = ['Start here', 'Core', 'Later', 'Appendices'] as const
 type Group = (typeof GROUPS)[number]
@@ -17,6 +18,7 @@ type Loaded = { status: 'loading' } | { status: 'error' } | { status: 'ready'; p
 
 export function Nav({ currentId }: { currentId: string | null }): JSX.Element {
   const [book, setBook] = useState<Loaded>({ status: 'loading' })
+  const progress = useProgress()
 
   useEffect(() => {
     let live = true
@@ -46,17 +48,35 @@ export function Nav({ currentId }: { currentId: string | null }): JSX.Element {
             <ul>
               {book.pages
                 .filter((page) => groupOf(page) === group)
-                .map((page) => (
-                  <li key={page.id}>
-                    <a
-                      href={`/page/${page.id}`}
-                      aria-current={page.id === currentId ? 'page' : undefined}
-                      onClick={onClick}
-                    >
-                      {page.title}
-                    </a>
-                  </li>
-                ))}
+                .map((page) => {
+                  // Only chapter pages carry a state, and only once progress has loaded.
+                  const state =
+                    progress.status === 'ready' && page.kind === 'chapter' && page.number !== undefined
+                      ? progress.states.get(page.number)
+                      : undefined
+                  const cleared = state?.cleared === true
+                  const locked = !cleared && state?.locked === true && state.blockedBy !== undefined
+                  const label = cleared
+                    ? `${page.title}, cleared`
+                    : locked
+                      ? `${page.title}, locked until Chapter ${state.blockedBy} is cleared`
+                      : undefined
+                  return (
+                    <li key={page.id}>
+                      <a
+                        class={locked ? 'nav__link--locked' : undefined}
+                        href={`/page/${page.id}`}
+                        aria-current={page.id === currentId ? 'page' : undefined}
+                        aria-label={label}
+                        title={locked ? label : undefined}
+                        onClick={onClick}
+                      >
+                        {cleared && <span class="nav__mark" aria-hidden="true">✓</span>}
+                        {page.title}
+                      </a>
+                    </li>
+                  )
+                })}
             </ul>
           </section>
         ))}

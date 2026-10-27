@@ -30,6 +30,30 @@
   text-transform: uppercase;
 }
 
+/* "Where you are": the chapter panel is its own card, so this section only adds a heading, a subtitle and a link. */
+.practice__where {
+  margin: 0 0 1.5rem;
+}
+
+.practice__where .practice__heading {
+  margin-bottom: 0.25rem;
+}
+
+.practice__where-title {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.practice__where .chapter-panel {
+  margin-bottom: 0.6rem;
+}
+
+.practice__where-go {
+  color: var(--link);
+  font-size: 0.9rem;
+}
+
 .free-type__form {
   display: flex;
   flex-direction: column;

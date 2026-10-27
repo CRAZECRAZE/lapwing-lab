@@ -1,12 +1,47 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TestRow } from '../../server/archive.ts'
+import type { ChapterInfo } from '../../scripts/build-content.ts'
+import type { ProgressMark, TestRow } from '../../server/archive.ts'
+import { chapterStates } from '../../src/core/progress.ts'
+import type { ResultsByMode } from '../../src/core/progress.ts'
+import type { Progress } from '../../src/state/progress.tsx'
 import { Practice } from '../../src/ui/Practice.tsx'
 
 vi.mock('../../src/api.ts', () => ({ getLastTest: vi.fn() }))
 const api = await import('../../src/api.ts')
 const getLastTest = vi.mocked(api.getLastTest)
+
+// The Practice tab reads chapter progress through `useProgress`; each test hands it a fake value.
+const fake = vi.hoisted(() => ({ value: null as Progress | null }))
+vi.mock('../../src/state/progress.tsx', async (importActual) => {
+  const actual = await importActual<typeof import('../../src/state/progress.tsx')>()
+  return { ...actual, useProgress: () => fake.value ?? actual.useProgress() }
+})
+
+const CHAPTERS: ChapterInfo[] = [
+  { chapter: 4, pageId: 'ch04', title: 'Chapter 4: The layout', gate: 'stage0', passMark: { accuracy: 0.9, maxMinutes: 10 }, listIds: [] },
+  { chapter: 5, pageId: 'ch05', title: 'Chapter 5: First words', gate: 'read', listIds: [] },
+  { chapter: 6, pageId: 'ch06', title: 'Chapter 6: Two words', gate: 'drills', listIds: ['6-fqm'] },
+]
+
+function progress(status: Progress['status'], opts: { chapters?: ChapterInfo[]; marks?: ProgressMark[] } = {}): Progress {
+  const chapters = opts.chapters ?? CHAPTERS
+  const marks = opts.marks ?? []
+  const results: ResultsByMode = { stage0: [], section: [], 'chapter-test': [] }
+  return {
+    status,
+    chapters,
+    index: [],
+    results,
+    marks,
+    states: status === 'ready' ? chapterStates(chapters, results, marks) : new Map(),
+    reload: async () => {},
+    setMark: async () => {},
+    clearMark: async () => {},
+  }
+}
+const override = (chapter: number): ProgressMark => ({ chapter, kind: 'override', at: 1 })
 
 const INDEX = [
   { id: '5-cvc', chapter: 5, items: 1 },
@@ -30,6 +65,7 @@ function stubIndex(reply: unknown) {
 
 beforeEach(() => {
   history.replaceState(null, '', '/practice')
+  fake.value = progress('ready')
   getLastTest.mockReset().mockImplementation(async (mode, section) => {
     if (mode === 'free' && section === 'pseudo/words-25') return row({ accuracy: 0.92, wpm: 41.2 })
     if (mode === 'free' && section === 'ch-8/words-25') return row({ accuracy: 0.81, wpm: 30.6 })
@@ -39,6 +75,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  fake.value = null
   vi.unstubAllGlobals()
 })
 
@@ -104,5 +141,70 @@ describe('Practice', () => {
     expect(within(drills).getAllByRole('link')).toHaveLength(9)
     expect(within(drills).getByRole('link', { name: /Vowels/ }).getAttribute('href')).toBe('/drill/stage0/rows-vowels')
     await waitFor(() => expect(getLastTest).toHaveBeenCalledWith('stage0', 'rows-vowels'))
+  })
+
+  describe('Where you are', () => {
+    const where = (): HTMLElement | null => screen.queryByRole('region', { name: 'Where you are' })
+
+    it('comes first and shows the chapter 4 panel when nothing is cleared', () => {
+      stubIndex(INDEX)
+      render(<Practice />)
+      const section = where()!
+      expect(section).toBeTruthy()
+      const sections = [...document.querySelectorAll('.practice > section')]
+      expect(sections[0]).toBe(section)
+      expect(within(section).getByRole('heading', { name: 'Where you are' })).toBeTruthy()
+      expect(within(section).getByText('Chapter 4: The layout')).toBeTruthy()
+      const panel = within(section).getByRole('region', { name: 'Chapter progress' })
+      expect(within(panel).getByText('Open')).toBeTruthy()
+      expect(within(panel).getByText('Pass the Chapter 4 test: 90% accuracy within 10 minutes')).toBeTruthy()
+      expect(within(panel).getByRole('button', { name: 'Move on anyway' })).toBeTruthy()
+    })
+
+    it('moves to chapter 6 once chapters 4 and 5 are cleared', () => {
+      fake.value = progress('ready', { marks: [override(4), override(5)] })
+      stubIndex(INDEX)
+      render(<Practice />)
+      const section = where()!
+      expect(within(section).getByText('Chapter 6: Two words')).toBeTruthy()
+      const panel = within(section).getByRole('region', { name: 'Chapter progress' })
+      expect(within(panel).getByText('Do each section drill once at 90% accuracy or better')).toBeTruthy()
+      expect(within(panel).queryByText('Pass the Chapter 4 test: 90% accuracy within 10 minutes')).toBeNull()
+      expect(within(section).getByRole('link', { name: 'Go to Chapter 6' }).getAttribute('href')).toBe('/page/ch06')
+    })
+
+    it('links to the chapter page and navigates on a plain click', () => {
+      stubIndex(INDEX)
+      render(<Practice />)
+      const go = within(where()!).getByRole('link', { name: 'Go to Chapter 4' })
+      expect(go.getAttribute('href')).toBe('/page/ch04')
+      expect(fireEvent.click(go)).toBe(false)
+      expect(location.pathname).toBe('/page/ch04')
+    })
+
+    it.each(['loading', 'error'] as const)('is absent while progress is %s', (status) => {
+      fake.value = progress(status)
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(where()).toBeNull()
+      expect(screen.queryByText('Where you are')).toBeNull()
+      expect(screen.queryByRole('link', { name: /^Go to Chapter/ })).toBeNull()
+      expect(document.querySelector('.chapter-panel')).toBeNull()
+    })
+
+    it('is absent when there are no chapters', () => {
+      fake.value = progress('ready', { chapters: [] })
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(where()).toBeNull()
+      expect(screen.queryByText('Where you are')).toBeNull()
+    })
+
+    it('leaves the free-type and Chapter 4 sections in place', () => {
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(screen.getByRole('region', { name: 'Free type' })).toBeTruthy()
+      expect(screen.getByRole('region', { name: 'Chapter 4 drills' })).toBeTruthy()
+    })
   })
 })

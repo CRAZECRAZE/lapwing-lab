@@ -3,9 +3,12 @@ import { useEffect, useState } from 'preact/hooks'
 import type { PracticeIndexEntry } from '../../scripts/build-content.ts'
 import type { TestRow } from '../../server/archive.ts'
 import { getLastTest } from '../api.ts'
+import { currentChapter } from '../core/progress.ts'
 import { FREE_MODES, PSEUDO_SOURCE, sourcesFor } from '../freetype/free.ts'
 import type { FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { useProgress } from '../state/progress.tsx'
+import { ChapterPanel } from './ChapterPanel.tsx'
 import { Stage0Panel } from './Stage0Panel.tsx'
 import './practice.css'
 
@@ -92,11 +95,40 @@ function FreeType(): JSX.Element {
   )
 }
 
-/** The Practice tab: free type, then the Chapter 4 drills. */
+/** The chapter the owner is on, with its panel and a way back to its page. Nothing until progress has loaded. */
+function WhereYouAre(): JSX.Element | null {
+  const progress = useProgress()
+  if (progress.status !== 'ready' || progress.chapters.length === 0) return null
+  const number = currentChapter(progress.chapters, progress.states)
+  const info = progress.chapters.find((c) => c.chapter === number)
+  if (!info) return null
+  const href = `/page/${info.pageId}`
+  return (
+    <section class="practice__where" aria-labelledby="where-heading">
+      <h2 id="where-heading" class="practice__heading">Where you are</h2>
+      <p class="practice__where-title">{info.title}</p>
+      <ChapterPanel chapter={number} />
+      <a
+        class="practice__where-go"
+        href={href}
+        onClick={(e) => {
+          if (!isPlainClick(e)) return
+          e.preventDefault()
+          navigate(href)
+        }}
+      >
+        {`Go to Chapter ${number}`}
+      </a>
+    </section>
+  )
+}
+
+/** The Practice tab: where you are, free type, then the Chapter 4 drills. */
 export function Practice(): JSX.Element {
   return (
     <div class="practice">
       <h1 class="practice__title">Practice</h1>
+      <WhereYouAre />
       <FreeType />
       {/* The panel brings its own heading ("Practice — Stage 0"); the region name says where it sits. */}
       <section class="practice__drills" aria-label="Chapter 4 drills">

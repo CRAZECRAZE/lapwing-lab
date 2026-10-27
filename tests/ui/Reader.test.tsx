@@ -363,7 +363,7 @@ describe('Nav', () => {
 
   it('groups every page and marks the current one', async () => {
     mockFetch({ '/content/book.json': { commit: 'abc', pages } })
-    render(<Nav currentId="ch05" />)
+    render(withProgress(<Nav currentId="ch05" />))
     await screen.findByText('Start here')
     const groups = [...document.querySelectorAll('.nav__group')].map((g) => ({
       title: g.querySelector('.nav__heading')!.textContent,
@@ -381,7 +381,7 @@ describe('Nav', () => {
 
   it('stays calm when the book index cannot be loaded', async () => {
     mockFetch({ '/content/book.json': new Error('offline') })
-    render(<Nav currentId="home" />)
+    render(withProgress(<Nav currentId="home" />))
     expect((await screen.findByText(/chapter list/i)).textContent).toMatch(/couldn.t load/i)
   })
 })

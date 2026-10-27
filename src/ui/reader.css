@@ -236,6 +236,15 @@ body {
   color: var(--heading);
 }
 
+.nav li a.nav__link--locked {
+  color: var(--muted);
+}
+
+.nav__mark {
+  margin-right: 0.4em;
+  color: var(--muted);
+}
+
 .nav__note {
   padding: 0 0.5rem;
   color: var(--muted);
