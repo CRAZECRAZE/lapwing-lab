@@ -805,6 +805,60 @@ describe('Drill finishing', () => {
     expect(rig.onDone.mock.calls[0][0].passed).toBe(false)
   })
 
+  describe('minimum wpm', () => {
+    // Two prompts, the first stroke at t=0 and the last completion `ms` later: wpm = 2 / (ms / 60000).
+    async function twoPrompts(ms: number, passMark: DrillProps['passMark'], second = KAT): Promise<Rig> {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(0)
+      const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')], passMark })
+      rig.stroke(SAP)
+      vi.setSystemTime(ms)
+      rig.stroke(second)
+      await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+      return rig
+    }
+
+    it('fails a perfect run that is slower than minWpm, in onDone and in the logged meta', async () => {
+      const rig = await twoPrompts(60_000, { accuracy: 0.9, minWpm: 10 }) // 2 wpm
+      const result = rig.onDone.mock.calls[0][0]
+      expect(result.stats).toMatchObject({ accuracy: 1, elapsedMs: 60_000, wpm: 2 })
+      expect(result.passed).toBe(false)
+      expect(rig.logger.finishes[0].meta).toMatchObject({ passed: false })
+    })
+
+    it('passes a perfect run that is at or above minWpm', async () => {
+      const rig = await twoPrompts(6000, { accuracy: 0.9, minWpm: 10 }) // 20 wpm
+      expect(rig.onDone.mock.calls[0][0].stats.wpm).toBe(20)
+      expect(rig.onDone.mock.calls[0][0].passed).toBe(true)
+      expect(rig.logger.finishes[0].meta).toMatchObject({ passed: true })
+    })
+
+    it('passes exactly at minWpm', async () => {
+      const rig = await twoPrompts(12_000, { accuracy: 0.9, minWpm: 10 }) // 10 wpm
+      expect(rig.onDone.mock.calls[0][0].passed).toBe(true)
+    })
+
+    it('fails a fast run whose accuracy is below the mark', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(0)
+      const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')], passMark: { accuracy: 0.9, minWpm: 10 } })
+      rig.stroke(TAP) // a miss on the first prompt
+      rig.stroke(SAP)
+      vi.setSystemTime(6000)
+      rig.stroke(KAT)
+      await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+      const result = rig.onDone.mock.calls[0][0]
+      expect(result.stats.wpm).toBeGreaterThanOrEqual(10)
+      expect(result.stats.accuracy).toBeLessThan(0.9)
+      expect(result.passed).toBe(false)
+    })
+
+    it('ignores speed when minWpm is omitted', async () => {
+      const rig = await twoPrompts(60_000, { accuracy: 0.9 }) // 2 wpm
+      expect(rig.onDone.mock.calls[0][0].passed).toBe(true)
+    })
+  })
+
   it('calls onDone 1500 ms after a logger.finish that never settles', async () => {
     const logger = fakeLogger({ finishHangs: true })
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })

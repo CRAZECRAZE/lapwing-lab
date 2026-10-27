@@ -22,7 +22,8 @@ export type DrillProps = {
   items: readonly DrillItem[]
   logger: TestLogger
   logTest: { mode: string; chapter: number | null; section: string | null }
-  passMark?: { accuracy: number; maxMinutes?: number }
+  /** Pass when accuracy is at least `accuracy`, the run took at most `maxMinutes`, and it ran at `minWpm` or faster. */
+  passMark?: { accuracy: number; maxMinutes?: number; minWpm?: number }
   boardVisibility?: Settings['boardVisibility']
   /** word drills: `miss` (the default) hides the needed keys until a miss, `always` shows them from the start. */
   hints?: Settings['hints']
@@ -69,7 +70,8 @@ function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | n
   if (!passMark) return null
   return (
     stats.accuracy >= passMark.accuracy &&
-    (passMark.maxMinutes === undefined || stats.elapsedMs <= passMark.maxMinutes * 60000)
+    (passMark.maxMinutes === undefined || stats.elapsedMs <= passMark.maxMinutes * 60000) &&
+    (passMark.minWpm === undefined || stats.wpm >= passMark.minWpm)
   )
 }
 
