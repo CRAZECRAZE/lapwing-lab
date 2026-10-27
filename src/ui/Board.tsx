@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { UNI_GRID, leverSlot } from '../core/uni.ts'
 import type { Lever } from '../core/uni.ts'
-import { SLOTS } from '../core/steno.ts'
+import { SLOTS, slotMask } from '../core/steno.ts'
 import type { SlotMask } from '../core/steno.ts'
 import './board.css'
 
@@ -29,7 +29,7 @@ function label(lever: Lever): string {
 
 export function Board({ size = 18, target = 0, pressed = [], diff }: BoardProps): JSX.Element {
   const lit = (mask: SlotMask, lever: Lever): boolean =>
-    (mask & (1 << SLOTS.indexOf(leverSlot(lever)))) !== 0
+    (mask & slotMask(leverSlot(lever))) !== 0
 
   return (
     <div
@@ -40,7 +40,7 @@ export function Board({ size = 18, target = 0, pressed = [], diff }: BoardProps)
     >
       {UNI_GRID.flatMap((row, r) =>
         row.map((lever, c) => {
-          const gap = c === 4 ? ' board__cell--gap' : ''
+          const gap = c === 5 ? ' board__cell--gap' : ''
           if (lever === null) return <div key={`${r}-${c}`} class={`board__spacer${gap}`} />
           const classes = ['key', `key--${hand(lever)}`]
           if (lit(target, lever)) classes.push('key--target')

@@ -2,6 +2,7 @@
 import { cleanup, render } from '@testing-library/preact'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Board } from '../../src/ui/Board.tsx'
+import { LEVERS } from '../../src/core/uni.ts'
 import { parseStroke } from '../../src/core/steno.ts'
 
 afterEach(cleanup)
@@ -19,13 +20,31 @@ describe('Board', () => {
     expect(key('*3').textContent).toBe('*')
     expect(key('-E').textContent).toBe('E')
     expect(key('#2').textContent).toBe('#')
-    expect(key('S2-').classList.contains('key--left')).toBe(true)
-    expect(key('*4').classList.contains('key--left')).toBe(true)
-    expect(key('#1').classList.contains('key--left')).toBe(true)
-    expect(key('O-').classList.contains('key--vowel')).toBe(true)
-    expect(key('-U').classList.contains('key--vowel')).toBe(true)
-    expect(key('-Z').classList.contains('key--right')).toBe(true)
-    expect(key('#2').classList.contains('key--right')).toBe(true)
+    const expected: Record<string, string> = {}
+    for (const l of ['S1-', 'S2-', 'T-', 'K-', 'P-', 'W-', 'H-', 'R-', '*1', '*2', '*3', '*4', '#1']) expected[l] = 'left'
+    for (const l of ['A-', 'O-', '-E', '-U']) expected[l] = 'vowel'
+    for (const l of ['-F', '-R', '-P', '-B', '-L', '-G', '-T', '-S', '-D', '-Z', '#2']) expected[l] = 'right'
+    expect(Object.keys(expected).sort()).toEqual([...LEVERS].sort())
+    for (const lever of LEVERS) {
+      const cls = [...key(lever).classList].filter((c) => /^key--(left|vowel|right)$/.test(c))
+      expect(cls, lever).toEqual([`key--${expected[lever]}`])
+    }
+  })
+
+  it('splits the halves after the fifth column in every row', () => {
+    const { container } = render(<Board />)
+    const cells = [...container.querySelector('.board')!.children]
+    expect(cells).toHaveLength(33)
+    for (let r = 0; r < 3; r++) {
+      const row = cells.slice(r * 11, r * 11 + 11)
+      expect(row.map((el) => el.classList.contains('board__cell--gap')), `row ${r}`).toEqual(
+        row.map((_, c) => c === 5),
+      )
+    }
+    const before = (r: number) => cells.slice(r * 11, r * 11 + 5).map((el) => el.getAttribute('data-lever'))
+    expect(before(0)).toEqual(['S1-', 'T-', 'P-', 'H-', '*1'])
+    expect(before(1)).toEqual(['S2-', 'K-', 'W-', 'R-', '*2'])
+    expect(before(2)).toEqual([null, null, '#1', 'A-', 'O-'])
   })
 
   it('is an accessible image and honours size', () => {
@@ -61,5 +80,10 @@ describe('Board', () => {
     )
     expect(levers(container, 'key--missing')).toEqual(['T-'])
     expect(levers(container, 'key--extra')).toEqual(['-Z'])
+  })
+
+  it('marks both S levers when the S slot is missing', () => {
+    const { container } = render(<Board diff={{ missing: parseStroke('S'), extra: 0 }} />)
+    expect(levers(container, 'key--missing').sort()).toEqual(['S1-', 'S2-'])
   })
 })
