@@ -28,6 +28,10 @@ export type TestRow = {
   meta: unknown
 }
 
+export type TestSummary = TestRow & { strokeCount: number; firstStrokeAt: number; lastStrokeAt: number }
+
+export type DayStat = { date: string; tests: number; strokes: number; activeMs: number }
+
 export interface Archive {
   createSession(startedAt: number): number
   startTest(t: {
@@ -42,6 +46,9 @@ export interface Archive {
   finishTest(id: number, r: { endedAt: number; wpm: number; accuracy: number; meta: unknown }): void
   lastTest(mode: string, section: string): TestRow | undefined
   listStrokes(testId: number): StrokeRecord[]
+  listTests(q: { limit: number; beforeId?: number; date?: string }): TestSummary[]
+  getTest(id: number): { test: TestRow; strokes: StrokeRecord[] } | undefined
+  dayStats(from: string, to: string): DayStat[]
   close(): void
 }
 
@@ -108,6 +115,11 @@ function count(name: string, v: number, min = 0): number {
   return v
 }
 
+function localDate(name: string, v: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new RangeError(`${name} must be a YYYY-MM-DD date`)
+  return v
+}
+
 function measure(name: string, v: number, max = Number.MAX_SAFE_INTEGER): number {
   if (!Number.isFinite(v) || v < 0 || v > max) throw new RangeError(`${name} must be a finite number between 0 and ${max}`)
   return v
@@ -134,6 +146,25 @@ export function openArchive(path: string): Archive {
      ORDER BY ended_at DESC, id DESC LIMIT 1`,
   )
   const selectStrokes = db.prepare('SELECT * FROM strokes WHERE test_id = ? ORDER BY id')
+
+  // One row per test that has at least one stroke, with the first and last stroke times.
+  const WITH_STROKES = `FROM tests t
+     JOIN (SELECT test_id, COUNT(*) AS n, MIN(ts_ms) AS first_ts, MAX(ts_ms) AS last_ts
+           FROM strokes GROUP BY test_id) s ON s.test_id = t.id`
+  const LOCAL_DAY = "date(s.first_ts / 1000, 'unixepoch', 'localtime')"
+  const selectTests = db.prepare(
+    `SELECT t.*, s.n AS stroke_count, s.first_ts, s.last_ts
+     ${WITH_STROKES}
+     WHERE (?1 IS NULL OR t.id < ?1) AND (?2 IS NULL OR ${LOCAL_DAY} = ?2)
+     ORDER BY t.id DESC LIMIT ?3`,
+  )
+  const selectTest = db.prepare('SELECT * FROM tests WHERE id = ?')
+  const selectDays = db.prepare(
+    `SELECT ${LOCAL_DAY} AS date, COUNT(*) AS tests, SUM(s.n) AS strokes, SUM(s.last_ts - s.first_ts) AS active_ms
+     ${WITH_STROKES}
+     WHERE ${LOCAL_DAY} BETWEEN ? AND ?
+     GROUP BY date ORDER BY date`,
+  )
 
   function toTest(r: Row): TestRow {
     return {
@@ -209,6 +240,30 @@ export function openArchive(path: string): Archive {
     },
     listStrokes(testId) {
       return selectStrokes.all(testId).map(toStroke)
+    },
+    listTests(q) {
+      const limit = count('limit', q.limit, 1)
+      if (limit > 200) throw new RangeError('limit must be an integer between 1 and 200')
+      const beforeId = q.beforeId === undefined ? null : count('beforeId', q.beforeId)
+      const date = q.date === undefined ? null : localDate('date', q.date)
+      return selectTests.all(beforeId, date, limit).map((r) => ({
+        ...toTest(r),
+        strokeCount: r.stroke_count as number,
+        firstStrokeAt: r.first_ts as number,
+        lastStrokeAt: r.last_ts as number,
+      }))
+    },
+    getTest(id) {
+      const row = selectTest.get(id)
+      return row ? { test: toTest(row), strokes: selectStrokes.all(id).map(toStroke) } : undefined
+    },
+    dayStats(from, to) {
+      return selectDays.all(localDate('from', from), localDate('to', to)).map((r) => ({
+        date: r.date as string,
+        tests: r.tests as number,
+        strokes: r.strokes as number,
+        activeMs: r.active_ms as number,
+      }))
     },
     close() {
       db.close()

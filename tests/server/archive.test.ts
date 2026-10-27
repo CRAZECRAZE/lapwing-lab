@@ -197,6 +197,118 @@ describe('archive write validation', () => {
   })
 })
 
+describe('archive reads', () => {
+  const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m).getTime()
+
+  function testWith(a: Archive, stamps: number[], over: { startedAt?: number } = {}) {
+    const sessionId = a.createSession(1000)
+    const id = a.startTest({
+      sessionId,
+      startedAt: over.startedAt ?? stamps[0] ?? 1001,
+      mode: 'drill',
+      chapter: null,
+      section: null,
+      itemCount: stamps.length,
+    })
+    for (const tsMs of stamps) a.addStroke(stroke(id, { tsMs }))
+    return id
+  }
+
+  it('listTests hides tests that have no strokes', () => {
+    const a = memory()
+    newTest(a)
+    const withStroke = testWith(a, [at(27, 10)])
+    expect(a.listTests({ limit: 10 }).map((t) => t.id)).toEqual([withStroke])
+  })
+
+  it('listTests is newest first and pages with beforeId', () => {
+    const a = memory()
+    const ids = [1, 2, 3, 4].map((n) => testWith(a, [at(27, 10, n)]))
+    expect(a.listTests({ limit: 2 }).map((t) => t.id)).toEqual([ids[3], ids[2]])
+    expect(a.listTests({ limit: 2, beforeId: ids[2] }).map((t) => t.id)).toEqual([ids[1], ids[0]])
+    expect(a.listTests({ limit: 2, beforeId: ids[0] })).toEqual([])
+  })
+
+  it('listTests includes an unfinished test with its stroke count and null wpm', () => {
+    const a = memory()
+    const id = testWith(a, [at(27, 10, 0), at(27, 10, 1), at(27, 10, 5)])
+    const [row] = a.listTests({ limit: 5 })
+    expect(row).toMatchObject({
+      id,
+      endedAt: null,
+      wpm: null,
+      accuracy: null,
+      strokeCount: 3,
+      firstStrokeAt: at(27, 10, 0),
+      lastStrokeAt: at(27, 10, 5),
+    })
+  })
+
+  it('listTests date filter uses the local day of the first stroke', () => {
+    const a = memory()
+    const id = testWith(a, [at(27, 0, 2), at(27, 0, 3)], { startedAt: at(26, 23, 58) })
+    expect(a.listTests({ limit: 10, date: '2026-10-27' }).map((t) => t.id)).toEqual([id])
+    expect(a.listTests({ limit: 10, date: '2026-10-26' })).toEqual([])
+  })
+
+  it('listTests rejects a limit of 0 and 201', () => {
+    const a = memory()
+    for (const limit of [0, 201, 1.5, -1, Number.NaN]) {
+      expect(() => a.listTests({ limit }), `limit ${limit}`).toThrow(RangeError)
+    }
+    expect(a.listTests({ limit: 1 })).toEqual([])
+    expect(a.listTests({ limit: 200 })).toEqual([])
+  })
+
+  it('getTest returns strokes in insertion order, and undefined for an unknown id', () => {
+    const a = memory()
+    const id = newTest(a)
+    a.addStroke(stroke(id, { tsMs: 500, prompt: 'first' }))
+    a.addStroke(stroke(id, { tsMs: 100, prompt: 'second' }))
+    const found = a.getTest(id)
+    expect(found?.test).toMatchObject({ id, mode: 'stage0-test', section: 'pseudo' })
+    expect(found?.strokes.map((s) => s.prompt)).toEqual(['first', 'second'])
+    expect(a.getTest(999)).toBeUndefined()
+  })
+
+  it('dayStats groups by local day, sums, omits empty days, and includes both ends', () => {
+    const a = memory()
+    testWith(a, [at(25, 9, 0), at(25, 9, 1)])
+    testWith(a, [at(26, 9, 0), at(26, 9, 2)])
+    testWith(a, [at(26, 18, 0), at(26, 18, 1), at(26, 18, 4)])
+    testWith(a, [at(28, 9, 0)])
+    testWith(a, [at(29, 9, 0)])
+    newTest(a) // no strokes: never counted
+    expect(a.dayStats('2026-10-26', '2026-10-28')).toEqual([
+      { date: '2026-10-26', tests: 2, strokes: 5, activeMs: 2 * 60000 + 4 * 60000 },
+      { date: '2026-10-28', tests: 1, strokes: 1, activeMs: 0 },
+    ])
+  })
+
+  it('dayStats activeMs is last minus first stroke; a one-stroke test counts as a test with 0 ms', () => {
+    const a = memory()
+    testWith(a, [at(27, 10, 0), at(27, 10, 0) + 1500, at(27, 10, 0) + 4000])
+    testWith(a, [at(27, 11, 0)])
+    expect(a.dayStats('2026-10-27', '2026-10-27')).toEqual([
+      { date: '2026-10-27', tests: 2, strokes: 4, activeMs: 4000 },
+    ])
+  })
+
+  it('dayStats puts a test on the local day of its first stroke', () => {
+    const a = memory()
+    testWith(a, [at(26, 23, 59), at(27, 0, 1)])
+    expect(a.dayStats('2026-10-26', '2026-10-27')).toEqual([
+      { date: '2026-10-26', tests: 1, strokes: 2, activeMs: 2 * 60000 },
+    ])
+  })
+
+  it('rejects malformed dates', () => {
+    const a = memory()
+    expect(() => a.listTests({ limit: 1, date: '27/10/2026' })).toThrow(RangeError)
+    expect(() => a.dayStats('2026-10-27', 'tomorrow')).toThrow(RangeError)
+  })
+})
+
 describe('settings', () => {
   let dir: string
   function file() {
