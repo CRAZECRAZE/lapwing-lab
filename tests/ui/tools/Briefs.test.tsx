@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import type { JSX } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChapterInfo } from '../../../scripts/build-content.ts'
@@ -495,14 +495,5 @@ describe('Briefs in the dock drawer', () => {
     expect(screen.getByRole('dialog', { name: 'Briefs so far' })).toBeTruthy()
     await screen.findByText('14 briefs')
     expect(document.activeElement).toBe(filterBox)
-  })
-
-  it('leaves My notes on its placeholder', () => {
-    stubFetch(BRIEFS)
-    mount()
-    act(() => dock.open('notes'))
-    const dialog = screen.getByRole('dialog', { name: 'My notes' })
-    expect(within(dialog).getByText('Coming in this milestone.')).toBeTruthy()
-    expect(within(dialog).queryByLabelText('Filter briefs')).toBeNull()
   })
 })

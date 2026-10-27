@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import type { JSX } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChapterInfo } from '../../../scripts/build-content.ts'
@@ -405,14 +405,5 @@ describe('Lookup in the dock drawer', () => {
     await waitFor(() => expect(document.activeElement).toBe(box))
     expect(box.hasAttribute('data-autofocus')).toBe(true)
     expect((box as HTMLInputElement).type).toBe('search')
-  })
-
-  it('leaves the other tools on their placeholder', () => {
-    stubFetch(INDEX)
-    mount()
-    for (const tool of ['notes'] as const) {
-      act(() => dock.open(tool))
-      expect(within(screen.getByRole('dialog')).getByText('Coming in this milestone.')).toBeTruthy()
-    }
   })
 })

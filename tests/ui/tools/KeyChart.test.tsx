@@ -303,7 +303,7 @@ function Probe(): null {
 }
 
 describe('the chart inside the real DockHost', () => {
-  it('opens as the Key chart drawer and loads the chart; the other tools keep their placeholder', async () => {
+  it('opens as the Key chart drawer and loads the chart', async () => {
     const fetchFn = stubFetch(CHART)
     render(
       <DockProvider>
@@ -316,10 +316,5 @@ describe('the chart inside the real DockHost', () => {
     await screen.findByRole('heading', { name: 'Left hand' })
     expect(box.textContent).not.toContain('Coming in this milestone.')
     expect(fetchFn).toHaveBeenCalledTimes(1)
-    for (const tool of ['notes'] as const) {
-      act(() => dock.open(tool))
-      expect(document.querySelector('.dock-drawer')!.textContent).toContain('Coming in this milestone.')
-      expect(document.querySelector('.keychart')).toBeNull()
-    }
   })
 })

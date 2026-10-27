@@ -1,0 +1,84 @@
+/* The Notes tool: a chapter picker above one plain-text note, saved as it is typed. */
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.notes__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.notes__label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.notes__picker {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--heading);
+  font: inherit;
+}
+
+.notes__picker:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+.notes__text {
+  display: block;
+  width: 100%;
+  min-height: 16rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.notes__text:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.notes__text[readonly] {
+  color: var(--muted);
+}
+
+.notes__state {
+  min-height: 1.4rem;
+  font-size: 0.9rem;
+}
+
+.notes__muted {
+  color: var(--muted);
+}
+
+.notes__warn {
+  color: var(--left);
+}
+
+.notes__button {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.notes__button:hover {
+  color: var(--heading);
+  border-color: var(--muted);
+}

@@ -5,18 +5,17 @@ import type { DockTool } from '../state/dock.tsx'
 import { Briefs } from './tools/Briefs.tsx'
 import { KeyChart } from './tools/KeyChart.tsx'
 import { Lookup } from './tools/Lookup.tsx'
+import { Notes } from './tools/Notes.tsx'
 import './dock.css'
 
 export type DockToolView = { title: string; Body: () => JSX.Element }
 
-const Soon = (): JSX.Element => <p class="dock-drawer__soon">Coming in this milestone.</p>
-
-/** The tools' titles and bodies; each tool's own task replaces its placeholder body here. */
+/** The tools' titles and bodies. */
 export const TOOLS: Readonly<Record<DockTool, DockToolView>> = {
   lookup: { title: 'Lookup', Body: Lookup },
   chart: { title: 'Key chart', Body: KeyChart },
   briefs: { title: 'Briefs so far', Body: Briefs },
-  notes: { title: 'My notes', Body: Soon },
+  notes: { title: 'My notes', Body: Notes },
 }
 
 /**
