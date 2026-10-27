@@ -2,7 +2,11 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parsePassMark } from './lib/passmark.ts'
 import type { PassMark } from './lib/passmark.ts'
+import { parseExampleItems } from './lib/examples.ts'
+import type { ExampleRow } from './lib/examples.ts'
 import { generatedLists } from './lib/generated.ts'
+import { buildLookup } from './lib/lookup.ts'
+import type { LookupList } from './lib/lookup.ts'
 import { parsePracticeFile } from './lib/practice.ts'
 import { renderPage } from './lib/render.ts'
 import type { Heading, PracticeLink } from './lib/render.ts'
@@ -39,10 +43,13 @@ export type BuildStats = {
   generatedLists: number
   outlineTags: number
   briefRows: number
+  lookupEntries: number
+  lookupBytes: number
 }
 
 const SUMMARY_LINE = /^-\s*\[([^\]]+)\]\(([^)]+\.md)\)\s*$/
 const BRIEF_CHAPTERS = { first: 5, last: 12 }
+const LOOKUP_MAX_BYTES = 5 * 1024 * 1024
 
 function pageEntry(title: string, file: string): PageEntry {
   let match: RegExpExecArray | null
@@ -132,6 +139,7 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   const practiceIds = new Set<string>()
   const practiceIndex: PracticeIndexEntry[] = []
   let practiceLines = 0
+  const bookLists: LookupList[] = []
   const markdowns = new Map<string, string>()
   for (const entry of entries) markdowns.set(entry.file, await readFile(join(src, entry.file), 'utf8'))
   for (const file of practiceFiles) {
@@ -141,6 +149,7 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
     const list = parsePracticeFile(id, text)
     practiceIndex.push({ id, chapter, items: list.items.length })
     practiceIds.add(id)
+    bookLists.push({ id, chapter, items: list.items })
     practiceLines += text.split(/\r?\n/).filter((line) => line.trim() !== '').length
     await writeJson(join(outDir, 'practice', `${id}.json`), list)
   }
@@ -162,6 +171,7 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   const briefs: BriefRow[] = []
   const passMarks = new Map<string, PassMark | undefined>()
   const sentences: SentenceRow[] = []
+  const examples: ExampleRow[] = []
   let outlineTags = 0
   for (const entry of entries) {
     const markdown = markdowns.get(entry.file)!
@@ -187,6 +197,7 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
         briefs.push(...parseBriefTables(entry.number, markdown))
       }
       sentences.push(...parseSentences(entry.number, markdown))
+      examples.push(...parseExampleItems(entry.number, markdown))
     }
     if (entry.id === 'ch04') await writeJson(join(outDir, 'stage0.json'), parseStage0Words(markdown))
   }
@@ -198,6 +209,13 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   await writeJson(join(outDir, 'chapters.json'), chapterInfos(entries, practiceIndex, passMarks))
   await writeJson(join(outDir, 'briefs.json'), briefs)
   await writeJson(join(outDir, 'sentences.json'), sentences)
+  const lookup = buildLookup({ lists: bookLists, briefs, examples })
+  const lookupJson = JSON.stringify(lookup)
+  const lookupBytes = Buffer.byteLength(lookupJson)
+  if (lookupBytes > LOOKUP_MAX_BYTES) {
+    throw new Error(`lookup.json is ${lookupBytes} bytes, over the ${LOOKUP_MAX_BYTES} byte limit`)
+  }
+  await writeFile(join(outDir, 'lookup.json'), lookupJson)
 
   return {
     pages: entries.length,
@@ -206,6 +224,8 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
     generatedLists: generatedCount,
     outlineTags,
     briefRows: briefs.length,
+    lookupEntries: lookup.length,
+    lookupBytes,
   }
 }
 
@@ -218,6 +238,7 @@ if (import.meta.main) {
   console.log(
     `Built ${stats.pages} pages, ${stats.practiceLists} practice lists (${stats.practiceLines} lines) ` +
       `and ${stats.generatedLists} generated lists, ` +
-      `${stats.outlineTags} outline tags, ${stats.briefRows} brief rows`,
+      `${stats.outlineTags} outline tags, ${stats.briefRows} brief rows, ` +
+      `lookup ${stats.lookupEntries} entries (${Math.round(stats.lookupBytes / 1024)} KB)`,
   )
 }

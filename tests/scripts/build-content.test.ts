@@ -1,8 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, existsSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildContent, gateFor, practiceChapter } from '../../scripts/build-content.ts'
+import { parseOutline } from '../../src/core/steno.ts'
+import type { LookupEntry } from '../../scripts/lib/lookup.ts'
 import type { BuildStats, ChapterInfo, PracticeIndexEntry } from '../../scripts/build-content.ts'
 
 const bookDir = join(import.meta.dirname, '..', '..', 'content', 'lapwing-book')
@@ -80,6 +82,72 @@ describe('buildContent on the vendored book', () => {
     expect(new Set(briefs.map((b: { chapter: number }) => b.chapter))).toEqual(new Set([5, 6, 7, 8, 9, 10, 11, 12]))
     expect(readJson('sentences.json').length).toBeGreaterThan(0)
     expect(readJson('stage0.json').test).toHaveLength(100)
+  })
+})
+
+describe('lookup.json', () => {
+  const lookup = (): LookupEntry[] => readJson('lookup.json')
+  const entry = (word: string): LookupEntry => {
+    const found = lookup().find((e) => e.word === word)
+    expect(found, `entry ${word}`).toBeDefined()
+    return found!
+  }
+
+  it('exists and matches the stats', () => {
+    expect(existsSync(join(outDir, 'lookup.json'))).toBe(true)
+    expect(lookup().length).toBeGreaterThan(1000)
+    expect(stats.lookupEntries).toBe(lookup().length)
+  })
+
+  it('stays under 5 MB', () => {
+    expect(statSync(join(outDir, 'lookup.json')).size).toBeLessThan(5 * 1024 * 1024)
+  })
+
+  it('has a practice hit for cat in chapter 5', () => {
+    expect(entry('cat').hits).toContainEqual({ outline: 'KAT', chapter: 5, source: 'practice' })
+  })
+
+  it('has brief hits for are with the explanation as note', () => {
+    const briefs = readJson('briefs.json')
+    const explanation = briefs.find((b: { translation: string }) => b.translation === 'are').explanation
+    expect(explanation).not.toBe('')
+    const hits = entry('are').hits.filter((h) => h.source === 'brief' && h.chapter === 5)
+    expect(hits.map((h) => h.outline).sort()).toEqual(['-R', 'R'])
+    for (const hit of hits) expect(hit.note).toBe(explanation)
+  })
+
+  it('has example hits for dad and centre', () => {
+    expect(entry('dad').hits).toContainEqual({ outline: 'TKAD', chapter: expect.any(Number), source: 'example' })
+    expect(entry('centre').hits).toContainEqual({ outline: 'SEPB/TER/#TPH', chapter: 21, source: 'example' })
+  })
+
+  it('has hits from both practice lists and brief tables for a word in both, such as do', () => {
+    const sources = new Set(entry('do').hits.map((h) => h.source))
+    expect(sources.has('practice')).toBe(true)
+    expect(sources.has('brief')).toBe(true)
+  })
+
+  it('has parseable outlines, no empty words, and sorted entries with hits', () => {
+    const entries = lookup()
+    for (const e of entries) {
+      expect(e.word.trim()).not.toBe('')
+      expect(e.word).not.toMatch(/[\r\n]/)
+      expect(e.hits.length).toBeGreaterThan(0)
+      for (const hit of e.hits) {
+        expect(() => parseOutline(hit.outline), `${e.word} ${hit.outline}`).not.toThrow()
+        expect(hit.chapter).toBeGreaterThanOrEqual(1)
+        expect(hit.chapter).toBeLessThanOrEqual(26)
+      }
+    }
+    const keys = entries.map((e) => e.word.toLowerCase())
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys).toEqual([...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
+  })
+
+  it('leaves the generated drills out of the practice hits', () => {
+    // The book's own lists cover chapters 5 to 17; the drills generated for chapters 18, 20 and 21 are not practice hits.
+    const practice = lookup().flatMap((e) => e.hits.filter((h) => h.source === 'practice'))
+    expect(practice.every((h) => h.chapter <= 17)).toBe(true)
   })
 })
 
