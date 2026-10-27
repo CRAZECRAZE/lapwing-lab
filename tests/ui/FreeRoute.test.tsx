@@ -126,7 +126,7 @@ async function mount(source: string, mode: string): Promise<Rig> {
 describe('FreeRoute', () => {
   it('says so for an unknown mode, without fetching anything', async () => {
     const fetch = stubContent({})
-    render(<FreeRoute source="pseudo" mode="words-99" />)
+    render(<FreeRoute source="pseudo" mode="words-501" />)
     expect(screen.getByText(/No such free-type mode/)).toBeTruthy()
     fireEvent.click(screen.getByRole('link', { name: 'Back to Practice' }))
     expect(location.pathname).toBe('/practice')
@@ -244,6 +244,47 @@ describe('FreeRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'always' }))
     expect(document.querySelector('.drill__board')).not.toBeNull()
     expect(putSettings).toHaveBeenCalledWith({ boardVisibility: 'always' })
+  })
+
+  describe('custom amounts', () => {
+    it('runs a custom number of words with that many items', async () => {
+      stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+      const rig = await mount('pseudo', 'words-7')
+      expect(screen.getByRole('region', { name: 'Free type · Chapter 4 pseudo-words · 7 words' })).toBeTruthy()
+      expect(screen.getByText(/0 \/ 7\b/)).toBeTruthy()
+      expect(screen.queryByText(/left/)).toBeNull()
+      rig.stroke(SAP)
+      await waitFor(() => expect(loggers[0].start).toHaveBeenCalled())
+      expect(loggers[0].start).toHaveBeenCalledWith({ mode: 'free', chapter: 4, section: 'pseudo/words-7', itemCount: 7 })
+      for (let i = 0; i < 6; i++) rig.stroke(SAP)
+      expect(await screen.findByRole('region', { name: 'Result' })).toBeTruthy()
+    })
+
+    it('runs a custom number of seconds with that time limit and the matching item count', async () => {
+      stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+      const rig = await mount('pseudo', 'time-90')
+      expect(screen.getByRole('region', { name: 'Free type · Chapter 4 pseudo-words · 90 seconds' })).toBeTruthy()
+      expect(screen.getByText(/1:30 left/)).toBeTruthy()
+      rig.stroke(SAP)
+      await waitFor(() => expect(loggers[0].start).toHaveBeenCalled())
+      expect(loggers[0].start).toHaveBeenCalledWith({ mode: 'free', chapter: 4, section: 'pseudo/time-90', itemCount: 450 })
+    })
+
+    it('prepares five items a second for the longest timed run', async () => {
+      stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+      const rig = await mount('pseudo', 'time-600')
+      expect(screen.getByText(/10:00 left/)).toBeTruthy()
+      rig.stroke(SAP)
+      await waitFor(() => expect(loggers[0].start).toHaveBeenCalled())
+      expect(loggers[0].start).toHaveBeenCalledWith(expect.objectContaining({ section: 'pseudo/time-600', itemCount: 3000 }))
+    })
+
+    it.each(['words-501', 'words-0', 'time-4', 'time-601', 'words-025'])('says so for the out-of-range id %s', (id) => {
+      const fetch = stubContent({})
+      render(<FreeRoute source="pseudo" mode={id} />)
+      expect(screen.getByText(/No such free-type mode/)).toBeTruthy()
+      expect(fetch).not.toHaveBeenCalled()
+    })
   })
 
   describe('hint setting', () => {

@@ -4,7 +4,15 @@ import type { PracticeIndexEntry } from '../../scripts/build-content.ts'
 import type { TestRow } from '../../server/archive.ts'
 import { getLastTest } from '../api.ts'
 import { currentChapter } from '../core/progress.ts'
-import { FREE_MODES, PSEUDO_SOURCE, sourcesFor } from '../freetype/free.ts'
+import {
+  FREE_MODES,
+  MAX_CUSTOM_SECONDS,
+  MAX_CUSTOM_WORDS,
+  MIN_CUSTOM_SECONDS,
+  PSEUDO_SOURCE,
+  customModeId,
+  sourcesFor,
+} from '../freetype/free.ts'
 import type { FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useProgress } from '../state/progress.tsx'
@@ -18,14 +26,31 @@ function describeLast(row: TestRow | null): string {
   return `Last: ${Math.round(row.accuracy * 100)}% · ${Math.round(row.wpm ?? 0)} wpm`
 }
 
+const CUSTOM = 'custom'
+type Unit = 'words' | 'seconds'
+
+/** The typed amount as a whole number, or NaN for anything that is not plain digits. */
+const typedAmount = (text: string): number => (/^\d+$/.test(text.trim()) ? Number(text.trim()) : NaN)
+
+const rangeHint = (unit: Unit): string => (unit === 'words' ? `1–${MAX_CUSTOM_WORDS} words` : `${MIN_CUSTOM_SECONDS}–${MAX_CUSTOM_SECONDS} seconds`)
+
 function FreeType(): JSX.Element {
   // Until (or unless) the index loads, the pseudo-words are the only source.
   const [sources, setSources] = useState<FreeSource[]>([PSEUDO_SOURCE])
   const [source, setSource] = useState(PSEUDO_SOURCE.id)
   const [mode, setMode] = useState(FREE_MODES[0].id)
   const [last, setLast] = useState<{ section: string; row: TestRow | null } | null>(null)
-  const section = `${source}/${mode}`
-  const href = `/practice/free/${section}`
+  // What was typed in the Custom box is kept while a preset is chosen, so going back finds it again.
+  const [amount, setAmount] = useState('')
+  const [unit, setUnit] = useState<Unit>('words')
+  const custom = mode === CUSTOM
+  const modeId = custom ? customModeId(unit, typedAmount(amount)) : mode
+  const invalid = custom && modeId === undefined
+  const section = modeId === undefined ? null : `${source}/${modeId}`
+  const href = section === null ? null : `/practice/free/${section}`
+  const go = (): void => {
+    if (href !== null) navigate(href)
+  }
 
   useEffect(() => {
     let live = true
@@ -42,6 +67,7 @@ function FreeType(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    if (section === null) return
     let live = true
     void getLastTest('free', section).then((row) => live && setLast({ section, row }))
     return () => {
@@ -63,7 +89,7 @@ function FreeType(): JSX.Element {
         </label>
         <div class="free-type__modes" role="radiogroup" aria-labelledby="free-type-mode">
           <span id="free-type-mode" class="free-type__label">Mode</span>
-          {FREE_MODES.map((m) => (
+          {[...FREE_MODES, { id: CUSTOM, label: 'Custom' }].map((m) => (
             <label key={m.id} class="free-type__mode">
               <input
                 type="radio"
@@ -76,19 +102,57 @@ function FreeType(): JSX.Element {
             </label>
           ))}
         </div>
+        {custom && (
+          <div class="free-type__custom">
+            <label class="free-type__amount">
+              <span class="free-type__label">Amount</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                step={1}
+                min={unit === 'words' ? 1 : MIN_CUSTOM_SECONDS}
+                max={unit === 'words' ? MAX_CUSTOM_WORDS : MAX_CUSTOM_SECONDS}
+                value={amount}
+                aria-invalid={invalid && amount !== '' ? 'true' : undefined}
+                aria-describedby="free-type-range"
+                onInput={(e) => setAmount((e.currentTarget as HTMLInputElement).value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return
+                  e.preventDefault()
+                  go()
+                }}
+              />
+            </label>
+            <div class="free-type__units" role="radiogroup" aria-label="Unit">
+              {(['words', 'seconds'] as const).map((u) => (
+                <label key={u} class="free-type__mode">
+                  <input type="radio" name="free-type-unit" value={u} checked={unit === u} onChange={() => setUnit(u)} />
+                  {u}
+                </label>
+              ))}
+            </div>
+            <p id="free-type-range" class="free-type__hint">{rangeHint(unit)}</p>
+          </div>
+        )}
         <div class="free-type__go">
-          <a
-            class="free-type__start"
-            href={href}
-            onClick={(e) => {
-              if (!isPlainClick(e)) return
-              e.preventDefault()
-              navigate(href)
-            }}
-          >
-            Start
-          </a>
-          <span class="free-type__last">{describeLast(last?.section === section ? last.row : null)}</span>
+          {href === null ? (
+            <button type="button" class="free-type__start" disabled>
+              Start
+            </button>
+          ) : (
+            <a
+              class="free-type__start"
+              href={href}
+              onClick={(e) => {
+                if (!isPlainClick(e)) return
+                e.preventDefault()
+                navigate(href)
+              }}
+            >
+              Start
+            </a>
+          )}
+          <span class="free-type__last">{describeLast(section !== null && last?.section === section ? last.row : null)}</span>
         </div>
       </div>
     </section>

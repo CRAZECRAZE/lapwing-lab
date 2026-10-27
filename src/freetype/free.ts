@@ -14,11 +14,37 @@ export const FREE_MODES: readonly FreeMode[] = [
   { id: 'time-60', label: '60 seconds', seconds: 60 },
 ]
 
-/** Items prepared for a timed run; running out simply ends the drill. */
-const TIMED_ITEMS = 400
+/** The owner's own amounts: 1 to 500 words, or 5 to 600 seconds. */
+export const MAX_CUSTOM_WORDS = 500
+export const MIN_CUSTOM_SECONDS = 5
+export const MAX_CUSTOM_SECONDS = 600
 
+/** Items prepared for a short timed run; a longer one gets five a second so it cannot run out. */
+const MIN_TIMED_ITEMS = 400
+const ITEMS_PER_SECOND = 5
+
+/** Digits only, no leading zero: the only shape a custom amount takes in a mode id. */
+const CUSTOM_ID = /^(words|time)-([1-9]\d*)$/
+
+const inRange = (unit: 'words' | 'seconds', n: number): boolean =>
+  Number.isInteger(n) && (unit === 'words' ? n >= 1 && n <= MAX_CUSTOM_WORDS : n >= MIN_CUSTOM_SECONDS && n <= MAX_CUSTOM_SECONDS)
+
+/** The mode id for a custom amount (`words-40`, `time-90`), or undefined when it is not a whole number in range. */
+export function customModeId(unit: 'words' | 'seconds', value: number): string | undefined {
+  return inRange(unit, value) ? `${unit === 'words' ? 'words' : 'time'}-${value}` : undefined
+}
+
+/** A preset, or any custom amount in range; anything else is undefined. */
 export function parseMode(id: string): FreeMode | undefined {
-  return FREE_MODES.find((m) => m.id === id)
+  const preset = FREE_MODES.find((m) => m.id === id)
+  if (preset) return preset
+  const match = CUSTOM_ID.exec(id)
+  if (!match) return undefined
+  const n = Number(match[2])
+  if (match[1] === 'words') {
+    return inRange('words', n) ? { id, label: `${n} ${n === 1 ? 'word' : 'words'}`, words: n } : undefined
+  }
+  return inRange('seconds', n) ? { id, label: `${n} seconds`, seconds: n } : undefined
 }
 
 export type FreeSource = { id: string; label: string; chapter: number; kind: DrillKind }
@@ -69,7 +95,7 @@ export function poolFor(source: FreeSource, data: { words?: Stage0Words; lists?:
 }
 
 export function itemCountFor(mode: FreeMode): number {
-  return mode.words ?? TIMED_ITEMS
+  return mode.words ?? Math.max(MIN_TIMED_ITEMS, (mode.seconds ?? 0) * ITEMS_PER_SECOND)
 }
 
 function shuffle<T>(items: readonly T[], random: () => number): T[] {

@@ -94,7 +94,7 @@ describe('Practice', () => {
     ])
     expect(select.value).toBe('pseudo')
     const modes = within(screen.getByRole('radiogroup', { name: 'Mode' })).getAllByRole('radio') as HTMLInputElement[]
-    expect(modes.map((r) => r.value)).toEqual(['words-25', 'words-50', 'time-30', 'time-60'])
+    expect(modes.map((r) => r.value)).toEqual(['words-25', 'words-50', 'time-30', 'time-60', 'custom'])
     expect(screen.getByRole('radio', { name: '25 words' })).toHaveProperty('checked', true)
   })
 
@@ -142,6 +142,188 @@ describe('Practice', () => {
     expect(within(drills).getAllByRole('link')).toHaveLength(9)
     expect(within(drills).getByRole('link', { name: /Vowels/ }).getAttribute('href')).toBe('/drill/stage0/rows-vowels')
     await waitFor(() => expect(getLastTest).toHaveBeenCalledWith('stage0', 'rows-vowels'))
+  })
+
+  describe('Custom amount', () => {
+    const box = (): HTMLInputElement => screen.getByRole('spinbutton', { name: 'Amount' }) as HTMLInputElement
+    const start = (): HTMLElement => screen.getByRole('link', { name: 'Start' })
+    const startButton = (): HTMLButtonElement => screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement
+    const type = (value: string): void => void fireEvent.input(box(), { target: { value } })
+    const unit = (name: 'words' | 'seconds'): void => void fireEvent.click(screen.getByRole('radio', { name }))
+    const choose = (): void => void fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    const hint = (): HTMLElement => document.getElementById(box().getAttribute('aria-describedby')!)!
+    const expectDisabled = (): void => {
+      expect(screen.queryByRole('link', { name: 'Start' })).toBeNull()
+      expect(startButton().disabled).toBe(true)
+    }
+
+    beforeEach(() => {
+      stubIndex(INDEX)
+    })
+
+    it('shows the box only once Custom is chosen, with words as the default unit', () => {
+      render(<Practice />)
+      expect(screen.queryByRole('spinbutton', { name: 'Amount' })).toBeNull()
+      expect(screen.queryByRole('radiogroup', { name: 'Unit' })).toBeNull()
+      expect(screen.getByRole('radio', { name: 'Custom' })).toHaveProperty('checked', false)
+      choose()
+      expect(screen.getByRole('radio', { name: 'Custom' })).toHaveProperty('checked', true)
+      expect(box().getAttribute('inputmode')).toBe('numeric')
+      expect(box().getAttribute('min')).toBe('1')
+      expect(box().getAttribute('max')).toBe('500')
+      const units = within(screen.getByRole('radiogroup', { name: 'Unit' })).getAllByRole('radio') as HTMLInputElement[]
+      expect(units.map((r) => [r.value, r.checked])).toEqual([['words', true], ['seconds', false]])
+      unit('seconds')
+      expect(box().getAttribute('min')).toBe('5')
+      expect(box().getAttribute('max')).toBe('600')
+    })
+
+    it('starts a custom number of words', () => {
+      render(<Practice />)
+      choose()
+      type('40')
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/words-40')
+      fireEvent.click(start())
+      expect(location.pathname).toBe('/practice/free/pseudo/words-40')
+    })
+
+    it('starts a custom number of seconds, from the chosen source', async () => {
+      render(<Practice />)
+      const select = screen.getByRole('combobox', { name: 'Words from' }) as HTMLSelectElement
+      await waitFor(() => expect(select.options).toHaveLength(3))
+      fireEvent.change(select, { target: { value: 'ch-8' } })
+      choose()
+      unit('seconds')
+      type('90')
+      fireEvent.click(start())
+      expect(location.pathname).toBe('/practice/free/ch-8/time-90')
+    })
+
+    it.each([
+      ['empty', '', 'words'],
+      ['zero words', '0', 'words'],
+      ['501 words', '501', 'words'],
+      ['4 seconds', '4', 'seconds'],
+      ['601 seconds', '601', 'seconds'],
+      ['a decimal', '1.5', 'words'],
+      ['letters', 'abc', 'words'],
+      ['an exponent', '1e2', 'words'],
+      ['a minus sign', '-5', 'seconds'],
+    ] as const)('disables Start for %s and says what is allowed', (_name, text, which) => {
+      render(<Practice />)
+      choose()
+      if (which === 'seconds') unit('seconds')
+      type(text)
+      expectDisabled()
+      fireEvent.click(startButton())
+      expect(location.pathname).toBe('/practice')
+      expect(hint().textContent).toBe(which === 'words' ? '1–500 words' : '5–600 seconds')
+      expect(hint().textContent).not.toContain(which === 'words' ? 'seconds' : 'words')
+    })
+
+    it('marks a typed value that is out of range as invalid, and clears it once valid', () => {
+      render(<Practice />)
+      choose()
+      expect(box().getAttribute('aria-invalid')).toBeNull()
+      type('501')
+      expect(box().getAttribute('aria-invalid')).toBe('true')
+      type('500')
+      expect(box().getAttribute('aria-invalid')).toBeNull()
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/words-500')
+    })
+
+    it('has Start disabled before anything is typed', () => {
+      render(<Practice />)
+      choose()
+      expectDisabled()
+    })
+
+    it('re-checks the same typed text when the unit changes', () => {
+      render(<Practice />)
+      choose()
+      type('601')
+      expectDisabled()
+      unit('seconds')
+      expectDisabled()
+      type('60')
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/time-60')
+      type('4')
+      expectDisabled()
+      unit('words')
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/words-4')
+      type('300')
+      unit('seconds')
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/time-300')
+      type('601')
+      unit('words')
+      expectDisabled()
+    })
+
+    it('starts on Enter in the box when the value is valid', () => {
+      render(<Practice />)
+      choose()
+      type('40')
+      fireEvent.keyDown(box(), { key: 'Enter' })
+      expect(location.pathname).toBe('/practice/free/pseudo/words-40')
+    })
+
+    it('does nothing on Enter when the value is not valid', () => {
+      render(<Practice />)
+      choose()
+      fireEvent.keyDown(box(), { key: 'Enter' })
+      type('501')
+      fireEvent.keyDown(box(), { key: 'Enter' })
+      expect(location.pathname).toBe('/practice')
+    })
+
+    it('does not start on other keys', () => {
+      render(<Practice />)
+      choose()
+      type('40')
+      fireEvent.keyDown(box(), { key: 'a' })
+      expect(location.pathname).toBe('/practice')
+    })
+
+    it('ignores the custom box while a preset is chosen, and finds it again on return', () => {
+      render(<Practice />)
+      choose()
+      unit('seconds')
+      type('90')
+      fireEvent.click(screen.getByRole('radio', { name: '50 words' }))
+      expect(screen.queryByRole('spinbutton', { name: 'Amount' })).toBeNull()
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/words-50')
+      choose()
+      expect(box().value).toBe('90')
+      expect(screen.getByRole('radio', { name: 'seconds' })).toHaveProperty('checked', true)
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/time-90')
+    })
+
+    it('a preset stays startable even when the custom box holds an invalid value', () => {
+      render(<Practice />)
+      choose()
+      type('999')
+      fireEvent.click(screen.getByRole('radio', { name: '30 seconds' }))
+      expect(start().getAttribute('href')).toBe('/practice/free/pseudo/time-30')
+    })
+
+    it('asks for the last result of the custom combination, and shows a dash while it is not valid', async () => {
+      getLastTest.mockImplementation(async (mode, section) =>
+        mode === 'free' && section === 'pseudo/words-40' ? row({ accuracy: 0.77, wpm: 22.4 }) : null,
+      )
+      render(<Practice />)
+      choose()
+      type('40')
+      expect(await screen.findByText('Last: 77% · 22 wpm')).toBeTruthy()
+      expect(getLastTest).toHaveBeenCalledWith('free', 'pseudo/words-40')
+      type('0')
+      expect(screen.getByText('Last: —')).toBeTruthy()
+      expect(getLastTest).not.toHaveBeenCalledWith('free', 'pseudo/words-0')
+      type('40')
+      expect(await screen.findByText('Last: 77% · 22 wpm')).toBeTruthy()
+      unit('seconds')
+      expect(await screen.findByText('Last: —')).toBeTruthy()
+      expect(getLastTest).toHaveBeenCalledWith('free', 'pseudo/time-40')
+    })
   })
 
   describe('Where you are', () => {

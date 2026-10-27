@@ -3,8 +3,12 @@ import type { PracticeIndexEntry } from '../../scripts/build-content.ts'
 import type { DrillItem } from '../../src/core/drill.ts'
 import {
   FREE_MODES,
+  MAX_CUSTOM_SECONDS,
+  MAX_CUSTOM_WORDS,
+  MIN_CUSTOM_SECONDS,
   PSEUDO_SOURCE,
   buildFreeItems,
+  customModeId,
   describeFree,
   itemCountFor,
   listIdsFor,
@@ -47,7 +51,7 @@ describe('free-type modes', () => {
   it('parses a mode id, and refuses an unknown one', () => {
     expect(parseMode('time-60')).toEqual({ id: 'time-60', label: '60 seconds', seconds: 60 })
     expect(parseMode('words-25')?.words).toBe(25)
-    expect(parseMode('words-100')).toBeUndefined()
+    expect(parseMode('words-501')).toBeUndefined()
     expect(parseMode('')).toBeUndefined()
   })
 
@@ -56,6 +60,68 @@ describe('free-type modes', () => {
     expect(itemCountFor(parseMode('words-50')!)).toBe(50)
     expect(itemCountFor(parseMode('time-30')!)).toBe(400)
     expect(itemCountFor(parseMode('time-60')!)).toBe(400)
+  })
+
+  it('exports the custom limits', () => {
+    expect([MAX_CUSTOM_WORDS, MIN_CUSTOM_SECONDS, MAX_CUSTOM_SECONDS]).toEqual([500, 5, 600])
+  })
+
+  it.each([
+    ['words-1', { id: 'words-1', label: '1 word', words: 1 }],
+    ['words-7', { id: 'words-7', label: '7 words', words: 7 }],
+    ['words-40', { id: 'words-40', label: '40 words', words: 40 }],
+    ['words-100', { id: 'words-100', label: '100 words', words: 100 }],
+    ['words-500', { id: 'words-500', label: '500 words', words: 500 }],
+    ['time-5', { id: 'time-5', label: '5 seconds', seconds: 5 }],
+    ['time-90', { id: 'time-90', label: '90 seconds', seconds: 90 }],
+    ['time-600', { id: 'time-600', label: '600 seconds', seconds: 600 }],
+  ])('parses the custom id %s', (id, mode) => {
+    expect(parseMode(id)).toEqual(mode)
+  })
+
+  it('keeps the exact preset labels', () => {
+    expect(parseMode('words-25')?.label).toBe('25 words')
+    expect(parseMode('words-50')?.label).toBe('50 words')
+    expect(parseMode('time-30')?.label).toBe('30 seconds')
+    expect(parseMode('time-60')?.label).toBe('60 seconds')
+  })
+
+  it.each([
+    'words-0', 'words-501', 'words-1000', 'words-025', 'words-007', 'words-', 'words-12x', 'words-1e2', 'words--5', 'words-+5',
+    'words-1.5', 'words- 5', 'words-5 ', 'words-0x10', 'WORDS-5', 'Words-5', 'words-99999999999999999999999',
+    'time-4', 'time-0', 'time-601', 'time-005', 'time-', 'time-30.5', 'time--5', 'time-1e2', 'time-30s', 'TIME-30',
+    'seconds-30', 'word-5', 'words5', '-5', '5',
+  ])('refuses the id %j', (id) => {
+    expect(parseMode(id)).toBeUndefined()
+  })
+
+  it('accepts only whole amounts in range for a custom id', () => {
+    expect(customModeId('words', 1)).toBe('words-1')
+    expect(customModeId('words', 40)).toBe('words-40')
+    expect(customModeId('words', 500)).toBe('words-500')
+    expect(customModeId('seconds', 5)).toBe('time-5')
+    expect(customModeId('seconds', 90)).toBe('time-90')
+    expect(customModeId('seconds', 600)).toBe('time-600')
+    for (const bad of [0, -1, 1.5, NaN, Infinity, 501]) expect(customModeId('words', bad)).toBeUndefined()
+    for (const bad of [0, 4, 4.5, -5, NaN, Infinity, 601]) expect(customModeId('seconds', bad)).toBeUndefined()
+  })
+
+  it('applies each unit its own range', () => {
+    expect(customModeId('words', 601)).toBeUndefined()
+    expect(customModeId('seconds', 4)).toBeUndefined()
+    expect(customModeId('words', 4)).toBe('words-4')
+    expect(customModeId('seconds', 501)).toBe('time-501')
+  })
+
+  it('asks for five items a second on a long timed run, never fewer than 400', () => {
+    expect(itemCountFor(parseMode('words-1')!)).toBe(1)
+    expect(itemCountFor(parseMode('words-40')!)).toBe(40)
+    expect(itemCountFor(parseMode('words-500')!)).toBe(500)
+    expect(itemCountFor(parseMode('time-5')!)).toBe(400)
+    expect(itemCountFor(parseMode('time-80')!)).toBe(400)
+    expect(itemCountFor(parseMode('time-81')!)).toBe(405)
+    expect(itemCountFor(parseMode('time-120')!)).toBe(600)
+    expect(itemCountFor(parseMode('time-600')!)).toBe(3000)
   })
 })
 
@@ -164,9 +230,16 @@ describe('describeFree', () => {
     expect(describeFree('ch-5/words-50')).toBe('Free type · Chapter 5 word lists · 50 words')
   })
 
+  it('names a custom mode', () => {
+    expect(describeFree('pseudo/words-40')).toBe('Free type · Chapter 4 pseudo-words · 40 words')
+    expect(describeFree('ch-8/time-90')).toBe('Free type · Chapters 5–8 word lists · 90 seconds')
+    expect(describeFree('ch-5/words-1')).toBe('Free type · Chapter 5 word lists · 1 word')
+    expect(describeFree('ch-5/time-601')).toBe('ch-5/time-601')
+  })
+
   it('falls back to the raw section for unknown ids', () => {
     expect(describeFree('ch-4/words-25')).toBe('ch-4/words-25')
-    expect(describeFree('pseudo/words-99')).toBe('pseudo/words-99')
+    expect(describeFree('pseudo/words-501')).toBe('pseudo/words-501')
     expect(describeFree('odd')).toBe('odd')
   })
 })

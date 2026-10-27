@@ -116,6 +116,53 @@
   border-color: var(--left);
 }
 
+button.free-type__start {
+  font: inherit;
+  cursor: pointer;
+}
+
+button.free-type__start:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
+
+.free-type__custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.free-type__amount,
+.free-type__units {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.free-type__amount input {
+  width: 6rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.free-type__amount input[aria-invalid='true'] {
+  border-color: var(--left);
+}
+
+.free-type__hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .free-type__last {
   color: var(--muted);
   font-size: 0.85rem;
