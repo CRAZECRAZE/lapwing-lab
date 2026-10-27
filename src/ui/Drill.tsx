@@ -24,6 +24,10 @@ export type DrillProps = {
   logTest: { mode: string; chapter: number | null; section: string | null }
   passMark?: { accuracy: number; maxMinutes?: number }
   boardVisibility?: Settings['boardVisibility']
+  /** prompt: one big prompt (the default); flow: a line of the last few, the current and the next prompts. */
+  view?: 'prompt' | 'flow'
+  /** Ends the drill after this much session-clock time from the first judged stroke. */
+  timeLimitMs?: number
   onDone(result: DrillResult): void
   onExit(): void
 }
@@ -31,6 +35,11 @@ export type DrillProps = {
 const BOARD_KEY_PX = 22
 /** A logger.finish that never settles must not trap the owner on the last screen. */
 const FINISH_WAIT_MS = 1500
+/** How often a running countdown redraws and checks for time-up. */
+const COUNTDOWN_TICK_MS = 250
+/** Flow view: completed prompts kept on the line behind the current one, and upcoming ones after it. */
+const FLOW_BEHIND = 3
+const FLOW_AHEAD = 10
 
 type Miss = { missing: SlotMask; extra: SlotMask; expected: string; target: SlotMask }
 
@@ -48,6 +57,12 @@ function remaining(item: DrillItem | undefined, entered: readonly SlotMask[]): S
   return []
 }
 
+/** Whole seconds left as m:ss, rounded up so it reads 0:00 only once the time is up. */
+function formatLeft(ms: number): string {
+  const seconds = Math.ceil(Math.max(0, ms) / 1000)
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | null {
   if (!passMark) return null
   return (
@@ -57,7 +72,7 @@ function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | n
 }
 
 export function Drill(props: DrillProps): JSX.Element {
-  const { title, kind, items, logger, boardVisibility = 'always', onExit } = props
+  const { title, kind, items, logger, boardVisibility = 'always', view = 'prompt', timeLimitMs, onExit } = props
   const uni = useUni()
   const [, redraw] = useReducer((n: number) => n + 1, 0)
   const [unsaved, setUnsaved] = useState(logger.unsaved)
@@ -84,7 +99,12 @@ export function Drill(props: DrillProps): JSX.Element {
   const done = useRef(false)
   /** The test is created lazily, at the first judged stroke: opening a drill and leaving writes nothing. */
   const started = useRef(false)
+  /** Session-clock time of the first judged stroke: the countdown runs from here. */
+  const startedAt = useRef<number | null>(null)
   const alive = useRef(true)
+
+  const timeLeft = (): number =>
+    timeLimitMs === undefined ? Infinity : timeLimitMs - (startedAt.current === null ? 0 : clock() - startedAt.current)
 
   const root = useRef<HTMLElement>(null)
   const sink = useRef<HTMLTextAreaElement>(null)
@@ -123,11 +143,24 @@ export function Drill(props: DrillProps): JSX.Element {
       })
     }
 
-    const finish = async (): Promise<void> => {
+    let countdown: ReturnType<typeof setInterval> | undefined
+    const stopCountdown = (): void => {
+      clearInterval(countdown)
+      countdown = undefined
+    }
+
+    const finish = async (timedOut = false): Promise<void> => {
       const { passMark, onDone } = latest.current
       const stats = session.stats()
-      const passed = judge(stats, passMark)
-      const meta = { kind, itemCount: items.length, firstTryCorrect: stats.firstTryCorrect, elapsedMs: stats.elapsedMs, passed }
+      const passed = timedOut ? null : judge(stats, passMark)
+      const meta = {
+        kind,
+        itemCount: items.length,
+        firstTryCorrect: stats.firstTryCorrect,
+        elapsedMs: stats.elapsedMs,
+        passed,
+        ...(timedOut ? { timeLimitMs, timedOut: true } : {}),
+      }
       let timer: ReturnType<typeof setTimeout> | undefined
       const timeout = new Promise<void>((resolve) => {
         timer = setTimeout(resolve, FINISH_WAIT_MS)
@@ -137,8 +170,18 @@ export function Drill(props: DrillProps): JSX.Element {
       if (alive.current) onDone({ stats, passed, meta })
     }
 
+    /** True (and the drill finished) once the time limit has run out. */
+    const timeUp = (): boolean => {
+      if (done.current || timeLeft() > 0) return done.current
+      done.current = true
+      stopCountdown()
+      redraw(0)
+      void finish(true)
+      return true
+    }
+
     const onStroke = (stroke: RawStroke): void => {
-      if (done.current) return
+      if (timeUp()) return
       const item = session.current
       if (!item) return
       const result = session.submit(stroke)
@@ -152,6 +195,12 @@ export function Drill(props: DrillProps): JSX.Element {
 
       if (!started.current) {
         started.current = true
+        startedAt.current = clock()
+        if (timeLimitMs !== undefined) {
+          countdown = setInterval(() => {
+            if (!timeUp()) redraw(0)
+          }, COUNTDOWN_TICK_MS)
+        }
         // Never awaited: input works while (or even if) the archive is slow or down.
         void logger.start({ ...latest.current.logTest, itemCount: items.length }).catch(() => {})
       }
@@ -190,6 +239,7 @@ export function Drill(props: DrillProps): JSX.Element {
       redraw(0)
       if (session.finished) {
         done.current = true
+        stopCountdown()
         void finish()
       }
     }
@@ -197,6 +247,7 @@ export function Drill(props: DrillProps): JSX.Element {
     const unsubscribeStrokes = uni.onStroke(onStroke)
     return () => {
       alive.current = false
+      stopCountdown()
       unsubscribeStrokes()
       unsubscribeUnsaved()
       if (started.current && !done.current) {
@@ -228,6 +279,8 @@ export function Drill(props: DrillProps): JSX.Element {
     : kind === 'word' && hinted.current
       ? hintStrokes.map(formatStroke).join('/')
       : ''
+  const flowFrom = Math.max(0, session.index - FLOW_BEHIND)
+  const progress = timeLimitMs === undefined ? `${stats.completed} / ${session.total}` : `${formatLeft(timeLeft())} left`
   const diff = showMiss ? { missing: showMiss.missing, extra: showMiss.extra } : undefined
 
   const board = <Board size={BOARD_KEY_PX} target={target} pressed={uni.pressed} diff={diff} />
@@ -283,11 +336,30 @@ export function Drill(props: DrillProps): JSX.Element {
         </p>
       )}
 
-      <div class={`drill__prompt drill__prompt--${kind}`} aria-live="polite">
-        {item ? item.prompt : '✓'}
-      </div>
+      {view === 'flow' ? (
+        <p class={`drill__flow drill__flow--${kind}`}>
+          {items.slice(flowFrom, session.index + 1 + FLOW_AHEAD).map((it, k) => {
+            const at = flowFrom + k
+            const state = at < session.index ? 'done' : at === session.index ? 'current' : 'next'
+            return (
+              <span
+                key={at}
+                class={`drill__flow-word drill__flow-word--${state}`}
+                aria-current={state === 'current' ? 'true' : undefined}
+              >
+                {it.prompt}
+              </span>
+            )
+          })}
+          {!item && <span class="drill__flow-end">✓</span>}
+        </p>
+      ) : (
+        <div class={`drill__prompt drill__prompt--${kind}`} aria-live="polite">
+          {item ? item.prompt : '✓'}
+        </div>
+      )}
       <p class="drill__stats">
-        {stats.completed} / {session.total} · acc {stats.completed > 0 ? `${Math.round(stats.accuracy * 100)}%` : '—'} · {Math.round(stats.wpm)} wpm
+        {progress} · acc {stats.completed > 0 ? `${Math.round(stats.accuracy * 100)}%` : '—'} · {Math.round(stats.wpm)} wpm
       </p>
       <p class="drill__expected" aria-live="polite">
         {expectedText}

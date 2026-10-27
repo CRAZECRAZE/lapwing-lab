@@ -756,3 +756,256 @@ describe('Drill finishing', () => {
     expect(rig.logger.finishes).toHaveLength(0)
   })
 })
+
+const flowWords = (): Element[] => [...document.querySelectorAll('.drill__flow-word')]
+const current = (): Element | null => document.querySelector('.drill__flow [aria-current="true"]')
+const statsText = (): string => document.querySelector('.drill__stats')!.textContent!
+
+function unplug(rig: Rig): void {
+  act(() => {
+    for (const cb of [...rig.hid.listeners.disconnect]) cb({ device: rig.device })
+  })
+}
+
+async function replug(rig: Rig): Promise<void> {
+  act(() => {
+    for (const cb of [...rig.hid.listeners.connect]) cb({ device: rig.device })
+  })
+  await waitFor(() => expect(screen.queryByText(/Board disconnected/)).toBeNull())
+}
+
+describe('Drill flow view', () => {
+  it('shows the current prompt marked and the following prompts in order, with no big prompt', async () => {
+    const rig = await mountDrill({
+      view: 'flow',
+      items: [item('SAP', 'SAP'), item('KAT', 'KAT'), item('TAP', 'TAP')],
+    })
+    expect(document.querySelector('.drill__prompt')).toBeNull()
+    expect(flowWords().map((w) => w.textContent)).toEqual(['SAP', 'KAT', 'TAP'])
+    expect(current()!.textContent).toBe('SAP')
+    expect(flowWords()[0]).toBe(current())
+
+    rig.stroke(SAP)
+    expect(current()!.textContent).toBe('KAT')
+    const [first, second] = flowWords()
+    expect(first.textContent).toBe('SAP')
+    expect(first.classList.contains('drill__flow-word--done')).toBe(true)
+    expect(first.hasAttribute('aria-current')).toBe(false)
+    expect(second).toBe(current())
+    // the rest of the drill is unchanged: stats, hint line, board
+    expect(statsText()).toMatch(/^1 \/ 3 · acc 100% · \d+ wpm$/)
+    expect(document.querySelector('.drill__expected')).toBeTruthy()
+    expect(lever('K-').classList.contains('key--target')).toBe(true)
+  })
+
+  it('keeps the last 3 completed prompts and the next 10, keyed by position for repeated prompts', async () => {
+    const items = Array.from({ length: 20 }, () => item('SAP', 'SAP'))
+    const rig = await mountDrill({ view: 'flow', items })
+    expect(flowWords()).toHaveLength(11)
+    expect(flowWords().indexOf(current()!)).toBe(0)
+    const firstSpan = flowWords()[0]
+    for (let i = 0; i < 5; i++) rig.stroke(SAP)
+    // 3 done + current + 10 next
+    expect(flowWords()).toHaveLength(14)
+    expect(flowWords().indexOf(current()!)).toBe(3)
+    expect(flowWords().filter((w) => w.classList.contains('drill__flow-word--done'))).toHaveLength(3)
+    expect(document.querySelectorAll('.drill__flow [aria-current]')).toHaveLength(1)
+    expect(firstSpan.isConnected).toBe(false) // item 0 scrolled out of the window
+    expect(statsText()).toMatch(/^5 \/ 20 /)
+  })
+
+  it('shows the completed mark after the last prompt when the items run out', async () => {
+    const rig = await mountDrill({ view: 'flow', items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
+    rig.stroke(SAP)
+    rig.stroke(KAT)
+    expect(current()).toBeNull()
+    expect(flowWords().map((w) => w.textContent)).toEqual(['SAP', 'KAT'])
+    expect(flowWords().every((w) => w.classList.contains('drill__flow-word--done'))).toBe(true)
+    expect(document.querySelector('.drill__flow')!.textContent).toContain('✓')
+    await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+  })
+
+  it('a word flow drill left early still finishes as abandoned', async () => {
+    const rig = await mountDrill({ view: 'flow', kind: 'word', items: [item('sap', 'SAP'), item('kat', 'KAT')] })
+    expect(document.querySelector('.drill__flow')!.classList.contains('drill__flow--word')).toBe(true)
+    rig.stroke(SAP)
+    rig.unmount()
+    expect(rig.logger.finishes).toHaveLength(1)
+    expect(rig.logger.finishes[0].meta).toMatchObject({ abandoned: true, completed: 1 })
+    expect(rig.onDone).not.toHaveBeenCalled()
+  })
+
+  it('the prompt view stays the default', async () => {
+    await mountDrill({ items: [item('SAP', 'SAP')] })
+    expect(document.querySelector('.drill__flow')).toBeNull()
+    expect(document.querySelector('.drill__prompt')!.textContent).toBe('SAP')
+  })
+})
+
+describe('Drill time limit', () => {
+  const many = (n = 40): DrillItem[] =>
+    Array.from({ length: n }, (_, i) => (i % 2 === 0 ? item('SAP', 'SAP') : item('KAT', 'KAT')))
+  const tick = (ms: number): void => {
+    act(() => {
+      vi.advanceTimersByTime(ms)
+    })
+  }
+
+  /** The interval is faked (so waitFor cannot poll): let the finish promise chain run on a real timeout. */
+  const settle = async (): Promise<void> => {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(1_000_000)
+  })
+
+  it('shows the remaining time instead of the count, rounding up, and counts down from the first stroke', async () => {
+    const rig = await mountDrill({ items: many(), timeLimitMs: 30_000 })
+    expect(statsText()).toBe('0:30 left · acc — · 0 wpm')
+    tick(5000)
+    expect(statsText()).toBe('0:30 left · acc — · 0 wpm')
+    rig.stroke(SAP)
+    expect(statsText()).toMatch(/^0:30 left · acc 100% · /)
+    tick(1200)
+    expect(statsText()).toMatch(/^0:29 left · /)
+    tick(28_700) // 100 ms remain
+    expect(statsText()).toMatch(/^0:01 left · /)
+    expect(rig.onDone).not.toHaveBeenCalled()
+  })
+
+  it('formats minutes', async () => {
+    await mountDrill({ items: many(), timeLimitMs: 90_000 })
+    expect(statsText()).toBe('1:30 left · acc — · 0 wpm')
+  })
+
+  it('does nothing before the first stroke, then finishes once at time-up and ignores later strokes', async () => {
+    const rig = await mountDrill({ items: many(), timeLimitMs: 30_000 })
+    expect(vi.getTimerCount()).toBe(0)
+    tick(60_000)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    expect(rig.logger.starts).toHaveLength(0)
+
+    rig.stroke(SAP)
+    expect(vi.getTimerCount()).toBe(1)
+    tick(10_000)
+    rig.stroke(KAT)
+    tick(20_000)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(rig.logger.finishes).toHaveLength(1)
+    const result = rig.onDone.mock.calls[0][0]
+    expect(result.passed).toBeNull()
+    expect(result.meta).toMatchObject({ timedOut: true, timeLimitMs: 30_000, passed: null, kind: 'stroke' })
+    expect(rig.logger.finishes[0].meta).toEqual(result.meta)
+    expect(result.stats.completed).toBe(2)
+    expect(result.stats.elapsedMs).toBe(10_000) // wpm runs to the last completed word
+    expect(rig.logger.finishes[0]).toMatchObject({ accuracy: 1, wpm: result.stats.wpm })
+
+    rig.stroke(SAP)
+    expect(rig.logger.strokes).toHaveLength(2)
+    tick(5000)
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('undo and ignored strokes do not start the countdown', async () => {
+    const KOPL = [0x20, 0x82, 0x80]
+    const rig = await mountDrill({ items: [item('KOPL/PHREU', 'KOPL/PHREU'), ...many()], timeLimitMs: 30_000 })
+    rig.stroke(LONE_STAR) // ignored
+    tick(40_000)
+    expect(statsText()).toMatch(/^0:30 left/)
+    expect(vi.getTimerCount()).toBe(0)
+    rig.stroke(KOPL) // the first judged stroke: the countdown starts here
+    rig.stroke(LONE_STAR) // undo
+    expect(vi.getTimerCount()).toBe(1)
+    tick(29_000)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    tick(1000)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('is frozen while the board is disconnected', async () => {
+    const rig = await mountDrill({ items: many(), timeLimitMs: 30_000 })
+    rig.stroke(SAP)
+    tick(10_000)
+    unplug(rig)
+    tick(60_000)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    expect(statsText()).toMatch(/^0:20 left/)
+    await replug(rig)
+    tick(19_000)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    expect(rig.logger.finishes).toHaveLength(0)
+    tick(1000)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    expect(rig.onDone.mock.calls[0][0].meta).toMatchObject({ timedOut: true })
+  })
+
+  it('time up with zero completed words finishes with wpm 0 and accuracy 0', async () => {
+    const rig = await mountDrill({ items: many(), timeLimitMs: 30_000 })
+    rig.stroke(TAP) // a miss starts the test
+    tick(30_000)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    const result = rig.onDone.mock.calls[0][0]
+    expect(result.stats).toMatchObject({ completed: 0, wpm: 0, accuracy: 0 })
+    expect(rig.logger.finishes[0]).toMatchObject({ wpm: 0, accuracy: 0 })
+    expect(Number.isFinite(rig.logger.finishes[0].wpm)).toBe(true)
+    expect(Number.isFinite(rig.logger.finishes[0].accuracy)).toBe(true)
+  })
+
+  it('a multi-stroke item in progress at time-up is not counted', async () => {
+    const KOPL = [0x20, 0x82, 0x80]
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KOPL/PHREU', 'KOPL/PHREU')], timeLimitMs: 30_000 })
+    rig.stroke(SAP)
+    rig.stroke(KOPL)
+    tick(30_000)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    expect(rig.onDone.mock.calls[0][0].stats.completed).toBe(1)
+  })
+
+  it('completes normally when the items run out first, and stops the countdown', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')], timeLimitMs: 30_000 })
+    rig.stroke(SAP)
+    tick(1000)
+    rig.stroke(KAT)
+    expect(vi.getTimerCount()).toBe(0)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    expect(rig.onDone.mock.calls[0][0].meta).not.toHaveProperty('timedOut')
+    tick(60_000)
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    expect(rig.logger.finishes).toHaveLength(1)
+  })
+
+  it('unmounting after a time-out does not finish a second time', async () => {
+    const rig = await mountDrill({ view: 'flow', items: many(), timeLimitMs: 30_000 })
+    rig.stroke(SAP)
+    tick(30_000)
+    await settle()
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    rig.unmount()
+    expect(rig.logger.finishes).toHaveLength(1)
+    expect(rig.logger.finishes[0].meta).not.toHaveProperty('abandoned')
+  })
+
+  it('leaves no interval running after an unmount mid-countdown, and finishes as abandoned', async () => {
+    const rig = await mountDrill({ view: 'flow', items: many(), timeLimitMs: 30_000 })
+    rig.stroke(SAP)
+    expect(vi.getTimerCount()).toBe(1)
+    rig.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(rig.logger.finishes).toHaveLength(1)
+    expect(rig.logger.finishes[0].meta).toMatchObject({ abandoned: true })
+    tick(60_000)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    expect(rig.logger.finishes).toHaveLength(1)
+  })
+})

@@ -86,6 +86,44 @@
   font-weight: 300;
 }
 
+/* Flow view: one line of prompts, the current one emphasized, the finished ones fading behind it. */
+.drill__flow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.35em 0.9em;
+  max-width: min(100%, 60rem);
+  margin: 4vh 0 0;
+  overflow-wrap: anywhere;
+  color: var(--drill-muted);
+  font-size: clamp(1.4rem, 4vw, 2.25rem);
+  line-height: 1.4;
+}
+
+.drill__flow--stroke {
+  font-family: var(--drill-mono);
+  letter-spacing: 0.04em;
+}
+
+.drill__flow--word {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 300;
+}
+
+.drill__flow-word--done {
+  opacity: 0.45;
+}
+
+.drill__flow-word--current {
+  color: var(--drill-heading);
+  border-bottom: 2px solid var(--drill-muted);
+}
+
+.drill__flow-end {
+  color: var(--drill-heading);
+}
+
 .drill__stats {
   margin: 0;
   color: var(--drill-muted);
