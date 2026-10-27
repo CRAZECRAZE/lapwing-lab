@@ -320,11 +320,11 @@ describe('internal links', () => {
     await waitFor(() => expect(window.scrollTo).toHaveBeenCalledWith(0, 0))
   })
 
-  it('shows placeholders for drill and unknown routes', async () => {
+  it('shows a calm message for unknown drills and unknown routes', async () => {
     mockFetch(routes())
-    history.replaceState(null, '', '/drill/stage0/rows-left-bottom')
+    history.replaceState(null, '', '/drill/elsewhere/rows')
     render(<App />)
-    expect(await screen.findByText(/coming in a later task/i)).toBeTruthy()
+    expect(await screen.findByText(/no such drill/i)).toBeTruthy()
     cleanup()
     history.replaceState(null, '', '/nope')
     render(<App />)

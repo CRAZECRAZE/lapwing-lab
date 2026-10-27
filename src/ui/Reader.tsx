@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { PageFile } from '../../scripts/build-content.ts'
 import { isPlainClick, navigate, safeDecode } from '../router.ts'
+import { Stage0Panel } from './Stage0Panel.tsx'
 import { StrokeInspector } from './StrokeInspector.tsx'
 
 type Loaded =
@@ -76,16 +77,19 @@ export function Reader({ id }: { id: string }): JSX.Element {
 
   return (
     <div class="reader">
-      <article class="page" ref={article} aria-busy={loaded.status === 'loading'}>
-        {loaded.status === 'ready' && <div dangerouslySetInnerHTML={{ __html: loaded.page.html }} />}
-        {loaded.status === 'loading' && <p class="page__status">Loading…</p>}
-        {loaded.status === 'missing' && (
-          <p class="page__status" role="alert">This page isn't in the book.</p>
-        )}
-        {loaded.status === 'error' && (
-          <p class="page__status" role="alert">Couldn't load this page. Check that the Lapwing Lab server is still running, then reload.</p>
-        )}
-      </article>
+      <div class="reader__column">
+        {id === 'ch04' && <Stage0Panel />}
+        <article class="page" ref={article} aria-busy={loaded.status === 'loading'}>
+          {loaded.status === 'ready' && <div dangerouslySetInnerHTML={{ __html: loaded.page.html }} />}
+          {loaded.status === 'loading' && <p class="page__status">Loading…</p>}
+          {loaded.status === 'missing' && (
+            <p class="page__status" role="alert">This page isn't in the book.</p>
+          )}
+          {loaded.status === 'error' && (
+            <p class="page__status" role="alert">Couldn't load this page. Check that the Lapwing Lab server is still running, then reload.</p>
+          )}
+        </article>
+      </div>
       <aside class="dock" aria-label="Stroke inspector">
         <StrokeInspector outline={outline} />
       </aside>

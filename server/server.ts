@@ -1,4 +1,4 @@
-import { createReadStream, mkdirSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
@@ -188,6 +188,8 @@ function allow(res: ServerResponse, ...methods: string[]): never {
 
 interface ApiContext {
   archive(): Archive
+  /** The archive if it is open or its file already exists; null when nothing was ever saved (never creates it). */
+  existingArchive(): Archive | null
   settingsFile: string
   ensureDataDir(): void
 }
@@ -266,7 +268,7 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     const mode = params.get('mode')
     const section = params.get('section')
     if (!mode || !section) throw new HttpError(400, '"mode" and "section" query parameters are required')
-    sendJson(res, 200, ctx.archive().lastTest(mode, section) ?? null)
+    sendJson(res, 200, ctx.existingArchive()?.lastTest(mode, section) ?? null)
     return
   }
 
@@ -317,6 +319,7 @@ export function createServer(opts: ServerOptions): Server {
     ensureDataDir: () => {
       mkdirSync(dataDir, { recursive: true })
     },
+    existingArchive: () => (archive || existsSync(join(dataDir, 'steno.db')) ? ctx.archive() : null),
     archive: () => {
       if (!archive) {
         mkdirSync(dataDir, { recursive: true })

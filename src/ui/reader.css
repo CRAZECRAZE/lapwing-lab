@@ -480,3 +480,162 @@ body {
   outline: 2px solid var(--left);
   outline-offset: 2px;
 }
+
+/* Reader column: the Stage 0 panel (Chapter 4 only) above the article */
+
+.reader__column {
+  min-width: 0;
+}
+
+/* Stage 0 panel: quiet list of drills with their last result */
+
+.stage0 {
+  margin: 0 0 2.5rem;
+  padding: 1rem 1.1rem 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.stage0__heading {
+  margin: 0 0 0.5rem;
+  color: var(--heading);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.stage0__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage0__drill {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 -0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.stage0__drill:hover,
+.stage0__drill:focus-visible {
+  background: var(--raised);
+  color: var(--heading);
+}
+
+.stage0__last {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* Stage 0 drill route: board-visibility selector and the result summary */
+
+.stage0-run {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.stage0-visibility {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.stage0-visibility__label {
+  margin-right: 0.25rem;
+}
+
+.stage0-visibility__option,
+.stage0-button {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.stage0-visibility__option:hover,
+.stage0-button:hover {
+  color: var(--heading);
+  border-color: var(--muted);
+}
+
+.stage0-visibility__option[aria-pressed='true'] {
+  background: var(--raised);
+  border-color: var(--muted);
+  color: var(--heading);
+}
+
+.stage0-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 4rem 1rem;
+  text-align: center;
+}
+
+.stage0-summary__title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.stage0-summary__verdict {
+  margin: 0;
+  color: var(--heading);
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  line-height: 1.1;
+}
+
+.stage0-summary__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.stage0-summary__stats {
+  display: flex;
+  gap: 2.5rem;
+  margin: 1rem 0;
+}
+
+.stage0-summary__stats div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.15rem;
+}
+
+.stage0-summary__stats dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.stage0-summary__stats dd {
+  margin: 0;
+  color: var(--heading);
+  font-family: var(--mono);
+  font-size: 1.6rem;
+}
+
+.stage0-summary__actions {
+  display: flex;
+  gap: 0.75rem;
+}

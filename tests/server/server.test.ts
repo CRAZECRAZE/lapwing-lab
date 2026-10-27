@@ -294,6 +294,14 @@ describe('archive API', () => {
     expect(existsSync(join(dataDir, 'steno.db'))).toBe(true)
   })
 
+  it('answers GET /api/tests/last with null without creating the archive, and reads it once it exists', async () => {
+    expect(await (await call('GET', '/api/tests/last?mode=stage0&section=rows-star')).json()).toBeNull()
+    expect(existsSync(join(dir, 'data'))).toBe(false)
+    const testId = await newTest()
+    await call('POST', `/api/tests/${testId}/finish`, { endedAt: 2000, wpm: 12, accuracy: 0.9, meta: {} })
+    expect(await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()).toMatchObject({ id: testId })
+  })
+
   it('runs the full POST sequence and returns the finished test', async () => {
     const testId = await newTest()
     expect(testId).toBeGreaterThan(0)
