@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TestSummary } from '../../server/archive.ts'
 import { Journal } from '../../src/ui/Journal.tsx'
+import { __resetPendingSavesForTests, ORPHAN_RETRY_MS } from '../../src/ui/useAutosave.ts'
 
 vi.mock('../../src/api.ts', () => ({
   listJournal: vi.fn(),
@@ -79,6 +80,7 @@ describe('Journal', () => {
   })
   afterEach(() => {
     cleanup()
+    __resetPendingSavesForTests()
     // @ts-expect-error -- remove the per-test override so jsdom's own getter shows again
     delete document.visibilityState
     vi.useRealTimers()
@@ -256,18 +258,97 @@ describe('Journal', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('leaves no timers behind after unmount, even while retrying', async () => {
+  it('unmounting while saves fail keeps retrying the latest text until the server recovers', async () => {
+    putJournal.mockRejectedValue(new Error('down'))
+    const { unmount } = render(<Journal date="2026-10-26" />)
+    await advance()
+    type(box('Journal for Mon 26 Oct 2026'), 'pending')
+    await advance(800)
+    expect(screen.getByText('Not saved — will retry')).toBeTruthy()
+    type(box('Journal for Mon 26 Oct 2026'), 'pending more')
+    unmount()
+    await advance()
+    expect(putJournal).toHaveBeenCalledTimes(2)
+    expect(putJournal).toHaveBeenLastCalledWith('2026-10-26', 'pending more')
+
+    await advance(5000)
+    expect(putJournal).toHaveBeenCalledTimes(3)
+    putJournal.mockReset()
+    putJournal.mockResolvedValue(undefined)
+    await advance(5000)
+    expect(putJournal).toHaveBeenCalledTimes(1)
+    expect(putJournal).toHaveBeenCalledWith('2026-10-26', 'pending more')
+    expect(vi.getTimerCount()).toBe(0)
+    await advance(60000)
+    expect(putJournal).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops retrying a closed day after the orphan limit and leaves no timers', async () => {
     putJournal.mockRejectedValue(new Error('down'))
     const { unmount } = render(<Journal />)
     await advance()
-    type(box(), 'pending')
-    await advance(800)
-    expect(vi.getTimerCount()).toBeGreaterThan(0)
-    type(box(), 'pending more')
+    type(box(), 'doomed')
     unmount()
-    await advance()
+    await advance(ORPHAN_RETRY_MS + 10000)
+    const tries = putJournal.mock.calls.length
+    expect(tries).toBeGreaterThan(100)
     expect(vi.getTimerCount()).toBe(0)
-    expect(putJournal).toHaveBeenLastCalledWith('2026-10-27', 'pending more')
+    await advance(60000)
+    expect(putJournal).toHaveBeenCalledTimes(tries)
+  })
+
+  it('reopening the same day waits for the closing save before loading', async () => {
+    let disk = 'Stored words.'
+    getJournal.mockImplementation(async () => disk)
+    const first = deferred()
+    putJournal.mockImplementationOnce(async (_date, text) => {
+      await first.promise
+      disk = text
+    })
+    const a = render(<Journal date="2026-10-26" />)
+    await advance()
+    type(box('Journal for Mon 26 Oct 2026'), 'flushed words')
+    a.unmount()
+    expect(putJournal).toHaveBeenCalledWith('2026-10-26', 'flushed words')
+
+    render(<Journal date="2026-10-26" />)
+    await advance()
+    expect(getJournal).toHaveBeenCalledTimes(1)
+    expect(box('Journal for Mon 26 Oct 2026').readOnly).toBe(true)
+
+    first.resolve()
+    await advance()
+    expect(box('Journal for Mon 26 Oct 2026').readOnly).toBe(false)
+    expect(box('Journal for Mon 26 Oct 2026').value).toBe('flushed words')
+    fireEvent.blur(box('Journal for Mon 26 Oct 2026'))
+    await advance(10000)
+    expect(putJournal).toHaveBeenCalledTimes(1)
+  })
+
+  it('reopening a day whose closing save is still failing shows the unsaved text and keeps retrying', async () => {
+    getJournal.mockResolvedValue('old file text')
+    putJournal.mockRejectedValue(new Error('down'))
+    const a = render(<Journal date="2026-10-26" />)
+    await advance()
+    type(box('Journal for Mon 26 Oct 2026'), 'newer words')
+    a.unmount()
+    await advance()
+
+    render(<Journal date="2026-10-26" />)
+    await advance()
+    expect(getJournal).toHaveBeenCalledTimes(1)
+    expect(box('Journal for Mon 26 Oct 2026').value).toBe('newer words')
+    expect(box('Journal for Mon 26 Oct 2026').readOnly).toBe(false)
+    expect(screen.getByText('Not saved — will retry')).toBeTruthy()
+
+    type(box('Journal for Mon 26 Oct 2026'), 'newer words, more')
+    putJournal.mockReset()
+    putJournal.mockResolvedValue(undefined)
+    await advance(800)
+    expect(putJournal).toHaveBeenCalledTimes(1)
+    expect(putJournal).toHaveBeenCalledWith('2026-10-26', 'newer words, more')
+    expect(screen.getByText('Saved')).toBeTruthy()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('shows No such day. for a date that is not on the calendar, without fetching', () => {

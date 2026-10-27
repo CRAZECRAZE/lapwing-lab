@@ -1,4 +1,5 @@
 import type { JSX } from 'preact'
+import { localDate } from '../core/days.ts'
 import { tabOf, useRoute } from '../router.ts'
 import { UniProvider } from '../state/uni-context.tsx'
 import { FreeRoute } from './FreeRoute.tsx'
@@ -34,7 +35,7 @@ export function App(): JSX.Element {
           {route.name === 'history' && <History />}
           {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
           {route.name === 'days' && <Soon name="Days" />}
-          {route.name === 'journal' && <Journal key={route.date ?? 'today'} date={route.date} />}
+          {route.name === 'journal' && <Journal key={route.date ?? localDate(Date.now())} date={route.date} />}
           {route.name === 'page' && <Reader id={route.id} />}
           {route.name === 'drill' &&
             (route.id.startsWith('stage0/') ? (
