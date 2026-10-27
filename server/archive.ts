@@ -32,6 +32,16 @@ export type TestSummary = TestRow & { strokeCount: number; firstStrokeAt: number
 
 export type DayStat = { date: string; tests: number; strokes: number; activeMs: number }
 
+export type SectionResult = {
+  section: string
+  runs: number
+  passed: boolean
+  best: { accuracy: number; wpm: number } | null
+  last: { accuracy: number; wpm: number; endedAt: number; passed: boolean | null } | null
+}
+
+export type ProgressMark = { chapter: number; kind: 'read' | 'override'; at: number }
+
 export interface Archive {
   createSession(startedAt: number): number
   startTest(t: {
@@ -49,6 +59,10 @@ export interface Archive {
   listTests(q: { limit: number; beforeId?: number; date?: string }): TestSummary[]
   getTest(id: number): { test: TestRow; strokes: StrokeRecord[] } | undefined
   dayStats(from: string, to: string): DayStat[]
+  sectionResults(mode: string): SectionResult[]
+  listMarks(): ProgressMark[]
+  setMark(chapter: number, kind: 'read' | 'override', at: number): void
+  clearMark(chapter: number): void
   close(): void
 }
 
@@ -85,6 +99,7 @@ CREATE TABLE IF NOT EXISTS strokes (
 );
 CREATE INDEX IF NOT EXISTS strokes_test ON strokes(test_id, id);
 CREATE INDEX IF NOT EXISTS tests_lookup ON tests(mode, section, ended_at);
+CREATE TABLE IF NOT EXISTS progress_marks (chapter INTEGER PRIMARY KEY, kind TEXT NOT NULL, at INTEGER NOT NULL);
 `
 
 type Row = Record<string, unknown>
@@ -122,6 +137,11 @@ function localDate(name: string, v: string): string {
 
 function measure(name: string, v: number, max = Number.MAX_SAFE_INTEGER): number {
   if (!Number.isFinite(v) || v < 0 || v > max) throw new RangeError(`${name} must be a finite number between 0 and ${max}`)
+  return v
+}
+
+function markChapter(v: number): number {
+  if (!Number.isSafeInteger(v) || v < 1 || v > 99) throw new RangeError('chapter must be an integer between 1 and 99')
   return v
 }
 
@@ -166,6 +186,22 @@ export function openArchive(path: string): Archive {
      WHERE ${LOCAL_DAY} BETWEEN ? AND ?
      GROUP BY date ORDER BY date`,
   )
+
+  // Finished, non-abandoned runs with strokes; the gates read these as results.
+  const selectRuns = db.prepare(
+    `SELECT t.id, t.section, t.accuracy, t.wpm, t.ended_at, json_type(t.meta_json, '$.passed') AS passed
+     ${WITH_STROKES}
+     WHERE t.mode = ? AND t.section IS NOT NULL AND t.ended_at IS NOT NULL
+       AND t.accuracy IS NOT NULL AND t.wpm IS NOT NULL
+       AND json_extract(t.meta_json, '$.abandoned') IS NOT 1
+     ORDER BY t.section, t.id`,
+  )
+  const selectMarks = db.prepare('SELECT chapter, kind, at FROM progress_marks ORDER BY chapter')
+  const upsertMark = db.prepare(
+    `INSERT INTO progress_marks (chapter, kind, at) VALUES (?, ?, ?)
+     ON CONFLICT(chapter) DO UPDATE SET kind = excluded.kind, at = excluded.at`,
+  )
+  const deleteMark = db.prepare('DELETE FROM progress_marks WHERE chapter = ?')
 
   function toTest(r: Row): TestRow {
     return {
@@ -265,6 +301,51 @@ export function openArchive(path: string): Archive {
         strokes: r.strokes as number,
         activeMs: r.active_ms as number,
       }))
+    },
+    sectionResults(mode) {
+      const out = new Map<string, { result: SectionResult; bestEndedAt: number }>()
+      for (const r of selectRuns.all(mode)) {
+        const section = r.section as string
+        const accuracy = r.accuracy as number
+        const wpm = r.wpm as number
+        const endedAt = r.ended_at as number
+        const passed = r.passed === 'true' ? true : r.passed === 'false' ? false : null
+        let entry = out.get(section)
+        if (!entry) {
+          entry = { result: { section, runs: 0, passed: false, best: null, last: null }, bestEndedAt: 0 }
+          out.set(section, entry)
+        }
+        const res = entry.result
+        res.runs++
+        if (passed === true) res.passed = true
+        const b = res.best
+        if (
+          !b ||
+          accuracy > b.accuracy ||
+          (accuracy === b.accuracy && (wpm > b.wpm || (wpm === b.wpm && endedAt > entry.bestEndedAt)))
+        ) {
+          res.best = { accuracy, wpm }
+          entry.bestEndedAt = endedAt
+        }
+        // Rows arrive in id order, so >= lets the higher id win an ended_at tie.
+        if (!res.last || endedAt >= res.last.endedAt) res.last = { accuracy, wpm, endedAt, passed }
+      }
+      return [...out.values()].map((e) => e.result)
+    },
+    listMarks() {
+      return selectMarks.all().map((r) => ({
+        chapter: r.chapter as number,
+        kind: r.kind as 'read' | 'override',
+        at: r.at as number,
+      }))
+    },
+    setMark(chapter, kind, at) {
+      markChapter(chapter)
+      if (kind !== 'read' && kind !== 'override') throw new RangeError("kind must be 'read' or 'override'")
+      upsertMark.run(chapter, kind, timestamp('at', at))
+    },
+    clearMark(chapter) {
+      deleteMark.run(markChapter(chapter))
     },
     close() {
       db.close()

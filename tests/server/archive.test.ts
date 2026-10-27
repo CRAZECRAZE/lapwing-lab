@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openArchive } from '../../server/archive.ts'
 import type { Archive, StrokeRecord } from '../../server/archive.ts'
@@ -334,6 +335,234 @@ describe('archive reads', () => {
     const a = memory()
     expect(() => a.listTests({ limit: 1, date: '27/10/2026' })).toThrow(RangeError)
     expect(() => a.dayStats('2026-10-27', 'tomorrow')).toThrow(RangeError)
+  })
+})
+
+describe('archive section results', () => {
+  type Run = {
+    mode?: string
+    section?: string | null
+    accuracy?: number
+    wpm?: number
+    endedAt?: number | null
+    meta?: unknown
+    strokes?: number
+  }
+
+  // Records one test; endedAt null leaves it unfinished, strokes 0 leaves it without strokes.
+  function run(a: Archive, r: Run = {}): number {
+    const id = newTest(a, { mode: r.mode ?? 'drill', section: r.section })
+    for (let i = 0; i < (r.strokes ?? 1); i++) a.addStroke(stroke(id, { tsMs: 100 + i }))
+    if (r.endedAt !== null) {
+      a.finishTest(id, {
+        endedAt: r.endedAt ?? 2000,
+        wpm: r.wpm ?? 10,
+        accuracy: r.accuracy ?? 0.9,
+        meta: r.meta ?? null,
+      })
+    }
+    return id
+  }
+
+  it('is empty for a mode with no runs', () => {
+    expect(memory().sectionResults('drill')).toEqual([])
+  })
+
+  it('ignores abandoned, unfinished, stroke-less, null-section and other-mode runs', () => {
+    const a = memory()
+    run(a, { section: 'a', meta: { abandoned: true, passed: true } })
+    run(a, { section: 'b', endedAt: null })
+    run(a, { section: 'c', strokes: 0 })
+    run(a, { section: null })
+    run(a, { section: 'd', mode: 'other' })
+    run(a, { section: 'e' })
+    expect(a.sectionResults('drill').map((r) => r.section)).toEqual(['e'])
+    expect(a.sectionResults('other').map((r) => r.section)).toEqual(['d'])
+  })
+
+  it('does not let an abandoned run affect counts, best, last or passed', () => {
+    const a = memory()
+    run(a, { section: 'a', accuracy: 0.8, wpm: 20, endedAt: 2000 })
+    run(a, { section: 'a', accuracy: 1, wpm: 99, endedAt: 3000, meta: { abandoned: true, passed: true } })
+    expect(a.sectionResults('drill')).toEqual([
+      {
+        section: 'a',
+        runs: 1,
+        passed: false,
+        best: { accuracy: 0.8, wpm: 20 },
+        last: { accuracy: 0.8, wpm: 20, endedAt: 2000, passed: null },
+      },
+    ])
+  })
+
+  it('passed needs a run with meta.passed true and survives a later failure', () => {
+    const a = memory()
+    run(a, { section: 'none' })
+    run(a, { section: 'nullmeta', meta: { passed: null } })
+    run(a, { section: 'string', meta: { passed: 'yes' } })
+    run(a, { section: 'failed', meta: { passed: false } })
+    run(a, { section: 'kept', endedAt: 2000, meta: { passed: true } })
+    run(a, { section: 'kept', endedAt: 3000, meta: { passed: false } })
+    const by = Object.fromEntries(a.sectionResults('drill').map((r) => [r.section, r]))
+    expect(by.none?.passed).toBe(false)
+    expect(by.nullmeta?.passed).toBe(false)
+    expect(by.string?.passed).toBe(false)
+    expect(by.failed?.passed).toBe(false)
+    expect(by.kept?.passed).toBe(true)
+    expect(by.kept?.runs).toBe(2)
+    expect(by.none?.last?.passed).toBeNull()
+    expect(by.nullmeta?.last?.passed).toBeNull()
+    expect(by.string?.last?.passed).toBeNull()
+    expect(by.failed?.last?.passed).toBe(false)
+    expect(by.kept?.last?.passed).toBe(false)
+  })
+
+  it('picks best by accuracy then wpm and last by newest end, inserted out of order', () => {
+    const a = memory()
+    run(a, { section: 'a', accuracy: 0.9, wpm: 30, endedAt: 3000, meta: { passed: true } })
+    run(a, { section: 'a', accuracy: 0.95, wpm: 10, endedAt: 1000 })
+    run(a, { section: 'a', accuracy: 0.95, wpm: 25, endedAt: 2000 })
+    run(a, { section: 'a', accuracy: 0.95, wpm: 25, endedAt: 500 })
+    const [r] = a.sectionResults('drill')
+    expect(r).toEqual({
+      section: 'a',
+      runs: 4,
+      passed: true,
+      best: { accuracy: 0.95, wpm: 25 },
+      last: { accuracy: 0.9, wpm: 30, endedAt: 3000, passed: true },
+    })
+  })
+
+  it('breaks last ties by id and sorts by section', () => {
+    const a = memory()
+    run(a, { section: 'b', wpm: 11, endedAt: 2000 })
+    run(a, { section: 'a', wpm: 12, endedAt: 2000 })
+    run(a, { section: 'a', wpm: 13, endedAt: 2000 })
+    const res = a.sectionResults('drill')
+    expect(res.map((r) => r.section)).toEqual(['a', 'b'])
+    expect(res[0]?.last?.wpm).toBe(13)
+  })
+})
+
+describe('archive progress marks', () => {
+  it('starts empty and lists marks ascending by chapter', () => {
+    const a = memory()
+    expect(a.listMarks()).toEqual([])
+    a.setMark(7, 'override', 300)
+    a.setMark(2, 'read', 100)
+    a.setMark(99, 'read', 200)
+    expect(a.listMarks()).toEqual([
+      { chapter: 2, kind: 'read', at: 100 },
+      { chapter: 7, kind: 'override', at: 300 },
+      { chapter: 99, kind: 'read', at: 200 },
+    ])
+  })
+
+  it('replaces an existing mark and clears one', () => {
+    const a = memory()
+    a.setMark(3, 'read', 100)
+    a.setMark(3, 'override', 200)
+    expect(a.listMarks()).toEqual([{ chapter: 3, kind: 'override', at: 200 }])
+    a.clearMark(3)
+    expect(a.listMarks()).toEqual([])
+  })
+
+  it('treats clearing a missing chapter as a no-op', () => {
+    const a = memory()
+    a.setMark(3, 'read', 100)
+    a.clearMark(4)
+    expect(a.listMarks()).toEqual([{ chapter: 3, kind: 'read', at: 100 }])
+  })
+
+  it('rejects bad chapters, kinds and timestamps and stores nothing', () => {
+    const a = memory()
+    for (const bad of [0, 100, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => a.setMark(bad, 'read', 1), `setMark ${bad}`).toThrow(RangeError)
+      expect(() => a.clearMark(bad), `clearMark ${bad}`).toThrow(RangeError)
+    }
+    for (const kind of ['', 'Read', 'skip']) {
+      expect(() => a.setMark(1, kind as 'read', 1), `kind ${kind}`).toThrow(RangeError)
+    }
+    for (const at of [-1, 1.5, 2 ** 53, Number.NaN]) {
+      expect(() => a.setMark(1, 'read', at), `at ${at}`).toThrow(RangeError)
+    }
+    expect(a.listMarks()).toEqual([])
+  })
+})
+
+describe('archive upgrade', () => {
+  let dir: string
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('opens a pre-M3 database, keeps its rows and gains the marks table', () => {
+    dir = mkdtempSync(join(tmpdir(), 'lapwing-upgrade-'))
+    const path = join(dir, 'archive.sqlite')
+    const old = new DatabaseSync(path)
+    old.exec(`
+CREATE TABLE sessions (
+  id INTEGER PRIMARY KEY,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER
+);
+CREATE TABLE tests (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES sessions(id),
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  mode TEXT NOT NULL,
+  chapter INTEGER,
+  section TEXT,
+  item_count INTEGER NOT NULL,
+  wpm REAL,
+  accuracy REAL,
+  meta_json TEXT
+);
+CREATE TABLE strokes (
+  id INTEGER PRIMARY KEY,
+  test_id INTEGER NOT NULL REFERENCES tests(id),
+  ts_ms INTEGER NOT NULL,
+  prompt TEXT NOT NULL,
+  expected_json TEXT NOT NULL,
+  pressed_levers_json TEXT NOT NULL,
+  pressed_slots_mask INTEGER NOT NULL,
+  correct INTEGER NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  attempt_no INTEGER NOT NULL
+);
+CREATE INDEX strokes_test ON strokes(test_id, id);
+CREATE INDEX tests_lookup ON tests(mode, section, ended_at);
+`)
+    old.prepare('INSERT INTO sessions (started_at) VALUES (1000)').run()
+    old
+      .prepare(
+        `INSERT INTO tests (session_id, started_at, ended_at, mode, chapter, section, item_count, wpm, accuracy, meta_json)
+         VALUES (1, 1001, 2000, 'drill', 4, 'pseudo', 1, 12.5, 1, '{"passed":true}')`,
+      )
+      .run()
+    old
+      .prepare(
+        `INSERT INTO strokes (test_id, ts_ms, prompt, expected_json, pressed_levers_json,
+           pressed_slots_mask, correct, latency_ms, attempt_no) VALUES (1, 1500, 'sap', '["SAP"]', '["S1-","A-","P-"]', 7, 1, 420, 1)`,
+      )
+      .run()
+    old.close()
+
+    const a = openArchive(path)
+    open.push(a)
+    expect(a.getTest(1)?.test.section).toBe('pseudo')
+    expect(a.listStrokes(1)).toHaveLength(1)
+    expect(a.sectionResults('drill')).toEqual([
+      {
+        section: 'pseudo',
+        runs: 1,
+        passed: true,
+        best: { accuracy: 1, wpm: 12.5 },
+        last: { accuracy: 1, wpm: 12.5, endedAt: 2000, passed: true },
+      },
+    ])
+    expect(a.listMarks()).toEqual([])
+    a.setMark(4, 'read', 3000)
+    expect(a.listMarks()).toEqual([{ chapter: 4, kind: 'read', at: 3000 }])
   })
 })
 
