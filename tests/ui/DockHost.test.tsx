@@ -4,6 +4,7 @@ import type { JSX } from 'preact'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DockProvider, useDock } from '../../src/state/dock.tsx'
 import type { Dock } from '../../src/state/dock.tsx'
+import { ConfirmDialog } from '../../src/ui/ConfirmDialog.tsx'
 import { DockHost, TOOLS } from '../../src/ui/DockHost.tsx'
 
 afterEach(() => {
@@ -153,5 +154,50 @@ describe('DockHost', () => {
     })
     expect(drawer()).toBeNull()
     expect(document.activeElement).toBe(opener)
+  })
+})
+
+describe('DockHost with a ConfirmDialog open', () => {
+  it('leaves the keys to the dialog: a bare k opens no drawer and Escape cancels the dialog', () => {
+    let cancelled = 0
+    function Page(): JSX.Element {
+      dock = useDock()
+      return (
+        <ConfirmDialog
+          title="Move on anyway?"
+          message="Sure?"
+          confirmLabel="Move on anyway"
+          onConfirm={() => {}}
+          onCancel={() => {
+            cancelled++
+          }}
+        />
+      )
+    }
+    render(
+      <DockProvider>
+        <Page />
+        <DockHost />
+      </DockProvider>,
+    )
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(document.activeElement).toBe(cancel)
+    const press = (key: string, code: string): KeyboardEvent => {
+      const e = new KeyboardEvent('keydown', { key, code, bubbles: true, cancelable: true })
+      act(() => {
+        cancel.dispatchEvent(e)
+      })
+      return e
+    }
+    press('k', 'KeyK')
+    expect(dock.tool).toBeNull()
+    expect(drawer()).toBeNull()
+    expect(document.activeElement).toBe(cancel)
+
+    act(() => dock.open('lookup')) // e.g. a drawer that was already open under the dialog
+    cancel.focus()
+    press('Escape', 'Escape')
+    expect(cancelled).toBe(1)
+    expect(dock.tool).toBe('lookup')
   })
 })

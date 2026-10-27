@@ -15,6 +15,8 @@ export type Dock = {
 }
 
 const DockContext = createContext<Dock | null>(null)
+/** How many drills are mounted under the provider; while above zero only the Alt forms open a tool. */
+const DrillCountContext = createContext<{ current: number } | null>(null)
 
 /** Alt+key goes by the physical key, so layouts that turn Alt+letter into a symbol still work. */
 const BY_CODE: Readonly<Record<string, DockTool>> = { Slash: 'lookup', KeyK: 'chart', KeyB: 'briefs', KeyN: 'notes' }
@@ -39,12 +41,15 @@ function isEditable(target: EventTarget | null): boolean {
  * The tool a keydown asks for, or null. Never with Ctrl or Meta (browser shortcuts). With Alt (and no Shift) by the
  * physical key, from anywhere: that is the form for drill screens, whose sink is a text field. Without Alt by the
  * key typed, only when the focus is not in a text field; Shift (or Caps Lock) is fine on the letters, not on `/`.
+ * `altOnly` (a drill is on screen, whose board types stray letters anywhere) maps only the Alt forms.
  */
 export function dockKeyFor(
   e: Pick<KeyboardEvent, 'key' | 'code' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'target'>,
+  opts: { altOnly?: boolean } = {},
 ): DockTool | null {
   if (e.ctrlKey || e.metaKey) return null
   if (e.altKey) return e.shiftKey ? null : (BY_CODE[e.code] ?? null)
+  if (opts.altOnly) return null
   const key = typeof e.key === 'string' ? e.key.toLowerCase() : ''
   const tool = Object.hasOwn(BY_KEY, key) ? BY_KEY[key] : null
   if (tool === null || (e.shiftKey && key === '/')) return null
@@ -55,6 +60,7 @@ export function DockProvider({ children }: { children: ComponentChildren }): JSX
   const [tool, setTool] = useState<DockTool | null>(null)
   // The window listener and toggle() read the latest tool here: it is set at once, the state a render later.
   const current = useRef<DockTool | null>(null)
+  const drills = useRef(0)
 
   const dock = useMemo<Dock>(() => {
     const set = (next: DockTool | null): void => {
@@ -75,6 +81,8 @@ export function DockProvider({ children }: { children: ComponentChildren }): JSX
     /** An Escape that closed a tool: its held repeats must not go on to exit a drill. */
     let escapeClosed = false
     const onKeyDown = (e: KeyboardEvent): void => {
+      // A modal dialog (ConfirmDialog) is in charge of the keys and the focus: leave everything to it.
+      if (document.querySelector('[aria-modal="true"]')) return
       if (e.isComposing) return
       if (!e.repeat) escapeClosed = false
       if (e.key === 'Escape') {
@@ -88,7 +96,7 @@ export function DockProvider({ children }: { children: ComponentChildren }): JSX
         }
         return
       }
-      const next = dockKeyFor(e)
+      const next = dockKeyFor(e, { altOnly: drills.current > 0 })
       if (next === null) return
       e.preventDefault()
       e.stopPropagation()
@@ -101,7 +109,27 @@ export function DockProvider({ children }: { children: ComponentChildren }): JSX
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [])
 
-  return <DockContext.Provider value={dock}>{children}</DockContext.Provider>
+  return (
+    <DrillCountContext.Provider value={drills}>
+      <DockContext.Provider value={dock}>{children}</DockContext.Provider>
+    </DrillCountContext.Provider>
+  )
+}
+
+/**
+ * Marks a drill as on screen while the calling component is mounted: the bare keys stop opening tools (the board's
+ * stray output would trigger them once the focus leaves the drill's sink), the Alt forms keep working. No-op outside
+ * a provider. A layout effect, so the mark is gone synchronously at unmount.
+ */
+export function useDockDrillMarker(): void {
+  const drills = useContext(DrillCountContext)
+  useLayoutEffect(() => {
+    if (!drills) return
+    drills.current++
+    return () => {
+      drills.current--
+    }
+  }, [drills])
 }
 
 export function useDock(): Dock {

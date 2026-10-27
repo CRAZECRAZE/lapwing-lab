@@ -7,7 +7,7 @@ import type { DrillItem, DrillStats } from '../core/drill.ts'
 import { formatStroke, parseOutline, parseStroke, slotMask } from '../core/steno.ts'
 import type { Slot, SlotMask } from '../core/steno.ts'
 import type { RawStroke } from '../core/uni.ts'
-import { useDockOpen } from '../state/dock.tsx'
+import { useDockDrillMarker, useDockOpen } from '../state/dock.tsx'
 import { useUni } from '../state/uni-context.tsx'
 import { Board } from './Board.tsx'
 import './drill.css'
@@ -84,6 +84,7 @@ export function Drill(props: DrillProps): JSX.Element {
   const uni = useUni()
   // A dock tool open pauses the drill like an unplugged board: no strokes, no clock.
   const dockOpen = useDockOpen()
+  useDockDrillMarker()
   const paused = dockOpen || !uni.connected
   const [, redraw] = useReducer((n: number) => n + 1, 0)
   const [unsaved, setUnsaved] = useState(logger.unsaved)

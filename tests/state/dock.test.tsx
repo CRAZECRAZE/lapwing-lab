@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from '@testing-library/preact'
 import type { JSX } from 'preact'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DockProvider, dockKeyFor, useDock, useDockOpen } from '../../src/state/dock.tsx'
+import { DockProvider, dockKeyFor, useDock, useDockDrillMarker, useDockOpen } from '../../src/state/dock.tsx'
 import type { Dock, DockTool } from '../../src/state/dock.tsx'
 
 afterEach(cleanup)
@@ -111,6 +111,25 @@ describe('dockKeyFor', () => {
     const off = document.createElement('div')
     off.setAttribute('contenteditable', 'false')
     expect(dockKeyFor(ev({ key: 'k', target: off }))).toBe('chart')
+  })
+})
+
+describe('dockKeyFor with altOnly (a drill on screen)', () => {
+  it('maps no bare key, even on a non-editable target', () => {
+    for (const { key, upper, code } of KEYS) {
+      expect(dockKeyFor(ev({ key, code }), { altOnly: true }), key).toBeNull()
+      expect(dockKeyFor(ev({ key: upper, code, shiftKey: true }), { altOnly: true }), upper).toBeNull()
+      expect(dockKeyFor(ev({ key, code, target: null }), { altOnly: true }), key).toBeNull()
+    }
+  })
+
+  it('still maps the Alt forms, and the default is unchanged', () => {
+    for (const { tool, key, code } of KEYS) {
+      expect(dockKeyFor(ev({ key: '¬', code, altKey: true }), { altOnly: true })).toBe(tool)
+      expect(dockKeyFor(ev({ key, code }), { altOnly: false })).toBe(tool)
+      expect(dockKeyFor(ev({ key, code }), {})).toBe(tool)
+    }
+    expect(dockKeyFor(ev({ key: 'k', code: 'KeyK', altKey: true, ctrlKey: true }), { altOnly: true })).toBeNull()
   })
 })
 
@@ -274,6 +293,96 @@ describe('DockProvider keys', () => {
     expect(shown()).toBe('none')
     act(() => dock.open('lookup'))
     act(() => dock.close())
+    expect(shown()).toBe('none')
+  })
+})
+
+describe('DockProvider with a drill on screen', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  function DrillMark(): null {
+    useDockDrillMarker()
+    return null
+  }
+
+  /** Mounts the provider with `drills` drill markers; the returned function changes how many are mounted. */
+  function mountWith(drills: number): (n: number) => void {
+    const view = (n: number): JSX.Element => (
+      <DockProvider>
+        <Probe />
+        {Array.from({ length: n }, (_, i) => (
+          <DrillMark key={i} />
+        ))}
+      </DockProvider>
+    )
+    const { rerender } = render(view(drills))
+    return (n) => rerender(view(n))
+  }
+
+  it('bare keys do nothing on a non-editable target, while Alt+K opens the chart', () => {
+    mountWith(1)
+    const bare = press(document.body, { key: 'k', code: 'KeyK' })
+    expect(shown()).toBe('none')
+    expect(bare.defaultPrevented).toBe(false)
+    press(document.body, { key: '/', code: 'Slash' })
+    expect(shown()).toBe('none')
+    press(document.body, { key: 'k', code: 'KeyK', altKey: true })
+    expect(shown()).toBe('chart')
+    press(document.body, { key: 'b', code: 'KeyB' }) // stray output must not switch the tool
+    press(document.body, { key: '/', code: 'Slash' })
+    expect(shown()).toBe('chart')
+    press(document.body, { key: 'Escape', code: 'Escape' }) // Escape still closes
+    expect(shown()).toBe('none')
+  })
+
+  it('counts drills: Alt-only while any is mounted, bare keys back once all are gone', () => {
+    const setDrills = mountWith(2)
+    setDrills(1)
+    press(document.body, { key: 'k', code: 'KeyK' })
+    expect(shown()).toBe('none')
+    setDrills(0)
+    press(document.body, { key: 'k', code: 'KeyK' })
+    expect(shown()).toBe('chart')
+  })
+})
+
+describe('DockProvider with a modal dialog open', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  const modal = (): HTMLElement => {
+    const box = document.createElement('div')
+    box.setAttribute('role', 'alertdialog')
+    box.setAttribute('aria-modal', 'true')
+    const cancel = document.createElement('button')
+    box.append(cancel)
+    document.body.append(box)
+    cancel.focus()
+    return box
+  }
+
+  it('leaves every key to the dialog, and resumes once it is gone', () => {
+    mount()
+    act(() => dock.open('notes'))
+    const box = modal()
+    const target = box.querySelector('button')!
+    const escape = press(target, { key: 'Escape', code: 'Escape' })
+    expect(shown()).toBe('notes')
+    expect(escape.defaultPrevented).toBe(false)
+    act(() => dock.close())
+    const bare = press(target, { key: 'k', code: 'KeyK' })
+    const alt = press(target, { key: 'k', code: 'KeyK', altKey: true })
+    expect(shown()).toBe('none')
+    expect(bare.defaultPrevented).toBe(false)
+    expect(alt.defaultPrevented).toBe(false)
+
+    box.remove()
+    press(document.body, { key: 'k', code: 'KeyK' })
+    expect(shown()).toBe('chart')
+    press(document.body, { key: 'Escape', code: 'Escape' })
     expect(shown()).toBe('none')
   })
 })

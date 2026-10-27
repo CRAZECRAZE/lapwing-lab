@@ -7,6 +7,7 @@ import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import { DockProvider, useDock } from '../../src/state/dock.tsx'
 import type { Dock } from '../../src/state/dock.tsx'
 import { UniProvider } from '../../src/state/uni-context.tsx'
+import { DockHost } from '../../src/ui/DockHost.tsx'
 import { Drill } from '../../src/ui/Drill.tsx'
 import type { DrillResult } from '../../src/ui/Drill.tsx'
 
@@ -120,7 +121,7 @@ type DrillProps = Parameters<typeof Drill>[0]
 
 async function mountDrill(
   props: Partial<DrillProps> = {},
-  opts: { connected?: boolean; logger?: LoggerFake; dock?: boolean } = {},
+  opts: { connected?: boolean; logger?: LoggerFake; dock?: boolean; dockHost?: boolean } = {},
 ): Promise<Rig> {
   const hid = new FakeHid()
   const device = new FakeDevice()
@@ -151,9 +152,13 @@ async function mountDrill(
         <DockProvider>
           <DockProbe />
           {drill}
-          <aside data-dock tabIndex={-1}>
-            <button type="button">in the dock</button>
-          </aside>
+          {opts.dockHost ? (
+            <DockHost />
+          ) : (
+            <aside data-dock tabIndex={-1}>
+              <button type="button">in the dock</button>
+            </aside>
+          )}
         </DockProvider>
       ) : (
         drill
@@ -1385,6 +1390,31 @@ describe('Drill paused while a dock tool is open', () => {
     await pause()
     expect(document.activeElement).not.toBe(sink())
     close(rig)
+    expect(document.activeElement).toBe(sink())
+  })
+
+  it('with the real drawer focused, stray bare keys from the board do not switch tools; Alt forms do', async () => {
+    const rig = await mountDrill({}, { dock: true, dockHost: true })
+    keyDown(sink(), { key: 'k', code: 'KeyK', altKey: true })
+    expect(rig.dock().tool).toBe('chart')
+    const drawer = screen.getByRole('dialog', { name: 'Key chart' })
+    expect(drawer.contains(document.activeElement)).toBe(true)
+    for (const [key, code] of [
+      ['k', 'KeyK'],
+      ['b', 'KeyB'],
+      ['/', 'Slash'],
+      ['n', 'KeyN'],
+    ]) {
+      keyDown(document.activeElement!, { key, code })
+      expect(rig.dock().tool, key).toBe('chart')
+    }
+    keyDown(document.activeElement!, { key: 'b', code: 'KeyB', altKey: true })
+    expect(rig.dock().tool).toBe('briefs')
+    expect(screen.getByRole('dialog', { name: 'Briefs so far' })).toBeTruthy()
+    keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' })
+    expect(rig.dock().tool).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(rig.onExit).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(sink())
   })
 
