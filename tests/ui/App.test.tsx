@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../src/ui/App.tsx'
 
@@ -119,6 +119,25 @@ describe('App shell', () => {
     expect(box.readOnly).toBe(false)
     expect(await screen.findByText('No practice recorded this day.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Journal' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('opens the Lookup drawer on / in the Book tab, and Escape closes it', async () => {
+    history.replaceState(null, '', '/page/home')
+    render(<App />)
+    expect(screen.getByRole('group', { name: 'Tools' })).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: 'Lookup' })).toBeNull()
+    const press = (key: string): KeyboardEvent => {
+      const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+      act(() => {
+        document.body.dispatchEvent(e)
+      })
+      return e
+    }
+    expect(press('/').defaultPrevented).toBe(true)
+    expect(screen.getByRole('dialog', { name: 'Lookup' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Lookup' }).getAttribute('aria-pressed')).toBe('true')
+    press('Escape')
+    expect(screen.queryByRole('dialog', { name: 'Lookup' })).toBeNull()
   })
 
   it('shows one test at /history/:id, and its tab stays current', async () => {

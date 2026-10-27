@@ -82,6 +82,70 @@ body {
   color: var(--heading);
 }
 
+/* The dock's tool buttons, right-aligned. When the bar is too narrow it scrolls sideways inside itself
+   (overflow-x above), never the page; below 760px the labels go to screen readers only and the keys stay. */
+.topbar__tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  padding-left: 1rem;
+}
+
+.topbar__tool {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topbar__tool:hover {
+  border-color: var(--muted);
+  color: var(--heading);
+}
+
+.topbar__tool:focus-visible {
+  outline: 2px solid var(--left);
+  outline-offset: 1px;
+}
+
+.topbar__tool[aria-pressed='true'] {
+  background: var(--raised);
+  border-color: var(--muted);
+  color: var(--heading);
+}
+
+.topbar__key {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 760px) {
+  .topbar__tool-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .topbar__tool {
+    padding: 0.2rem 0.5rem;
+  }
+}
+
 /* Layout: nav | reading column + dock */
 
 .app {
