@@ -1,0 +1,146 @@
+/* Prompt-first drill: the prompt dominates, the board is small, the stats are one thin line. */
+
+.drill {
+  --drill-bg: var(--bg, #14151a);
+  --drill-text: var(--text, #dcdad3);
+  --drill-muted: var(--muted, #8d909b);
+  --drill-heading: var(--heading, #f1eee6);
+  --drill-line: var(--line, #2b2f3a);
+  --drill-raised: var(--raised, #20232b);
+  --drill-mono: var(--mono, ui-monospace, 'SF Mono', Menlo, Consolas, monospace);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 80vh;
+  padding: 1rem 1rem 3rem;
+  color: var(--drill-text);
+}
+
+.drill__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 60rem;
+}
+
+.drill__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--drill-muted);
+}
+
+.drill__exit,
+.drill__connect {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--drill-line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--drill-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.drill__exit:hover,
+.drill__connect:hover:not(:disabled) {
+  color: var(--drill-heading);
+  border-color: var(--drill-muted);
+}
+
+.drill__banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--drill-line);
+  border-radius: 0.5rem;
+  background: var(--drill-raised);
+  color: var(--drill-muted);
+  font-size: 0.9rem;
+}
+
+.drill__prompt {
+  margin: 4vh 0 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  color: var(--drill-heading);
+  font-size: clamp(3rem, 12vw, 7rem);
+  line-height: 1.1;
+}
+
+.drill__prompt--stroke {
+  font-family: var(--drill-mono);
+  letter-spacing: 0.04em;
+}
+
+.drill__prompt--word {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 300;
+}
+
+.drill__stats {
+  margin: 0;
+  color: var(--drill-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Always takes up a line, so the board does not jump when a miss shows the expected notation. */
+.drill__expected {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--miss, #e0645c);
+  font-family: var(--drill-mono);
+  font-size: 1.4rem;
+  line-height: 1.5;
+}
+
+.drill__board {
+  /* --s is the key size set inline; a Board is 13.35 keys wide and 3.3 keys tall. */
+  margin-top: 1rem;
+}
+
+.drill__board-placeholder {
+  width: calc(var(--s) * 13.35);
+  height: calc(var(--s) * 3.3);
+  border: 1px dashed var(--drill-line);
+  border-radius: calc(var(--s) * 0.4);
+  opacity: 0.5;
+}
+
+.drill__hint {
+  margin: 0;
+  color: var(--drill-muted);
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.drill__unsaved {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  margin: 0;
+  color: var(--drill-muted);
+  font-size: 0.8rem;
+}
+
+/* Visually hidden but focusable (display:none would make it unfocusable). */
+.drill__sink {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  resize: none;
+  pointer-events: none;
+}

@@ -1,0 +1,292 @@
+import type { JSX } from 'preact'
+import { useEffect, useReducer, useRef, useState } from 'preact/hooks'
+import type { Settings } from '../../server/settings.ts'
+import type { TestLogger } from '../api.ts'
+import { DrillSession } from '../core/drill.ts'
+import type { DrillItem, DrillStats } from '../core/drill.ts'
+import { parseOutline, parseStroke, slotMask } from '../core/steno.ts'
+import type { Slot, SlotMask } from '../core/steno.ts'
+import type { RawStroke } from '../core/uni.ts'
+import { useUni } from '../state/uni-context.tsx'
+import { Board } from './Board.tsx'
+import './drill.css'
+
+export type DrillKind = 'stroke' | 'word'
+export type DrillResult = { stats: DrillStats; passed: boolean | null; meta: unknown }
+
+export type DrillProps = {
+  title: string
+  /** stroke: the prompt IS the raw steno; word: an English word whose outline is hidden until a miss. */
+  kind: DrillKind
+  items: readonly DrillItem[]
+  logger: TestLogger
+  logTest: { mode: string; chapter: number | null; section: string | null }
+  passMark?: { accuracy: number; maxMinutes?: number }
+  boardVisibility?: Settings['boardVisibility']
+  onDone(result: DrillResult): void
+  onExit(): void
+}
+
+const BOARD_KEY_PX = 22
+/** A logger.finish that never settles must not trap the owner on the last screen. */
+const FINISH_WAIT_MS = 1500
+
+type Miss = { missing: SlotMask; extra: SlotMask; expected: string; target: SlotMask }
+
+const maskOf = (slots: readonly Slot[]): SlotMask => slotMask(...slots)
+
+/** The stroke the owner should press next: the first accepted outline that agrees with what is entered so far. */
+function nextTarget(item: DrillItem | undefined, entered: readonly SlotMask[]): SlotMask {
+  if (!item) return 0
+  for (const outline of item.outlines) {
+    const strokes = parseOutline(outline)
+    if (strokes.length > entered.length && entered.every((mask, i) => strokes[i] === mask)) {
+      return strokes[entered.length]
+    }
+  }
+  return 0
+}
+
+function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | null {
+  if (!passMark) return null
+  return (
+    stats.accuracy >= passMark.accuracy &&
+    (passMark.maxMinutes === undefined || stats.elapsedMs <= passMark.maxMinutes * 60000)
+  )
+}
+
+export function Drill(props: DrillProps): JSX.Element {
+  const { title, kind, items, logger, boardVisibility = 'always', onExit } = props
+  const uni = useUni()
+  const [, redraw] = useReducer((n: number) => n + 1, 0)
+  const [unsaved, setUnsaved] = useState(logger.unsaved)
+  const [hovering, setHovering] = useState(false)
+
+  // The stroke handler is subscribed once, so it reads the latest props through this ref.
+  const latest = useRef(props)
+  latest.current = props
+
+  // Session clock without disconnected time: frozen from the unplug to the reconnect.
+  const pausedTotal = useRef(0)
+  const pausedSince = useRef<number | null>(uni.connected ? null : Date.now())
+  const clock = (): number => (pausedSince.current ?? Date.now()) - pausedTotal.current
+  const sessionRef = useRef<DrillSession | null>(null)
+  sessionRef.current ??= new DrillSession(items, clock)
+  const session = sessionRef.current
+
+  const entered = useRef<SlotMask[]>([])
+  const misses = useRef(0) // misses so far on the current item
+  const shownAt = useRef(clock()) // session-clock time the current item appeared
+  const miss = useRef<Miss | null>(null)
+  const done = useRef(false)
+  const alive = useRef(true)
+
+  const root = useRef<HTMLElement>(null)
+  const sink = useRef<HTMLTextAreaElement>(null)
+
+  // Bookkeeping happens in render (idempotent ref updates), not in an effect, so the pause
+  // starts and ends when the connection state changes rather than a tick later.
+  if (uni.connected) {
+    if (pausedSince.current !== null) {
+      pausedTotal.current += Date.now() - pausedSince.current
+      pausedSince.current = null
+    }
+  } else if (pausedSince.current === null) {
+    pausedSince.current = Date.now()
+  }
+
+  useEffect(() => {
+    sink.current?.focus()
+  }, [uni.connected])
+
+  useEffect(() => {
+    alive.current = true
+    const unsubscribeUnsaved = logger.onUnsaved(setUnsaved)
+
+    if (session.finished) {
+      // Nothing to drill: report zero stats at once and leave the archive alone.
+      const stats = session.stats()
+      const passed = judge(stats, latest.current.passMark)
+      done.current = true
+      latest.current.onDone({
+        stats,
+        passed,
+        meta: { kind, itemCount: 0, firstTryCorrect: 0, elapsedMs: 0, passed },
+      })
+    } else {
+      // Never awaited: input works while (or even if) the archive is slow or down.
+      void logger
+        .start({ ...latest.current.logTest, itemCount: items.length })
+        .catch(() => {})
+    }
+
+    const finish = async (): Promise<void> => {
+      const { passMark, onDone } = latest.current
+      const stats = session.stats()
+      const passed = judge(stats, passMark)
+      const meta = { kind, itemCount: items.length, firstTryCorrect: stats.firstTryCorrect, elapsedMs: stats.elapsedMs, passed }
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, FINISH_WAIT_MS)
+      })
+      await Promise.race([logger.finish({ wpm: stats.wpm, accuracy: stats.accuracy, meta }).catch(() => {}), timeout])
+      clearTimeout(timer)
+      if (alive.current) onDone({ stats, passed, meta })
+    }
+
+    const onStroke = (stroke: RawStroke): void => {
+      if (done.current) return
+      const item = session.current
+      if (!item) return
+      const result = session.submit(stroke)
+      if (result.kind === 'undo') {
+        entered.current.pop()
+        redraw(0)
+        return
+      }
+      // A stray lone star after a miss (the habitual "undo") must not take the hint away.
+      if (result.kind === 'ignored') return
+
+      latest.current.logger.stroke({
+        tsMs: Date.now(),
+        prompt: item.prompt,
+        expected: item.outlines,
+        pressedLevers: stroke.levers,
+        pressedMask: stroke.mask,
+        correct: result.kind !== 'miss',
+        latencyMs: Math.max(0, clock() - shownAt.current),
+        attemptNo: misses.current + 1,
+      })
+
+      if (result.kind === 'miss') {
+        misses.current++
+        entered.current = []
+        miss.current = {
+          missing: maskOf(result.diff.missing),
+          extra: maskOf(result.diff.extra),
+          expected: result.expected,
+          target: parseStroke(result.expected),
+        }
+      } else {
+        miss.current = null
+        if (result.kind === 'partial') {
+          entered.current.push(stroke.mask)
+        } else {
+          entered.current = []
+          misses.current = 0
+          shownAt.current = clock()
+        }
+      }
+      redraw(0)
+      if (session.finished) {
+        done.current = true
+        void finish()
+      }
+    }
+
+    const unsubscribeStrokes = uni.onStroke(onStroke)
+    return () => {
+      alive.current = false
+      unsubscribeStrokes()
+      unsubscribeUnsaved()
+    }
+  }, [])
+
+  const stats = session.stats()
+  const item = session.current
+  const showMiss = miss.current
+  // A word's outline stays hidden until the first miss; a stroke drill shows its own target.
+  const target = showMiss ? showMiss.target : kind === 'stroke' ? nextTarget(item, entered.current) : 0
+  const diff = showMiss ? { missing: showMiss.missing, extra: showMiss.extra } : undefined
+
+  const board = <Board size={BOARD_KEY_PX} target={target} pressed={uni.pressed} diff={diff} />
+
+  const swallow = (e: Event): void => {
+    e.stopPropagation()
+    const field = e.currentTarget as HTMLTextAreaElement
+    if (field.value !== '') field.value = ''
+  }
+
+  return (
+    <section
+      class="drill"
+      ref={root}
+      aria-label={title}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onExit()
+      }}
+    >
+      <header class="drill__head">
+        <h2 class="drill__title">{title}</h2>
+        <button type="button" class="drill__exit" onClick={onExit}>
+          Exit
+        </button>
+      </header>
+
+      {!uni.available && (
+        <p class="drill__banner" role="status">
+          Drilling needs a Chromium-based browser (Chrome, Edge, Brave) to read the board.
+        </p>
+      )}
+      {uni.available && !uni.connected && (
+        <p class="drill__banner" role="status">
+          <span>Board disconnected — reconnect to continue</span>
+          <button type="button" class="drill__connect" disabled={uni.connecting} onClick={() => void uni.connect()}>
+            {uni.connecting ? 'Connecting…' : 'Connect'}
+          </button>
+        </p>
+      )}
+
+      <div class={`drill__prompt drill__prompt--${kind}`} aria-live="polite">
+        {item ? item.prompt : '✓'}
+      </div>
+      <p class="drill__stats">
+        {stats.completed} / {session.total} · acc {Math.round(stats.accuracy * 100)}% · {Math.round(stats.wpm)} wpm
+      </p>
+      <p class="drill__expected" aria-live="polite">
+        {showMiss ? showMiss.expected : ''}
+      </p>
+
+      {boardVisibility !== 'hidden' && (
+        <div
+          class="drill__board"
+          style={{ '--s': `${BOARD_KEY_PX}px` }}
+          onPointerEnter={() => setHovering(true)}
+          onPointerLeave={() => setHovering(false)}
+        >
+          {boardVisibility === 'always' || hovering ? board : <div class="drill__board-placeholder" />}
+        </div>
+      )}
+
+      <p class="drill__hint">Esc to exit</p>
+      {unsaved > 0 && (
+        <p class="drill__unsaved" role="status">
+          ⚠ {unsaved} {unsaved === 1 ? 'stroke' : 'strokes'} not saved
+        </p>
+      )}
+
+      <textarea
+        ref={sink}
+        class="drill__sink"
+        aria-label="Stray output from the steno engine is discarded here"
+        autoComplete="off"
+        autoCapitalize="off"
+        spellcheck={false}
+        onInput={swallow}
+        onKeyPress={swallow}
+        onKeyUp={swallow}
+        onKeyDown={(e) => {
+          swallow(e)
+          if (e.key === 'Escape') onExit()
+        }}
+        onBlur={(e) => {
+          const next = e.relatedTarget as Node | null
+          if (next && root.current?.contains(next)) return
+          queueMicrotask(() => {
+            if (sink.current?.isConnected) sink.current.focus()
+          })
+        }}
+      />
+    </section>
+  )
+}
