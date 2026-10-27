@@ -238,6 +238,68 @@ describe('createTestLogger', () => {
     expect(log.unsaved).toBe(0)
   })
 
+  it('sends strokes to the test that was current when they were logged, even after a second start', async () => {
+    let releaseFirst!: () => void
+    const gate = new Promise<void>((r) => (releaseFirst = r))
+    let tests = 0
+    const { calls, fetch } = fakeFetch(async (c) => {
+      if (c.url !== '/api/tests') return healthy(c)
+      const id = 100 + tests++
+      if (id === 100) await gate
+      return json({ id })
+    })
+    const log = createTestLogger(fetch)
+    const first = log.start(TEST)
+    log.stroke(stroke('A'))
+    const second = log.start(TEST)
+    log.stroke(stroke('B'))
+    releaseFirst()
+    await Promise.all([first, second])
+    await log.finish({ wpm: 1, accuracy: 1, meta: null })
+    const strokes = calls.filter((c) => c.url.endsWith('/strokes'))
+    expect(strokes.map((c) => [c.url, (c.body as { prompt: string }).prompt])).toEqual([
+      ['/api/tests/100/strokes', 'A'],
+      ['/api/tests/101/strokes', 'B'],
+    ])
+  })
+
+  it.each([
+    ['an empty object', {}],
+    ['a non-numeric id', { id: 'x' }],
+  ])('counts exactly one unsaved write when POST /api/tests answers 200 with %s', async (_name, body) => {
+    const { fetch } = fakeFetch((c) => (c.url === '/api/tests' ? json(body) : healthy(c)))
+    const log = createTestLogger(fetch)
+    await log.start(TEST)
+    expect(log.unsaved).toBe(1)
+  })
+
+  it('aborts a request that hangs for 5000 ms and counts it as one unsaved write', async () => {
+    // Node's AbortSignal.timeout runs on internal timers that fake timers cannot advance, so the
+    // test swaps in a signal it controls and checks that the logger asked for 5000 ms.
+    const controller = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
+    const hanging = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal
+      if (!signal) return new Promise<Response>(() => {}) // would hang forever
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason))
+      })
+    })
+    try {
+      const log = createTestLogger(hanging as unknown as typeof fetch)
+      const started = log.start(TEST)
+      await Promise.resolve()
+      expect(timeout).toHaveBeenCalledWith(5000)
+      expect(log.unsaved).toBe(0)
+      controller.abort(new DOMException('timed out', 'TimeoutError'))
+      await expect(started).resolves.toBeUndefined()
+      expect(hanging).toHaveBeenCalledTimes(1) // the session request; no test request followed
+      expect(log.unsaved).toBe(1)
+    } finally {
+      timeout.mockRestore()
+    }
+  })
+
   it('retries session creation on the next start after it failed', async () => {
     let up = false
     const { fetch } = fakeFetch((c) => (up ? healthy(c) : new Error('down')))

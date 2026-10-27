@@ -115,6 +115,7 @@ export class DrillSession {
     this.entered.push(stroke.mask)
     if (!matching.some((outline) => outline.length === at + 1)) return { kind: 'partial', item }
 
+    // When one accepted outline prefixes another (KAT vs KAT/PHREU), finishing the shorter one finishes the item.
     const firstTry = !this.missed
     this.completed++
     if (firstTry) this.firstTryCorrect++

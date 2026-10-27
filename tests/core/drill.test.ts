@@ -161,6 +161,34 @@ describe('alternate outlines', () => {
   })
 })
 
+describe('item boundaries', () => {
+  it('resets the missed flag when advancing, so the next item can be first try', () => {
+    const a = single('SAP')
+    const b = single('KAT')
+    const s = new DrillSession([a, b])
+    expect(s.submit(press('TAP'))).toMatchObject({ kind: 'miss' })
+    expect(s.submit(press('SAP'))).toEqual({ kind: 'correct', item: a, firstTry: false })
+    expect(s.submit(press('KAT'))).toEqual({ kind: 'correct', item: b, firstTry: true })
+    expect(s.stats().firstTryCorrect).toBe(1)
+    expect(s.stats().completed).toBe(2)
+  })
+
+  it('completing the shorter outline finishes the item when one outline prefixes another', () => {
+    const shortFirst = item('cat', 'KAT', 'KAT/PHREU')
+    const longFirst = item('cat', 'KAT/PHREU', 'KAT')
+    expect(new DrillSession([shortFirst]).submit(press('KAT'))).toEqual({
+      kind: 'correct',
+      item: shortFirst,
+      firstTry: true,
+    })
+    expect(new DrillSession([longFirst]).submit(press('KAT'))).toEqual({
+      kind: 'correct',
+      item: longFirst,
+      firstTry: true,
+    })
+  })
+})
+
 describe('lone star', () => {
   it('undoes the last entered stroke so it must be re-entered', () => {
     const it1 = item('copyright', 'KOPL/PHREU')

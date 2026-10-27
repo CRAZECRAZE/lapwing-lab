@@ -10,14 +10,17 @@ const DEFAULT_SETTINGS: Settings = { boardVisibility: 'always' }
 // Resolved lazily so tests (and browsers) never see a detached `fetch`.
 const defaultFetch: FetchFn = (input, init) => fetch(input, init)
 
+const REQUEST_TIMEOUT_MS = 5000
+
 // Sends one JSON request and returns the parsed body; throws on a rejected
-// fetch, a non-2xx status or an unreadable body.
+// fetch, a timeout, a non-2xx status or an unreadable body.
 async function request(fetchFn: FetchFn, method: string, url: string, body?: unknown): Promise<unknown> {
+  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const res = await fetchFn(
     url,
     body === undefined
-      ? { method }
-      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) },
+      ? { method, signal }
+      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal },
   )
   if (!res.ok) throw new Error(`${method} ${url} failed with ${res.status}`)
   return res.json()
