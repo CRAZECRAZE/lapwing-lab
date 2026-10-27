@@ -24,9 +24,10 @@ async function loadList(id: string): Promise<List> {
   return { status: 'ready', list: (await res.json()) as PracticeList }
 }
 
-const unknown = (
-  <RunnerMessage text="No such word list. Pick a section drill from its chapter." href={HOME} label="Back to the book" />
-)
+/** A fresh element each time, never a vnode shared between renders. */
+function UnknownList(): JSX.Element {
+  return <RunnerMessage text="No such word list. Pick a section drill from its chapter." href={HOME} label="Back to the book" />
+}
 
 /** The `/drill/list/<listId>` route: one section's practice list as a word drill. */
 export function ListDrillRoute({ listId }: { listId: string }): JSX.Element {
@@ -47,13 +48,13 @@ export function ListDrillRoute({ listId }: { listId: string }): JSX.Element {
     }
   }, [listId])
 
-  if (!valid) return unknown
+  if (!valid) return <UnknownList />
   if (progress.status === 'loading') return <p class="page__status">Loading…</p>
   const entry = progress.index.find((e) => e.id === listId)
   // An index that loaded is the authority; without one, the list file decides.
-  if (!entry && progress.index.length > 0) return unknown
+  if (!entry && progress.index.length > 0) return <UnknownList />
   if (list.status === 'loading') return <p class="page__status">Loading…</p>
-  if (list.status === 'unknown') return unknown
+  if (list.status === 'unknown') return <UnknownList />
   if (list.status === 'error') {
     return (
       <RunnerMessage
