@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { connect } from 'node:net'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createServer, listen, parsePort } from '../../server/server.ts'
 
 let root: string
@@ -234,5 +234,200 @@ describe('parsePort', () => {
     for (const bad of ['abc', '12x', '-1', '65536', '1.5', ' ']) {
       expect(() => parsePort(bad), bad).toThrow(/PORT/)
     }
+  })
+})
+
+describe('archive API', () => {
+  let dir: string
+  let dataDir: string
+  let api: Server
+  let url: string
+
+  async function start(): Promise<void> {
+    api = createServer({ root: dir, dataDir })
+    url = `http://127.0.0.1:${await listen(api, 0)}`
+  }
+
+  function call(method: string, path: string, body?: unknown) {
+    return fetch(`${url}${path}`, {
+      method,
+      body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+    })
+  }
+
+  const strokeBody = {
+    tsMs: 100,
+    prompt: 'sap',
+    expected: ['SAP'],
+    pressedLevers: ['S1-', 'A-', 'T-'],
+    pressedMask: 11,
+    correct: false,
+    latencyMs: 400,
+    attemptNo: 1,
+  }
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'lapwing-api-'))
+    dataDir = join(dir, 'data', 'nested')
+    await start()
+  })
+
+  afterEach(async () => {
+    await new Promise((ok) => api.close(ok))
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  async function newTest(): Promise<number> {
+    const { id: sessionId } = (await (await call('POST', '/api/sessions', { startedAt: 1000 })).json()) as { id: number }
+    const res = await call('POST', '/api/tests', {
+      sessionId, startedAt: 1001, mode: 'stage0-test', chapter: 4, section: 'pseudo', itemCount: 2,
+    })
+    return ((await res.json()) as { id: number }).id
+  }
+
+  it('creates nothing on disk until the first archive request', async () => {
+    await call('GET', '/api/health')
+    await call('GET', '/api/settings')
+    await call('GET', '/content/nope')
+    expect(existsSync(join(dir, 'data'))).toBe(false)
+    await call('POST', '/api/sessions', { startedAt: 1 })
+    expect(existsSync(join(dataDir, 'steno.db'))).toBe(true)
+  })
+
+  it('runs the full POST sequence and returns the finished test', async () => {
+    const testId = await newTest()
+    expect(testId).toBeGreaterThan(0)
+    for (const body of [strokeBody, { ...strokeBody, correct: true, pressedLevers: ['S1-', 'A-', 'P-'] }]) {
+      const res = await call('POST', `/api/tests/${testId}/strokes`, body)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true })
+    }
+    expect(await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()).toBeNull()
+    const fin = await call('POST', `/api/tests/${testId}/finish`, {
+      endedAt: 2000, wpm: 12, accuracy: 0.9, meta: { missed: ['SAP'] },
+    })
+    expect(await fin.json()).toEqual({ ok: true })
+    const last = await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')
+    expect(last.headers.get('content-type')).toContain('application/json')
+    expect(await last.json()).toMatchObject({
+      id: testId, endedAt: 2000, accuracy: 0.9, wpm: 12, chapter: 4, section: 'pseudo', meta: { missed: ['SAP'] },
+    })
+  })
+
+  it('answers GET /api/tests/last for an unknown test with null, and 400 without params', async () => {
+    expect(await (await call('GET', '/api/tests/last?mode=x&section=y')).json()).toBeNull()
+    expect((await call('GET', '/api/tests/last?mode=x')).status).toBe(400)
+  })
+
+  it('400s bad JSON and wrong shapes with an {error} body', async () => {
+    const testId = await newTest()
+    const cases: [string, unknown][] = [
+      ['/api/sessions', '{not json'],
+      ['/api/sessions', ''],
+      ['/api/sessions', []],
+      ['/api/sessions', { startedAt: 'now' }],
+      ['/api/sessions', { startedAt: null }],
+      ['/api/tests', { sessionId: 1, startedAt: 1, mode: '', chapter: null, section: null, itemCount: 1 }],
+      ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: 'x', section: null, itemCount: 1 }],
+      ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: null, section: null }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, pressedLevers: ['S1-', 'ZZ'] }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, expected: 'SAP' }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, correct: 1 }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, latencyMs: 'fast' }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, pressedMask: -1 }],
+      [`/api/tests/${testId}/finish`, { endedAt: 1, wpm: 'x', accuracy: 1, meta: null }],
+      ['/api/settings', { boardVisibility: 'sideways' }],
+      ['/api/settings', '[]'],
+    ]
+    for (const [path, body] of cases) {
+      const res = await call(path === '/api/settings' ? 'PUT' : 'POST', path, body)
+      expect(res.status, `${path} ${JSON.stringify(body)}`).toBe(400)
+      const json = (await res.json()) as { error: string }
+      expect(typeof json.error).toBe('string')
+      expect(json.error).not.toMatch(/\bat \S+\.ts|node:|stack/i)
+    }
+  })
+
+  it('rejects non-finite numbers', async () => {
+    // JSON cannot carry NaN/Infinity, but 1e999 parses to Infinity.
+    expect((await call('POST', '/api/sessions', '{"startedAt":1e999}')).status).toBe(400)
+  })
+
+  it('404s unknown test ids and unknown sessions', async () => {
+    expect((await call('POST', '/api/tests/999/strokes', strokeBody)).status).toBe(404)
+    expect((await call('POST', '/api/tests/999/finish', { endedAt: 1, wpm: 1, accuracy: 1, meta: null })).status).toBe(404)
+    expect((await call('POST', '/api/tests/abc/strokes', strokeBody)).status).toBe(404)
+    const res = await call('POST', '/api/tests', {
+      sessionId: 999, startedAt: 1, mode: 'm', chapter: null, section: null, itemCount: 1,
+    })
+    expect(res.status).toBe(404)
+    expect(((await res.json()) as { error: string }).error).toBeTruthy()
+  })
+
+  it('405s wrong methods with an Allow header', async () => {
+    const cases: [string, string, string][] = [
+      ['GET', '/api/sessions', 'POST'],
+      ['GET', '/api/tests', 'POST'],
+      ['POST', '/api/tests/last', 'GET'],
+      ['GET', '/api/tests/1/strokes', 'POST'],
+      ['GET', '/api/tests/1/finish', 'POST'],
+      ['DELETE', '/api/settings', 'GET, PUT'],
+      ['POST', '/api/settings', 'GET, PUT'],
+    ]
+    for (const [method, path, allowed] of cases) {
+      const res = await call(method, path)
+      expect(res.status, `${method} ${path}`).toBe(405)
+      expect(res.headers.get('allow'), `${method} ${path}`).toBe(allowed)
+    }
+  })
+
+  it('413s bodies over 1 MB and keeps serving', async () => {
+    const { port } = new URL(url)
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = request(
+        { host: '127.0.0.1', port, path: '/api/sessions', method: 'POST', headers: { 'transfer-encoding': 'chunked' } },
+        (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        },
+      )
+      req.on('error', reject)
+      req.write(Buffer.alloc(2 * 1024 * 1024, 0x20))
+      req.end()
+    })
+    expect(status).toBe(413)
+    const declared = await call('POST', '/api/sessions', ' '.repeat(1024 * 1024 + 1))
+    expect(declared.status).toBe(413)
+    expect((await call('GET', '/api/health')).status).toBe(200)
+  })
+
+  it('serves and updates settings', async () => {
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always' })
+    const put = await call('PUT', '/api/settings', { boardVisibility: 'hover' })
+    expect(await put.json()).toEqual({ boardVisibility: 'hover' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover' })
+  })
+
+  it('400s an invalid settings PUT and leaves the file unchanged', async () => {
+    await call('PUT', '/api/settings', { boardVisibility: 'hidden' })
+    const file = join(dataDir, 'settings.json')
+    const before = readFileSync(file, 'utf8')
+    expect((await call('PUT', '/api/settings', { boardVisibility: 'sideways' })).status).toBe(400)
+    expect(readFileSync(file, 'utf8')).toBe(before)
+  })
+
+  it('falls back to defaults when settings.json is corrupt', async () => {
+    mkdirSync(dataDir, { recursive: true })
+    writeFileSync(join(dataDir, 'settings.json'), '{oops')
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always' })
+  })
+
+  it('keeps data across a server restart', async () => {
+    const testId = await newTest()
+    await call('POST', `/api/tests/${testId}/finish`, { endedAt: 2000, wpm: 1, accuracy: 0.5, meta: null })
+    await new Promise((ok) => api.close(ok))
+    await start()
+    const last = (await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()) as { id: number }
+    expect(last.id).toBe(testId)
   })
 })

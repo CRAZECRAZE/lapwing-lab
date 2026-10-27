@@ -1,9 +1,14 @@
-import { createReadStream } from 'node:fs'
+import { createReadStream, mkdirSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { extname, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream'
+import { LEVERS } from '../src/core/uni.ts'
+import type { Lever } from '../src/core/uni.ts'
+import { MissingRowError, openArchive } from './archive.ts'
+import type { Archive } from './archive.ts'
+import { readSettings, writeSettings } from './settings.ts'
 
 export interface ServerOptions {
   root: string
@@ -62,18 +67,230 @@ async function sendFile(req: IncomingMessage, res: ServerResponse, file: string)
   return true
 }
 
-// Single dispatch point for /api/*. Task 14 adds the settings and test routes here.
-async function handleApi(
-  _req: IncomingMessage,
-  res: ServerResponse,
-  pathname: string,
-  _opts: ServerOptions,
-): Promise<void> {
+const JSON_TYPE = 'application/json; charset=utf-8'
+const MAX_BODY_BYTES = 1024 * 1024
+
+class HttpError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+function sendJson(res: ServerResponse, status: number, value: unknown) {
+  send(res, status, JSON_TYPE, JSON.stringify(value))
+}
+
+// Reads a JSON body of at most MAX_BODY_BYTES. Past the limit it stops collecting
+// and answers 413 with Connection: close so the socket is torn down after the reply.
+function readBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
+  return new Promise((resolveBody, reject) => {
+    const tooBig = () => {
+      res.setHeader('connection', 'close')
+      reject(new HttpError(413, 'Request body too large'))
+    }
+    if (Number(req.headers['content-length'] ?? 0) > MAX_BODY_BYTES) {
+      tooBig()
+      return
+    }
+    const chunks: Buffer[] = []
+    let size = 0
+    let done = false
+    req.on('data', (chunk: Buffer) => {
+      if (done) return
+      size += chunk.length
+      if (size > MAX_BODY_BYTES) {
+        done = true
+        chunks.length = 0
+        tooBig()
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => {
+      if (done) return
+      done = true
+      try {
+        resolveBody(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      } catch {
+        reject(new HttpError(400, 'Body must be valid JSON'))
+      }
+    })
+    req.on('error', (err) => {
+      if (done) return
+      done = true
+      reject(err)
+    })
+  })
+}
+
+type Fields = Record<string, unknown>
+
+function asObject(value: unknown): Fields {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new HttpError(400, 'Body must be a JSON object')
+  }
+  return value as Fields
+}
+
+function bad(name: string, what: string): never {
+  throw new HttpError(400, `"${name}" must be ${what}`)
+}
+
+function num(o: Fields, name: string): number {
+  const v = o[name]
+  return typeof v === 'number' && Number.isFinite(v) ? v : bad(name, 'a finite number')
+}
+
+function int(o: Fields, name: string): number {
+  const v = o[name]
+  return typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : bad(name, 'a non-negative integer')
+}
+
+function str(o: Fields, name: string): string {
+  const v = o[name]
+  return typeof v === 'string' && v !== '' ? v : bad(name, 'a non-empty string')
+}
+
+function nullable<T>(o: Fields, name: string, read: (o: Fields, name: string) => T): T | null {
+  return o[name] === null ? null : read(o, name)
+}
+
+function bool(o: Fields, name: string): boolean {
+  const v = o[name]
+  return typeof v === 'boolean' ? v : bad(name, 'a boolean')
+}
+
+function strings(o: Fields, name: string): string[] {
+  const v = o[name]
+  return Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : bad(name, 'an array of strings')
+}
+
+function levers(o: Fields, name: string): Lever[] {
+  const known: readonly string[] = LEVERS
+  const v = strings(o, name)
+  return v.every((x) => known.includes(x)) ? (v as Lever[]) : bad(name, 'an array of known levers')
+}
+
+function allow(res: ServerResponse, ...methods: string[]): never {
+  res.setHeader('allow', methods.join(', '))
+  throw new HttpError(405, 'Method not allowed')
+}
+
+interface ApiContext {
+  archive(): Archive
+  settingsFile: string
+  ensureDataDir(): void
+}
+
+// Single dispatch point for /api/*. Handlers throw HttpError; anything else is a
+// 500 whose details stay on the server.
+async function handleApi(req: IncomingMessage, res: ServerResponse, pathname: string, ctx: ApiContext) {
+  try {
+    await route(req, res, pathname, ctx)
+  } catch (err) {
+    if (res.headersSent) {
+      res.destroy()
+    } else if (err instanceof HttpError) {
+      sendJson(res, err.status, { error: err.message })
+    } else if (err instanceof MissingRowError) {
+      sendJson(res, 404, { error: err.message })
+    } else {
+      sendJson(res, 500, { error: 'Internal error' })
+    }
+  }
+}
+
+async function route(req: IncomingMessage, res: ServerResponse, pathname: string, ctx: ApiContext) {
+  const method = req.method ?? 'GET'
+
   if (pathname === '/api/health') {
-    send(res, 200, 'application/json; charset=utf-8', '{"ok":true}')
+    sendJson(res, 200, { ok: true })
     return
   }
-  notFound(res)
+
+  if (pathname === '/api/settings') {
+    if (method === 'GET') {
+      sendJson(res, 200, readSettings(ctx.settingsFile))
+      return
+    }
+    if (method !== 'PUT') allow(res, 'GET', 'PUT')
+    const body = asObject(await readBody(req, res))
+    const vis = body.boardVisibility
+    if (vis !== undefined && vis !== 'always' && vis !== 'hover' && vis !== 'hidden') {
+      bad('boardVisibility', 'one of always, hover, hidden')
+    }
+    ctx.ensureDataDir()
+    sendJson(res, 200, writeSettings(ctx.settingsFile, vis === undefined ? {} : { boardVisibility: vis }))
+    return
+  }
+
+  if (pathname === '/api/sessions') {
+    if (method !== 'POST') allow(res, 'POST')
+    const body = asObject(await readBody(req, res))
+    const startedAt = num(body, 'startedAt')
+    sendJson(res, 200, { id: ctx.archive().createSession(startedAt) })
+    return
+  }
+
+  if (pathname === '/api/tests') {
+    if (method !== 'POST') allow(res, 'POST')
+    const body = asObject(await readBody(req, res))
+    const test = {
+      sessionId: int(body, 'sessionId'),
+      startedAt: num(body, 'startedAt'),
+      mode: str(body, 'mode'),
+      chapter: nullable(body, 'chapter', int),
+      section: nullable(body, 'section', str),
+      itemCount: int(body, 'itemCount'),
+    }
+    sendJson(res, 200, { id: ctx.archive().startTest(test) })
+    return
+  }
+
+  // Must stay ahead of the /api/tests/:id/... pattern below.
+  if (pathname === '/api/tests/last') {
+    if (method !== 'GET') allow(res, 'GET')
+    const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+    const mode = params.get('mode')
+    const section = params.get('section')
+    if (!mode || !section) throw new HttpError(400, '"mode" and "section" query parameters are required')
+    sendJson(res, 200, ctx.archive().lastTest(mode, section) ?? null)
+    return
+  }
+
+  const match = /^\/api\/tests\/(\d+)\/(strokes|finish)$/.exec(pathname)
+  if (match) {
+    if (method !== 'POST') allow(res, 'POST')
+    const testId = Number(match[1])
+    if (!Number.isSafeInteger(testId)) throw new HttpError(404, 'No such test')
+    const body = asObject(await readBody(req, res))
+    if (match[2] === 'strokes') {
+      ctx.archive().addStroke({
+        testId,
+        tsMs: num(body, 'tsMs'),
+        prompt: str(body, 'prompt'),
+        expected: strings(body, 'expected'),
+        pressedLevers: levers(body, 'pressedLevers'),
+        pressedMask: int(body, 'pressedMask'),
+        correct: bool(body, 'correct'),
+        latencyMs: num(body, 'latencyMs'),
+        attemptNo: int(body, 'attemptNo'),
+      })
+    } else {
+      ctx.archive().finishTest(testId, {
+        endedAt: num(body, 'endedAt'),
+        wpm: num(body, 'wpm'),
+        accuracy: num(body, 'accuracy'),
+        meta: body.meta ?? null,
+      })
+    }
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
+  throw new HttpError(404, 'Not found')
 }
 
 export function createServer(opts: ServerOptions): Server {
@@ -81,6 +298,23 @@ export function createServer(opts: ServerOptions): Server {
   const contentRoot = join(root, 'content', 'build')
   const mediaRoot = join(root, 'content', 'lapwing-book', 'src', 'img')
   const distRoot = join(root, 'dist')
+  const dataDir = resolve(opts.dataDir)
+
+  // data/ and steno.db appear only when something is first saved.
+  let archive: Archive | undefined
+  const ctx: ApiContext = {
+    settingsFile: join(dataDir, 'settings.json'),
+    ensureDataDir: () => {
+      mkdirSync(dataDir, { recursive: true })
+    },
+    archive: () => {
+      if (!archive) {
+        mkdirSync(dataDir, { recursive: true })
+        archive = openArchive(join(dataDir, 'steno.db'))
+      }
+      return archive
+    },
+  }
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
     // Decode exactly once. Anything that still looks like a traversal afterwards
@@ -99,7 +333,7 @@ export function createServer(opts: ServerOptions): Server {
 
     // API routes own their methods; the GET/HEAD restriction is for static files only.
     if (pathname === '/api' || pathname.startsWith('/api/')) {
-      await handleApi(req, res, pathname, opts)
+      await handleApi(req, res, pathname, ctx)
       return
     }
 
@@ -137,12 +371,17 @@ export function createServer(opts: ServerOptions): Server {
     notFound(res)
   }
 
-  return createHttpServer((req, res) => {
+  const server = createHttpServer((req, res) => {
     handle(req, res).catch(() => {
       if (res.headersSent) res.destroy()
       else send(res, 500, 'text/plain; charset=utf-8', 'Internal error')
     })
   })
+  server.on('close', () => {
+    archive?.close()
+    archive = undefined
+  })
+  return server
 }
 
 export function listen(server: Server, port: number, host = '127.0.0.1'): Promise<number> {
