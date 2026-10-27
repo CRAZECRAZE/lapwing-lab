@@ -4,8 +4,8 @@ A private, offline, interactive version of the book *Lapwing for Beginners*, dri
 
 ## Requirements
 
-- **Node 26.** The project runs `.ts` files directly with `node` (no transpile step for the server or scripts) and uses `node:sqlite`.
-- **A Chromium-based browser** (Chromium, Brave, ...). The Uni is read over WebHID, which Firefox and Safari do not have. `http://127.0.0.1` counts as a secure context, so no HTTPS is needed.
+- **Node.** Built and tested on Node 26. It needs a Node that runs `.ts` files directly (there is no transpile step for the server or scripts) and has `node:sqlite`; I have not checked any other version.
+- **A Chromium-based browser.** Chromium is what the app was built and tested against. The Uni is read over WebHID, which Firefox and Safari do not have. Brave has WebHID too but may need it enabled; that is untested. `http://127.0.0.1` counts as a secure context, so no HTTPS is needed.
 - **The Uni on the Plover HID firmware.**
 - **Linux device access.** The browser needs read access to the board's hidraw node. If **Connect** fails with a permission error, your udev rules must allow the logged-in user access to the board: the StenoKeyboards udev rule that Plover also needs.
 
@@ -33,12 +33,12 @@ First use: open **Chapter 4**, click **Connect**, and choose the Uni in the brow
 
 Plover types translations into whatever window has focus. The drill screen swallows stray text, but turn Plover's **Output** off anyway while you practice here (the status line in the app reminds you).
 
-Plover can stay connected to the board at the same time: on Linux, hidraw delivers every report to every program that has the device open, so the app and Plover both see your strokes.
+Plover should be able to stay connected at the same time: on Linux, hidraw normally delivers every report to every program that has the device open. This has not been checked against a real board yet. If **Connect** fails while Plover is running, close Plover's machine connection and tell me.
 
 ## What is inside today
 
 - **Reader** for all 33 pages of the book (Home, chapters, appendices, Glossary, Changes), with the book's images and videos served locally.
-- **Live strokes.** Strokes in the text light up the keys on a board when you hover, focus or click them. On the Uni, pressing a stroke confirms it.
+- **Live strokes.** Strokes in the text light up the keys on a board when you hover, focus or click them. While a stroke is shown in the board panel, pressing it on the Uni shows a ✓; for a multi-stroke outline, press the strokes in order starting from the first.
 - **Stage 0 drills** on the Chapter 4 page: six key-row drills (left bottom, right bottom, left top, right top, vowels, star), the 100-word layout test with the book's pass mark (90% accuracy within 10 minutes), and two extra practice lists.
 - **Board visibility** for the drill screen: always, hover or hidden.
 - **Archive.** Every drill stroke is stored with the keys you actually pressed, so a miss can be analysed later.
@@ -55,6 +55,8 @@ Everything the app writes lives in `data/`:
 - `settings.json`
 
 Both are created on first save, so `data/` does not exist until you first use a drill or change a setting. Back up by copying the folder. It is git-ignored on purpose.
+
+Leaving a drill early (Exit or Esc) keeps the strokes you already did, but the test is never marked finished, so it will not show up as a result on the Chapter 4 page.
 
 Peek at your strokes (run from the repo root):
 
@@ -76,7 +78,7 @@ npm run build:content   # regenerate content/build from the vendored book
 npm run sync:book       # re-vendor the book at the pinned commit (needs network)
 ```
 
-`npm run dev` prints the Vite address to open; Vite proxies `/api`, `/content` and `/media` to the server on 5757. `npm run sync:book` is only for re-vendoring the pinned book commit; you do not need it for normal use.
+`npm run dev` (leave `PORT` unset; the Vite proxy is fixed to 5757) prints the Vite address to open; Vite proxies `/api`, `/content` and `/media` to the server on 5757. `npm run sync:book` is only for re-vendoring the pinned book commit; you do not need it for normal use.
 
 ```
 content/lapwing-book/   vendored book (generated; do not edit)
