@@ -13,6 +13,7 @@
   --right: #a07ad8;
   --ok: #6fae7e;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --topbar-h: 2.75rem; /* height of the sticky tab bar; sticky offsets below sit under it */
 }
 
 *,
@@ -22,7 +23,7 @@
 }
 
 html {
-  scroll-padding-top: 1.5rem;
+  scroll-padding-top: calc(var(--topbar-h) + 1.5rem);
 }
 
 body {
@@ -32,12 +33,66 @@ body {
   font: 16px/1.65 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Top bar: the tabs, full width above both columns, always visible */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 7; /* above the dock (5) and the status line (6) */
+  height: var(--topbar-h);
+  display: flex;
+  align-items: stretch;
+  padding: 0 1rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
+  overflow-x: auto;
+}
+
+.topbar__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topbar a {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.9rem;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.topbar a:hover {
+  color: var(--heading);
+}
+
+.topbar a:focus-visible {
+  outline: 2px solid var(--left);
+  outline-offset: -2px;
+}
+
+.topbar a[aria-current='page'] {
+  border-bottom-color: var(--left);
+  color: var(--heading);
+}
+
 /* Layout: nav | reading column + dock */
 
 .app {
   display: grid;
   grid-template-columns: 17rem minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: calc(100vh - var(--topbar-h));
+}
+
+/* Tabs other than the Book have no chapter nav and use the full width. */
+.app--wide {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .main {
@@ -55,7 +110,7 @@ body {
 
 .dock {
   position: sticky;
-  top: 1.5rem;
+  top: calc(var(--topbar-h) + 1.5rem);
 }
 
 /*
@@ -71,7 +126,7 @@ body {
 
   .dock {
     position: sticky;
-    top: 0;
+    top: var(--topbar-h);
     z-index: 5;
     order: -1;
     margin: 0 -0.5rem 1rem;
@@ -101,7 +156,7 @@ body {
   }
 
   html {
-    scroll-padding-top: 6rem;
+    scroll-padding-top: calc(var(--topbar-h) + 6rem);
   }
 }
 
@@ -126,8 +181,8 @@ body {
 
 .nav {
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
   overflow-y: auto;
   padding: 1.25rem 0.75rem 2rem;
   background: var(--panel);
@@ -417,6 +472,11 @@ body {
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.4;
+}
+
+/* No chapter nav in the wide layout, so nothing to clear. */
+.app--wide .status {
+  left: 0;
 }
 
 .status p {
