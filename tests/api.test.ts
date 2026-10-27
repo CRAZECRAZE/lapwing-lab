@@ -7,14 +7,17 @@ import {
   getDays,
   getJournal,
   getLastTest,
+  getNote,
   getProgress,
   getResults,
   getSettings,
   getTest,
   listJournal,
+  listNotes,
   listTests,
   putJournal,
   putMark,
+  putNote,
   putSettings,
 } from '../src/api.ts'
 import type { StrokeRecord, TestRow } from '../server/archive.ts'
@@ -557,5 +560,43 @@ describe('results and progress calls', () => {
     await expect(getProgress(down())).rejects.toThrow()
     await expect(putMark(5, 'read', down())).rejects.toThrow()
     await expect(deleteMark(5, down())).rejects.toThrow()
+  })
+
+  it('listNotes returns the chapters with notes', async () => {
+    const { calls, fetch } = fakeFetch(() => json([{ chapter: 5, chars: 12 }]))
+    await expect(listNotes(fetch)).resolves.toEqual([{ chapter: 5, chars: 12 }])
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/notes' })
+  })
+
+  it('getNote returns the text of one chapter', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ chapter: 5, text: 'hello' }))
+    await expect(getNote(5, fetch)).resolves.toBe('hello')
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/notes/5' })
+  })
+
+  it('putNote PUTs the text to its chapter', async () => {
+    const { calls, fetch } = fakeFetch((c) => json({ chapter: 5, text: String((c.body as { text: string }).text) }))
+    await expect(putNote(5, 'a b', fetch)).resolves.toBeUndefined()
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/notes/5', body: { text: 'a b' } })
+  })
+
+  it('note calls reject on a non-2xx with an HttpStatusError', async () => {
+    const bad = () => fakeFetch(() => json({ error: 'bad' }, 400)).fetch
+    await expect(listNotes(bad())).rejects.toBeInstanceOf(HttpStatusError)
+    await expect(getNote(5, bad())).rejects.toBeInstanceOf(HttpStatusError)
+    const err = await putNote(5, 'x', fakeFetch(() => json({ error: 'bad' }, 409)).fetch).catch((e) => e)
+    expect(err).toBeInstanceOf(HttpStatusError)
+    expect(err.status).toBe(409)
+    expect(err.message).toBe('PUT /api/notes/5 failed with 409')
+  })
+
+  it('note calls reject a non-integer chapter with a RangeError and make no request', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ chapter: 1, text: '' }))
+    await expect(putNote(1.5, 'x', fetch)).rejects.toBeInstanceOf(RangeError)
+    await expect(getNote(NaN, fetch)).rejects.toBeInstanceOf(RangeError)
+    await expect(getNote(Infinity, fetch)).rejects.toBeInstanceOf(RangeError)
+    await expect(putNote('5/../6' as unknown as number, 'x', fetch)).rejects.toBeInstanceOf(RangeError)
+    expect(calls).toHaveLength(0)
   })
 })

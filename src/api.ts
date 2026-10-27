@@ -260,3 +260,23 @@ export async function putMark(
 export async function deleteMark(chapter: number, fetchFn: FetchFn = defaultFetch): Promise<void> {
   await request(fetchFn, 'DELETE', `/api/progress/${encodeURIComponent(String(chapter))}`)
 }
+
+// Notes: one per chapter. The chapter goes into the path as a plain integer, so a bad value
+// can never build a strange URL; it is refused before any request.
+function notePath(chapter: number): string {
+  if (!Number.isInteger(chapter)) throw new RangeError(`Not a chapter number: ${String(chapter)}`)
+  return `/api/notes/${String(chapter)}`
+}
+
+export async function listNotes(fetchFn: FetchFn = defaultFetch): Promise<{ chapter: number; chars: number }[]> {
+  return (await request(fetchFn, 'GET', '/api/notes')) as { chapter: number; chars: number }[]
+}
+
+export async function getNote(chapter: number, fetchFn: FetchFn = defaultFetch): Promise<string> {
+  const entry = (await request(fetchFn, 'GET', notePath(chapter))) as { text: string }
+  return entry.text
+}
+
+export async function putNote(chapter: number, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
+  await request(fetchFn, 'PUT', notePath(chapter), { text })
+}

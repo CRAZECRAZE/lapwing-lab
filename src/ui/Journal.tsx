@@ -5,7 +5,7 @@ import { listJournal, listTests } from '../api.ts'
 import { addDays, dayLabel, formatDuration, localDate } from '../core/days.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { TestList } from './TestList.tsx'
-import { useAutosave, type SaveStatus } from './useAutosave.ts'
+import { journalStore, useAutosave, type SaveStatus } from './useAutosave.ts'
 import './journal.css'
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
@@ -39,7 +39,7 @@ export function Journal({ date: given }: { date?: string }): JSX.Element {
   const [today] = useState(() => localDate(Date.now()))
   const date = given ?? today
   const valid = isCalendarDate(date)
-  const note = useAutosave(date, valid)
+  const note = useAutosave(journalStore, date, valid)
   const [days, setDays] = useState<string[]>([])
   const [results, setResults] = useState<Results>({ status: 'loading' })
   const live = useRef(true)
