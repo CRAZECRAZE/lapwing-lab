@@ -63,17 +63,28 @@ describe('History', () => {
     expect(location.pathname).toBe('/history/7')
   })
 
-  it('marks an unfinished row without numbers, and one left early', async () => {
+  it('marks an unfinished row without numbers', async () => {
+    list.mockResolvedValue([summary(1, { endedAt: null, wpm: null, accuracy: null, meta: null })])
+    render(<History />)
+    const [item] = await screen.findAllByRole('listitem')
+    expect(item.textContent).toContain('Unfinished')
+    expect(item.textContent).not.toContain('%')
+    expect(item.textContent).not.toContain('Left early')
+  })
+
+  it('shows the numbers and Left early for an abandoned test that has an end time', async () => {
     list.mockResolvedValue([
-      summary(2, { endedAt: null, wpm: null, accuracy: null, meta: null }),
+      summary(2, { endedAt: at(9, 8), wpm: 30.2, accuracy: 0.6, meta: { abandoned: true } }),
       summary(1, { endedAt: null, wpm: null, accuracy: null, meta: { abandoned: true } }),
     ])
     render(<History />)
     const items = await screen.findAllByRole('listitem')
-    expect(items[0].textContent).toContain('Unfinished')
-    expect(items[0].textContent).not.toContain('%')
-    expect(items[0].textContent).not.toContain('Left early')
+    expect(items[0].textContent).toContain('60% · 30 wpm')
+    expect(items[0].textContent).toContain('Left early')
+    expect(items[0].textContent).not.toContain('Unfinished')
+    // a closed tab that was also marked abandoned still has no numbers
     expect(items[1].textContent).toContain('Unfinished')
+    expect(items[1].textContent).not.toContain('%')
     expect(items[1].textContent).toContain('Left early')
   })
 

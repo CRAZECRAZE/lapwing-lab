@@ -42,7 +42,7 @@ export function TestList({ tests }: { tests: TestSummary[] }): JSX.Element {
               <span class="tests__what">{describeTest(t)}</span>
               <span class="tests__result">
                 {finished ? `${Math.round((t.accuracy ?? 0) * 100)}% · ${Math.round(t.wpm ?? 0)} wpm` : 'Unfinished'}
-                {!finished && wasAbandoned(t.meta) && <span class="tests__note"> Left early</span>}
+                {wasAbandoned(t.meta) && <span class="tests__note"> · Left early</span>}
               </span>
               <span class="tests__strokes">{t.strokeCount} strokes</span>
             </a>
