@@ -1,0 +1,136 @@
+/* The chapter panel above a chapter's text: same card as the Stage 0 panel, kept compact. */
+
+.chapter-panel {
+  margin: 0 0 2.5rem;
+  padding: 0.85rem 1.1rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+/* Under the Stage 0 panel on chapter 4 the two cards sit closer together. */
+.stage0 + .chapter-panel {
+  margin-top: -1.5rem;
+}
+
+.chapter-panel p {
+  margin: 0;
+}
+
+.chapter-panel__status {
+  color: var(--heading);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.chapter-panel__status--cleared {
+  color: var(--ok);
+}
+
+.chapter-panel__requirement,
+.chapter-panel__lock,
+.chapter-panel__scores,
+.chapter-panel__quiet,
+.chapter-panel__error {
+  color: var(--muted);
+}
+
+.chapter-panel .chapter-panel__requirement {
+  margin-top: 0.15rem;
+}
+
+.chapter-panel__list {
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-panel__row,
+.chapter-panel__test-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.chapter-panel__tick {
+  flex: none;
+  width: 1rem;
+  color: var(--ok);
+}
+
+.chapter-panel__name {
+  color: var(--text);
+}
+
+.chapter-panel__count {
+  color: var(--muted);
+}
+
+.chapter-panel__last {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.chapter-panel__start,
+.chapter-panel__take {
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.chapter-panel__start:hover,
+.chapter-panel__take:hover,
+.chapter-panel__start:focus-visible,
+.chapter-panel__take:focus-visible {
+  color: var(--heading);
+  text-decoration: underline;
+}
+
+.chapter-panel__start {
+  margin-left: 0.75rem;
+}
+
+.chapter-panel__test {
+  margin-top: 0.6rem;
+}
+
+.chapter-panel__test .chapter-panel__scores {
+  padding-left: 1.4rem;
+}
+
+.chapter-panel__take {
+  display: inline-block;
+  margin: 0.35rem 0 0 1.4rem;
+}
+
+.chapter-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.chapter-panel__actions:empty {
+  display: none;
+}
+
+.chapter-panel__actions .stage0-button[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chapter-panel .chapter-panel__error {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.chapter-panel__quiet .stage0-button {
+  margin-left: 0.4rem;
+}

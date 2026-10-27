@@ -362,11 +362,47 @@ body {
   font-size: 0.9em;
 }
 
-/* Practice drills arrive in a later task; until then the links are just labels. */
+/* The book's practice links, made live by the Reader: an href, then a muted meta (count, last result). */
 .page a.practice-link {
-  color: var(--muted);
+  color: var(--link);
   text-decoration: none;
+}
+
+.page a.practice-link:hover,
+.page a.practice-link:focus-visible {
+  text-decoration: underline;
+}
+
+/* A plain link without an href (never decorated) stays a label. */
+.page a.practice-link:not([href]) {
+  color: var(--muted);
   cursor: default;
+}
+
+.page a.practice-link .practice-link__meta {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+/* A link that is its paragraph's whole content: a full-width row, the meta after the title.
+   Block, not flex: the book's link text can mix text and <code>, which flex would split apart. */
+.page a.practice-link.practice-link--row {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.page a.practice-link.practice-link--row:hover,
+.page a.practice-link.practice-link--row:focus-visible {
+  background: var(--raised);
+  border-color: var(--muted);
+  text-decoration: none;
+}
+
+.page a.practice-link--row .practice-link__meta {
+  white-space: nowrap;
 }
 
 .page img,

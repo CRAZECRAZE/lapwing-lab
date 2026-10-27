@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
+import type { JSX } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import { ProgressProvider } from '../../src/state/progress.tsx'
@@ -8,6 +9,9 @@ import { App } from '../../src/ui/App.tsx'
 import { Reader } from '../../src/ui/Reader.tsx'
 import { Stage0Panel } from '../../src/ui/Stage0Panel.tsx'
 import { Stage0Route } from '../../src/ui/Stage0Route.tsx'
+
+/** The Reader reads chapter progress, so it renders inside a provider. */
+const withProgress = (node: JSX.Element): JSX.Element => <ProgressProvider>{node}</ProgressProvider>
 
 type ReportListener = (e: { reportId: number; data: DataView }) => void
 
@@ -146,12 +150,12 @@ describe('Stage0Panel on the Chapter 4 page', () => {
       '/content/pages/ch04.json': pageFile('ch04', '<h1>Four</h1>'),
       '/content/pages/ch05.json': pageFile('ch05', '<h1>Five</h1>'),
     })
-    const { rerender } = render(<Reader id="ch04" />)
+    const { rerender } = render(withProgress(<Reader id="ch04" />))
     await screen.findByText('Four')
     expect(screen.getByRole('heading', { name: 'Practice — Stage 0' })).toBeTruthy()
     // the panel sits above the chapter text
     expect(document.querySelector('.stage0')!.compareDocumentPosition(document.querySelector('article')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    rerender(<Reader id="ch05" />)
+    rerender(withProgress(<Reader id="ch05" />))
     await screen.findByText('Five')
     expect(screen.queryByText(/Practice — Stage 0/)).toBeNull()
   })
