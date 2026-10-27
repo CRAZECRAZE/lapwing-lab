@@ -316,7 +316,7 @@ describe('the chart inside the real DockHost', () => {
     await screen.findByRole('heading', { name: 'Left hand' })
     expect(box.textContent).not.toContain('Coming in this milestone.')
     expect(fetchFn).toHaveBeenCalledTimes(1)
-    for (const tool of ['briefs', 'notes'] as const) {
+    for (const tool of ['notes'] as const) {
       act(() => dock.open(tool))
       expect(document.querySelector('.dock-drawer')!.textContent).toContain('Coming in this milestone.')
       expect(document.querySelector('.keychart')).toBeNull()

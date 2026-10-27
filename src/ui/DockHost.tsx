@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useLayoutEffect, useRef } from 'preact/hooks'
 import { useDock } from '../state/dock.tsx'
 import type { DockTool } from '../state/dock.tsx'
+import { Briefs } from './tools/Briefs.tsx'
 import { KeyChart } from './tools/KeyChart.tsx'
 import { Lookup } from './tools/Lookup.tsx'
 import './dock.css'
@@ -14,7 +15,7 @@ const Soon = (): JSX.Element => <p class="dock-drawer__soon">Coming in this mile
 export const TOOLS: Readonly<Record<DockTool, DockToolView>> = {
   lookup: { title: 'Lookup', Body: Lookup },
   chart: { title: 'Key chart', Body: KeyChart },
-  briefs: { title: 'Briefs so far', Body: Soon },
+  briefs: { title: 'Briefs so far', Body: Briefs },
   notes: { title: 'My notes', Body: Soon },
 }
 

@@ -7,13 +7,16 @@ import type { Dock } from '../../src/state/dock.tsx'
 import { ConfirmDialog } from '../../src/ui/ConfirmDialog.tsx'
 import { DockHost, TOOLS } from '../../src/ui/DockHost.tsx'
 
-// These tests are about the host, not the tools: the real Lookup needs the progress provider and a fetch, and the real
-// KeyChart a fetch (they have their own tests).
+// These tests are about the host, not the tools: the real Lookup and Briefs need the progress provider and a fetch, and the
+// real KeyChart a fetch (they have their own tests).
 vi.mock('../../src/ui/tools/Lookup.tsx', () => ({
   Lookup: (): JSX.Element => <p class="dock-drawer__soon">Coming in this milestone.</p>,
 }))
 vi.mock('../../src/ui/tools/KeyChart.tsx', () => ({
   KeyChart: (): JSX.Element => <p class="dock-drawer__soon">Coming in this milestone.</p>,
+}))
+vi.mock('../../src/ui/tools/Briefs.tsx', () => ({
+  Briefs: (): JSX.Element => <p class="dock-drawer__soon">Coming in this milestone.</p>,
 }))
 
 afterEach(() => {

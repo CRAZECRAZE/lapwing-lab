@@ -11,6 +11,12 @@ import { DockHost } from '../../src/ui/DockHost.tsx'
 import { Drill } from '../../src/ui/Drill.tsx'
 import type { DrillResult } from '../../src/ui/Drill.tsx'
 
+// The test opens the real drawer to check focus and keys, not the tools: the real Briefs needs the progress provider
+// and a fetch (it has its own tests).
+vi.mock('../../src/ui/tools/Briefs.tsx', () => ({
+  Briefs: () => <p class="dock-drawer__soon">Coming in this milestone.</p>,
+}))
+
 type ReportListener = (e: { reportId: number; data: DataView }) => void
 type HidListener = (e: { device: HidDeviceLike }) => void
 
