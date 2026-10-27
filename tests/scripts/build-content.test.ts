@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, existsSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildContent } from '../../scripts/build-content.ts'
-import type { BuildStats } from '../../scripts/build-content.ts'
+import { buildContent, practiceChapter } from '../../scripts/build-content.ts'
+import type { BuildStats, PracticeIndexEntry } from '../../scripts/build-content.ts'
 
 const bookDir = join(import.meta.dirname, '..', '..', 'content', 'lapwing-book')
 const PINNED = '46b53e1ebec3b19fb402da046d6dc0a13b530787'
@@ -82,6 +82,45 @@ describe('buildContent on the vendored book', () => {
   })
 })
 
+describe('practice-index.json', () => {
+  it('lists every practice list with chapter 5 to 17, sorted by chapter then id', () => {
+    const index: PracticeIndexEntry[] = readJson('practice-index.json')
+    expect(index).toHaveLength(57)
+    for (const entry of index) {
+      expect(Object.keys(entry).sort()).toEqual(['chapter', 'id', 'items'])
+      expect(entry.chapter).toBeGreaterThanOrEqual(5)
+      expect(entry.chapter).toBeLessThanOrEqual(17)
+    }
+    const sorted = [...index].sort((a, b) => a.chapter - b.chapter || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    expect(index).toEqual(sorted)
+    const chapters = index.map((e) => e.chapter)
+    expect(chapters.indexOf(10)).toBeGreaterThan(chapters.lastIndexOf(9))
+  })
+
+  it('counts the items of each list', () => {
+    const index: PracticeIndexEntry[] = readJson('practice-index.json')
+    const entry = index.find((e) => e.id === '5-basic-left-hand')
+    expect(entry).toBeDefined()
+    expect(entry!.chapter).toBe(5)
+    expect(entry!.items).toBe(readJson('practice', '5-basic-left-hand.json').items.length)
+    expect(entry!.items).toBeGreaterThan(0)
+  })
+})
+
+describe('practiceChapter', () => {
+  it('reads the integer before the first dash', () => {
+    expect(practiceChapter('5-basic-left-hand')).toBe(5)
+    expect(practiceChapter('10-right-ch-sh-rch')).toBe(10)
+    expect(practiceChapter('13-test')).toBe(13)
+  })
+
+  it('throws naming the id when there is no leading chapter number', () => {
+    expect(() => practiceChapter('briefs')).toThrow(/"briefs"/)
+    expect(() => practiceChapter('x5-foo')).toThrow(/"x5-foo"/)
+    expect(() => practiceChapter('-foo')).toThrow(/"-foo"/)
+  })
+})
+
 describe('buildContent on a fixture book', () => {
   function fixture(page: string, practice: string): string {
     const dir = mkdtempSync(join(work, 'book-'))
@@ -105,5 +144,11 @@ describe('buildContent on a fixture book', () => {
   it('rejects when a practice list has an invalid stroke', async () => {
     const dir = fixture('Hello\n', 'cat\tKAT\nbad\tQQQ\n')
     await expect(buildContent({ bookDir: dir, outDir: join(work, 'fixture-bad') })).rejects.toThrow(/1-bad.*bad outline/)
+  })
+
+  it('rejects when a practice list id has no leading chapter number', async () => {
+    const dir = fixture('Hello\n', 'a\tA\n')
+    renameSync(join(dir, 'src', 'practice', '1-bad.txt'), join(dir, 'src', 'practice', 'nochapter.txt'))
+    await expect(buildContent({ bookDir: dir, outDir: join(work, 'fixture-nochapter') })).rejects.toThrow(/nochapter/)
   })
 })

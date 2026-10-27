@@ -20,6 +20,7 @@ export type PageFile = {
   practiceLinks: PracticeLink[]
   passMark?: PassMark
 }
+export type PracticeIndexEntry = { id: string; chapter: number; items: number }
 export type BuildStats = {
   pages: number
   practiceLists: number
@@ -53,6 +54,12 @@ function parseSummary(summary: string): PageEntry[] {
   return pages
 }
 
+export function practiceChapter(id: string): number {
+  const match = /^(\d+)-/.exec(id)
+  if (!match) throw new Error(`practice list id ${JSON.stringify(id)} has no leading chapter number`)
+  return Number(match[1])
+}
+
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, JSON.stringify(value))
@@ -71,11 +78,14 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   // Practice lists first: an invalid stroke here fails the build before anything else is written.
   const practiceFiles = (await readdir(join(src, 'practice'))).filter((f) => f.endsWith('.txt')).sort()
   const practiceIds = new Set<string>()
+  const practiceIndex: PracticeIndexEntry[] = []
   let practiceLines = 0
   for (const file of practiceFiles) {
     const id = file.slice(0, -'.txt'.length)
     const text = await readFile(join(src, 'practice', file), 'utf8')
+    const chapter = practiceChapter(id)
     const list = parsePracticeFile(id, text)
+    practiceIndex.push({ id, chapter, items: list.items.length })
     practiceIds.add(id)
     practiceLines += text.split(/\r?\n/).filter((line) => line.trim() !== '').length
     await writeJson(join(outDir, 'practice', `${id}.json`), list)
@@ -112,6 +122,8 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
 
   const book: BookIndex = { commit, pages: entries }
   await writeJson(join(outDir, 'book.json'), book)
+  practiceIndex.sort((a, b) => a.chapter - b.chapter || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  await writeJson(join(outDir, 'practice-index.json'), practiceIndex)
   await writeJson(join(outDir, 'briefs.json'), briefs)
   await writeJson(join(outDir, 'sentences.json'), sentences)
 
