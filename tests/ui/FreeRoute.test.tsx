@@ -92,8 +92,8 @@ beforeEach(() => {
     loggers.push(logger)
     return logger
   })
-  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always' })
-  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', ...s }))
+  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss' })
+  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', ...s }))
 })
 
 afterEach(() => {
@@ -237,12 +237,70 @@ describe('FreeRoute', () => {
   })
 
   it('honours the stored board visibility and saves a new choice', async () => {
-    getSettings.mockResolvedValue({ boardVisibility: 'hidden' })
+    getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'miss' })
     stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
     await mount('pseudo', 'words-25')
     await waitFor(() => expect(document.querySelector('.drill__board')).toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'always' }))
     expect(document.querySelector('.drill__board')).not.toBeNull()
     expect(putSettings).toHaveBeenCalledWith({ boardVisibility: 'always' })
+  })
+
+  describe('hint setting', () => {
+    const CHAPTER = {
+      '/content/practice-index.json': INDEX,
+      '/content/practice/5-cvc.json': { id: '5-cvc', items: [{ prompt: 'sap', outlines: ['SAP'] }] },
+      '/content/practice/6-fqm.json': { id: '6-fqm', items: [{ prompt: 'sap', outlines: ['SAP'] }] },
+    }
+    const picker = (): HTMLElement => screen.getByRole('group', { name: 'Hint' })
+    const expected = (): string => document.querySelector('.drill__expected')!.textContent!
+
+    it('is shown, as on miss by default, for a chapter source', async () => {
+      stubContent(CHAPTER)
+      await mount('ch-6', 'words-25')
+      expect(within(picker()).getByRole('button', { name: 'on miss' }).getAttribute('aria-pressed')).toBe('true')
+      expect(within(picker()).getByRole('button', { name: 'always' }).getAttribute('aria-pressed')).toBe('false')
+      expect(document.querySelector('.key--target')).toBeNull()
+      expect(expected()).toBe('')
+    })
+
+    it('is hidden for the pseudo-word source', async () => {
+      stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+      await mount('pseudo', 'words-25')
+      expect(screen.queryByRole('group', { name: 'Hint' })).toBeNull()
+      expect(screen.getByRole('group', { name: 'Board visibility' })).toBeTruthy()
+    })
+
+    it('choosing always saves it and lights the needed keys and the notation at once', async () => {
+      stubContent(CHAPTER)
+      await mount('ch-6', 'words-25')
+      fireEvent.click(within(picker()).getByRole('button', { name: 'always' }))
+      expect(putSettings).toHaveBeenCalledWith({ hints: 'always' })
+      expect(within(picker()).getByRole('button', { name: 'always' }).getAttribute('aria-pressed')).toBe('true')
+      expect(expected()).toBe('SAP')
+      expect(document.querySelectorAll('.key--target')).toHaveLength(4)
+      fireEvent.click(within(picker()).getByRole('button', { name: 'on miss' }))
+      expect(putSettings).toHaveBeenLastCalledWith({ hints: 'miss' })
+      expect(expected()).toBe('')
+      expect(document.querySelector('.key--target')).toBeNull()
+    })
+
+    it('applies a stored always without a click', async () => {
+      getSettings.mockResolvedValue({ boardVisibility: 'always', hints: 'always' })
+      stubContent(CHAPTER)
+      await mount('ch-6', 'words-25')
+      await waitFor(() => expect(expected()).toBe('SAP'))
+      expect(within(picker()).getByRole('button', { name: 'always' }).getAttribute('aria-pressed')).toBe('true')
+      expect(document.querySelectorAll('.key--target')).toHaveLength(4)
+      expect(putSettings).not.toHaveBeenCalled()
+    })
+
+    it('keeps the hint when the board is hidden: only the notation shows', async () => {
+      getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'always' })
+      stubContent(CHAPTER)
+      await mount('ch-6', 'words-25')
+      await waitFor(() => expect(expected()).toBe('SAP'))
+      expect(document.querySelector('.key')).toBeNull()
+    })
   })
 })

@@ -10,6 +10,7 @@ import type { FreeMode, FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
+import { HintPicker, useHints } from './HintPicker.tsx'
 import { QuickNote } from './QuickNote.tsx'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 import './practice.css'
@@ -100,6 +101,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
   const mode: FreeMode | undefined = parseMode(modeId)
   const [data, setData] = useState<Data>({ status: 'loading' })
   const [visibility, pick] = useBoardVisibility()
+  const [hints, pickHints] = useHints()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
 
@@ -151,7 +153,10 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
 
   return (
     <div class="stage0-run">
-      <VisibilityPicker value={visibility} onPick={pick} />
+      <div class="stage0-pickers">
+        <VisibilityPicker value={visibility} onPick={pick} />
+        {source.kind === 'word' && <HintPicker value={hints} onPick={pickHints} />}
+      </div>
       <Drill
         key={run}
         title={title}
@@ -160,6 +165,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
         logger={attempt.logger}
         logTest={{ mode: 'free', chapter: source.chapter, section }}
         boardVisibility={visibility}
+        hints={hints}
         view="flow"
         timeLimitMs={mode.seconds === undefined ? undefined : mode.seconds * 1000}
         onDone={setResult}

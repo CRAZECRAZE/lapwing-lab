@@ -58,7 +58,7 @@ function mockServer(routes: Record<string, Json | Error | 'fail'> = {}) {
     if (reply !== undefined) return { ok: true, status: 200, json: async () => reply }
     if (method === 'POST' && (url === '/api/sessions' || url === '/api/tests')) return { ok: true, status: 200, json: async () => ({ id: nextId++ }) }
     if (method === 'GET' && url.startsWith('/api/tests/last')) return { ok: true, status: 200, json: async () => null }
-    if (method === 'GET' && url === '/api/settings') return { ok: true, status: 200, json: async () => ({ boardVisibility: 'always' }) }
+    if (method === 'GET' && url === '/api/settings') return { ok: true, status: 200, json: async () => ({ boardVisibility: 'always', hints: 'miss' }) }
     if (method === 'PUT' && url === '/api/settings') return { ok: true, status: 200, json: async () => JSON.parse(init!.body!) }
     if (method === 'POST') return { ok: true, status: 200, json: async () => ({}) }
     return { ok: false, status: 404, json: async () => ({}) }
@@ -184,7 +184,7 @@ async function mountRoute(
 
 describe('Stage 0 drill route', () => {
   it('runs a drill with the stored board visibility', async () => {
-    await mountRoute('pseudo-test', { '/content/stage0.json': TINY, 'GET /api/settings': { boardVisibility: 'hidden' } })
+    await mountRoute('pseudo-test', { '/content/stage0.json': TINY, 'GET /api/settings': { boardVisibility: 'hidden', hints: 'miss' } })
     expect(document.querySelector('.drill__prompt')!.textContent).toBe('SAP')
     await waitFor(() => expect(document.querySelector('.drill__board')).toBeNull())
     expect(screen.getByRole('button', { name: 'hidden' }).getAttribute('aria-pressed')).toBe('true')

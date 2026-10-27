@@ -638,6 +638,20 @@ body {
   font-size: 0.8rem;
 }
 
+/* Several pickers above a drill sit side by side, wrapping on a narrow screen. */
+.stage0-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.stage0-pickers .stage0-visibility {
+  margin: 0;
+}
+
 .stage0-visibility__label {
   margin-right: 0.25rem;
 }

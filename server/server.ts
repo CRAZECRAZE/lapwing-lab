@@ -269,8 +269,17 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     if (vis !== undefined && vis !== 'always' && vis !== 'hover' && vis !== 'hidden') {
       bad('boardVisibility', 'one of always, hover, hidden')
     }
+    const hints = body.hints
+    if (hints !== undefined && hints !== 'miss' && hints !== 'always') bad('hints', 'one of miss, always')
     ctx.ensureDataDir()
-    sendJson(res, 200, writeSettings(ctx.settingsFile, vis === undefined ? {} : { boardVisibility: vis }))
+    sendJson(
+      res,
+      200,
+      writeSettings(ctx.settingsFile, {
+        ...(vis === undefined ? {} : { boardVisibility: vis }),
+        ...(hints === undefined ? {} : { hints }),
+      }),
+    )
     return
   }
 

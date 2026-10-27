@@ -383,22 +383,44 @@ describe('GET timeouts', () => {
 
 describe('settings', () => {
   it('round-trips through GET and PUT', async () => {
-    let stored = { boardVisibility: 'always' }
+    let stored = { boardVisibility: 'always', hints: 'miss' }
     const { calls, fetch } = fakeFetch((c) => {
       if (c.method === 'PUT') stored = { ...stored, ...(c.body as object) }
       return json(stored)
     })
-    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'always' })
-    await expect(putSettings({ boardVisibility: 'hover' }, fetch)).resolves.toEqual({ boardVisibility: 'hover' })
-    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'hover' })
+    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'miss' })
+    await expect(putSettings({ boardVisibility: 'hover' }, fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss' })
     expect(calls[1]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { boardVisibility: 'hover' } })
   })
 
+  it('putSettings sends only the patch', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'always' }))
+    await expect(putSettings({ hints: 'always' }, fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'always' })
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { hints: 'always' } })
+  })
+
   it('getSettings falls back to defaults on failure or a bad body', async () => {
-    const defaults = { boardVisibility: 'always' }
+    const defaults = { boardVisibility: 'always', hints: 'miss' }
     await expect(getSettings(fakeFetch(() => new Error('down')).fetch)).resolves.toEqual(defaults)
     await expect(getSettings(fakeFetch(() => json({ error: 'x' }, 500)).fetch)).resolves.toEqual(defaults)
-    await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'nope' })).fetch)).resolves.toEqual(defaults)
+    await expect(getSettings(fakeFetch(() => json(null)).fetch)).resolves.toEqual(defaults)
+    await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'nope', hints: 'nope' })).fetch)).resolves.toEqual(defaults)
+  })
+
+  it('getSettings falls back per field', async () => {
+    await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'hover', hints: 'nope' })).fetch)).resolves.toEqual({
+      boardVisibility: 'hover',
+      hints: 'miss',
+    })
+    await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'nope', hints: 'always' })).fetch)).resolves.toEqual({
+      boardVisibility: 'always',
+      hints: 'always',
+    })
+    await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'hidden' })).fetch)).resolves.toEqual({
+      boardVisibility: 'hidden',
+      hints: 'miss',
+    })
   })
 
   it('putSettings rejects on failure so callers can react', async () => {

@@ -314,6 +314,94 @@ describe('Drill hints on a multi-stroke word', () => {
   })
 })
 
+describe('Drill hints setting', () => {
+  const KOPL = [0x20, 0x82, 0x80] // K- O- -P -L
+  const PHREU = [0x16, 0x30] // P- H- R- -E -U
+  const expected = (): string => document.querySelector('.drill__expected')!.textContent!
+  const lit = (): string[] => [...document.querySelectorAll('.key--target')].map((k) => k.getAttribute('data-lever')!)
+
+  it('always: a word shows its needed keys and the notation before any stroke', async () => {
+    await mountDrill({ kind: 'word', hints: 'always', items: [item('sap', 'SAP')] })
+    expect(expected()).toBe('SAP')
+    expect(lit().sort()).toEqual(['-P', 'A-', 'S1-', 'S2-'])
+  })
+
+  it('always: the next word shows its hint as soon as the last one is done', async () => {
+    const rig = await mountDrill({ kind: 'word', hints: 'always', items: [item('sap', 'SAP'), item('tap', 'TAP')] })
+    rig.stroke(SAP)
+    expect(document.querySelector('.drill__prompt')!.textContent).toBe('tap')
+    expect(expected()).toBe('TAP')
+    expect(lit().sort()).toEqual(['-P', 'A-', 'T-'])
+  })
+
+  it('always: a multi-stroke word shows the remaining strokes, as it does after a miss', async () => {
+    const rig = await mountDrill({ kind: 'word', hints: 'always', items: [item('copy', 'KOPL/PHREU')] })
+    expect(expected()).toBe('KOPL/PHREU')
+    expect(lever('K-').classList.contains('key--target')).toBe(true)
+    expect(lever('P-').classList.contains('key--target')).toBe(false) // the board shows the first stroke only
+    rig.stroke(KOPL)
+    expect(expected()).toBe('PHREU')
+    expect(lever('K-').classList.contains('key--target')).toBe(false)
+    expect(lever('P-').classList.contains('key--target')).toBe(true)
+    expect(lever('-U').classList.contains('key--target')).toBe(true)
+  })
+
+  it('always: a miss still shows the miss overlay and target, and the text is the expected stroke', async () => {
+    const rig = await mountDrill({ kind: 'word', hints: 'always', items: [item('sap', 'SAP')] })
+    rig.stroke(TAP)
+    expect(expected()).toBe('SAP')
+    expect(document.querySelector('.key--missing')).not.toBeNull()
+    expect(document.querySelector('.key--extra')).not.toBeNull()
+    expect(lit().sort()).toEqual(['-P', 'A-', 'S1-', 'S2-'])
+    rig.stroke(SAP)
+    expect(document.querySelector('.drill__stats')!.textContent).toContain('1 / 1')
+  })
+
+  it('always with the board hidden shows only the notation line', async () => {
+    await mountDrill({ kind: 'word', hints: 'always', boardVisibility: 'hidden', items: [item('sap', 'SAP')] })
+    expect(expected()).toBe('SAP')
+    expect(document.querySelector('.key')).toBeNull()
+  })
+
+  it('always with the board on hover lights the target once the board is shown', async () => {
+    await mountDrill({ kind: 'word', hints: 'always', boardVisibility: 'hover', items: [item('sap', 'SAP')] })
+    expect(expected()).toBe('SAP')
+    expect(document.querySelector('.key')).toBeNull()
+    fireEvent.pointerEnter(document.querySelector('.drill__board')!)
+    expect(lit().sort()).toEqual(['-P', 'A-', 'S1-', 'S2-'])
+  })
+
+  it.each([
+    ['omitted', {}],
+    ['miss', { hints: 'miss' as const }],
+  ])('%s: the hint stays hidden until a miss', async (_name, extra) => {
+    const rig = await mountDrill({ kind: 'word', items: [item('sap', 'SAP'), item('tap', 'TAP')], ...extra })
+    expect(lit()).toEqual([])
+    expect(expected()).toBe('')
+    rig.stroke(TAP) // miss
+    expect(expected()).toBe('SAP')
+    rig.stroke(SAP)
+    expect(lit()).toEqual([]) // the next word starts hidden again
+    expect(expected()).toBe('')
+  })
+
+  it('does not change a stroke drill, which always shows its target and no notation line', async () => {
+    const rig = await mountDrill({ kind: 'stroke', hints: 'always', items: [item('SAP', 'SAP'), item('TAP', 'TAP')] })
+    expect(lit().sort()).toEqual(['-P', 'A-', 'S1-', 'S2-'])
+    expect(expected()).toBe('')
+    rig.stroke(SAP)
+    expect(lit().sort()).toEqual(['-P', 'A-', 'T-'])
+    expect(expected()).toBe('')
+  })
+
+  it('does not touch logging: a correct first stroke is logged as attempt 1, correct', async () => {
+    const rig = await mountDrill({ kind: 'word', hints: 'always', items: [item('sap', 'SAP')] })
+    rig.stroke(SAP)
+    expect(rig.logger.strokes).toHaveLength(1)
+    expect(rig.logger.strokes[0]).toMatchObject({ prompt: 'sap', correct: true, attemptNo: 1 })
+  })
+})
+
 describe('Drill board visibility', () => {
   it('hidden: no keys in the DOM at all', async () => {
     await mountDrill({ boardVisibility: 'hidden' })

@@ -376,6 +376,7 @@ describe('archive API', () => {
       ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: null, section: null, itemCount: -1 }],
       ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: null, section: 5, itemCount: 1 }],
       ['/api/settings', { boardVisibility: 'sideways' }],
+      ['/api/settings', { hints: 'nope' }],
       ['/api/settings', '[]'],
     ]
     for (const [path, body] of cases) {
@@ -461,10 +462,29 @@ describe('archive API', () => {
   })
 
   it('serves and updates settings', async () => {
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
     const put = await call('PUT', '/api/settings', { boardVisibility: 'hover' })
-    expect(await put.json()).toEqual({ boardVisibility: 'hover' })
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover' })
+    expect(await put.json()).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+  })
+
+  it('stores hints on their own, keeps the board setting, and an empty PUT returns the current values', async () => {
+    await call('PUT', '/api/settings', { boardVisibility: 'hidden' })
+    const put = await call('PUT', '/api/settings', { hints: 'always' })
+    expect(await put.json()).toEqual({ boardVisibility: 'hidden', hints: 'always' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hidden', hints: 'always' })
+    expect(await (await call('PUT', '/api/settings', {})).json()).toEqual({ boardVisibility: 'hidden', hints: 'always' })
+    const both = await call('PUT', '/api/settings', { boardVisibility: 'always', hints: 'miss' })
+    expect(await both.json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
+  })
+
+  it('400s an invalid hints value and leaves the file unchanged', async () => {
+    await call('PUT', '/api/settings', { hints: 'always' })
+    const file = join(dataDir, 'settings.json')
+    const before = readFileSync(file, 'utf8')
+    expect((await call('PUT', '/api/settings', { hints: 'nope' })).status).toBe(400)
+    expect((await call('PUT', '/api/settings', { boardVisibility: 'hover', hints: 7 })).status).toBe(400)
+    expect(readFileSync(file, 'utf8')).toBe(before)
   })
 
   it('400s an invalid settings PUT and leaves the file unchanged', async () => {
@@ -478,7 +498,7 @@ describe('archive API', () => {
   it('falls back to defaults when settings.json is corrupt', async () => {
     mkdirSync(dataDir, { recursive: true })
     writeFileSync(join(dataDir, 'settings.json'), '{oops')
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
   })
 
   it('keeps data across a server restart', async () => {

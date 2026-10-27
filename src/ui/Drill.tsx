@@ -24,6 +24,8 @@ export type DrillProps = {
   logTest: { mode: string; chapter: number | null; section: string | null }
   passMark?: { accuracy: number; maxMinutes?: number }
   boardVisibility?: Settings['boardVisibility']
+  /** word drills: `miss` (the default) hides the needed keys until a miss, `always` shows them from the start. */
+  hints?: Settings['hints']
   /** prompt: one big prompt (the default); flow: a line of the last few, the current and the next prompts. */
   view?: 'prompt' | 'flow'
   /** Ends the drill after this much session-clock time from the first judged stroke. */
@@ -72,7 +74,7 @@ function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | n
 }
 
 export function Drill(props: DrillProps): JSX.Element {
-  const { title, kind, items, logger, boardVisibility = 'always', view = 'prompt', timeLimitMs, onExit } = props
+  const { title, kind, items, logger, boardVisibility = 'always', hints = 'miss', view = 'prompt', timeLimitMs, onExit } = props
   // Anything but a finite number above zero means no time limit.
   const limit =
     typeof timeLimitMs === 'number' && Number.isFinite(timeLimitMs) && timeLimitMs > 0 ? timeLimitMs : undefined
@@ -274,12 +276,14 @@ export function Drill(props: DrillProps): JSX.Element {
   const stats = session.stats()
   const item = session.current
   const showMiss = miss.current
-  // A word's outline stays hidden until the first miss; a stroke drill shows its own target.
-  const hintStrokes = showMiss || kind === 'stroke' || hinted.current ? remaining(item, entered.current) : []
+  // A word's outline stays hidden until the first miss, unless the hint setting is `always`;
+  // a stroke drill shows its own target.
+  const wordHinted = hinted.current || hints === 'always'
+  const hintStrokes = showMiss || kind === 'stroke' || wordHinted ? remaining(item, entered.current) : []
   const target = showMiss ? showMiss.target : (hintStrokes[0] ?? 0)
   const expectedText = showMiss
     ? showMiss.expected
-    : kind === 'word' && hinted.current
+    : kind === 'word' && wordHinted
       ? hintStrokes.map(formatStroke).join('/')
       : ''
   const flowFrom = Math.max(0, session.index - FLOW_BEHIND)

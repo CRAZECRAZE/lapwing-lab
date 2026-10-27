@@ -5,7 +5,7 @@ import type { Settings } from '../server/settings.ts'
 
 type FetchFn = typeof fetch
 
-const DEFAULT_SETTINGS: Settings = { boardVisibility: 'always' }
+const DEFAULT_SETTINGS: Settings = { boardVisibility: 'always', hints: 'miss' }
 
 // Resolved lazily so tests (and browsers) never see a detached `fetch`.
 const defaultFetch: FetchFn = (input, init) => fetch(input, init)
@@ -164,16 +164,19 @@ export async function getLastTest(mode: string, section: string, fetchFn: FetchF
   }
 }
 
-// Falls back to the defaults when the server is unreachable or answers nonsense.
+// Falls back to the defaults when the server is unreachable or answers nonsense, one field at a time.
 export async function getSettings(fetchFn: FetchFn = defaultFetch): Promise<Settings> {
+  const settings = { ...DEFAULT_SETTINGS }
   try {
     const s = (await request(fetchFn, 'GET', '/api/settings')) as Partial<Settings> | null
     const v = s?.boardVisibility
-    if (v === 'always' || v === 'hover' || v === 'hidden') return { boardVisibility: v }
+    if (v === 'always' || v === 'hover' || v === 'hidden') settings.boardVisibility = v
+    const h = s?.hints
+    if (h === 'miss' || h === 'always') settings.hints = h
   } catch {
-    // fall through to defaults
+    // keep the defaults
   }
-  return { ...DEFAULT_SETTINGS }
+  return settings
 }
 
 // Unlike the other calls this REJECTS on failure: the caller changed a setting

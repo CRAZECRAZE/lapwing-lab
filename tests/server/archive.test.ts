@@ -345,33 +345,62 @@ describe('settings', () => {
   }
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
+  const DEFAULTS = { boardVisibility: 'always', hints: 'miss' }
+
   it('returns defaults when the file is missing', () => {
-    expect(readSettings(file())).toEqual({ boardVisibility: 'always' })
+    expect(readSettings(file())).toEqual(DEFAULTS)
   })
 
   it('returns defaults for corrupt or wrongly shaped files', () => {
     const f = file()
     writeFileSync(f, '{not json')
-    expect(readSettings(f)).toEqual({ boardVisibility: 'always' })
-    writeFileSync(f, '{"boardVisibility":"sideways"}')
-    expect(readSettings(f)).toEqual({ boardVisibility: 'always' })
+    expect(readSettings(f)).toEqual(DEFAULTS)
+    writeFileSync(f, '{"boardVisibility":"sideways","hints":"sometimes"}')
+    expect(readSettings(f)).toEqual(DEFAULTS)
     writeFileSync(f, '[]')
-    expect(readSettings(f)).toEqual({ boardVisibility: 'always' })
+    expect(readSettings(f)).toEqual(DEFAULTS)
+  })
+
+  it('reads an old file with only boardVisibility as hints miss', () => {
+    const f = file()
+    writeFileSync(f, '{"boardVisibility":"hover"}')
+    expect(readSettings(f)).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+  })
+
+  it('validates each field on its own and falls back per field', () => {
+    const f = file()
+    writeFileSync(f, '{"boardVisibility":"hover","hints":"nope"}')
+    expect(readSettings(f)).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    writeFileSync(f, '{"boardVisibility":"nope","hints":"always"}')
+    expect(readSettings(f)).toEqual({ boardVisibility: 'always', hints: 'always' })
+    writeFileSync(f, '{"hints":"always"}')
+    expect(readSettings(f)).toEqual({ boardVisibility: 'always', hints: 'always' })
   })
 
   it('merges, persists and leaves no temp files', () => {
     const f = file()
-    expect(writeSettings(f, { boardVisibility: 'hover' })).toEqual({ boardVisibility: 'hover' })
-    expect(readSettings(f)).toEqual({ boardVisibility: 'hover' })
-    expect(writeSettings(f, {})).toEqual({ boardVisibility: 'hover' })
+    expect(writeSettings(f, { boardVisibility: 'hover' })).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    expect(readSettings(f)).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    expect(writeSettings(f, {})).toEqual({ boardVisibility: 'hover', hints: 'miss' })
     expect(readdirSync(dir)).toEqual(['settings.json'])
   })
 
-  it('rejects an invalid boardVisibility and leaves the file alone', () => {
+  it('a patch with only hints keeps boardVisibility, and a patch with both sets both', () => {
     const f = file()
     writeSettings(f, { boardVisibility: 'hidden' })
+    expect(writeSettings(f, { hints: 'always' })).toEqual({ boardVisibility: 'hidden', hints: 'always' })
+    expect(readSettings(f)).toEqual({ boardVisibility: 'hidden', hints: 'always' })
+    expect(writeSettings(f, { boardVisibility: 'hover' })).toEqual({ boardVisibility: 'hover', hints: 'always' })
+    expect(writeSettings(f, { boardVisibility: 'always', hints: 'miss' })).toEqual(DEFAULTS)
+  })
+
+  it('rejects an invalid boardVisibility or hints and leaves the file alone', () => {
+    const f = file()
+    writeSettings(f, { boardVisibility: 'hidden', hints: 'always' })
     const before = readFileSync(f, 'utf8')
     expect(() => writeSettings(f, { boardVisibility: 'sideways' as never })).toThrow()
+    expect(() => writeSettings(f, { hints: 'nope' as never })).toThrow()
+    expect(() => writeSettings(f, { boardVisibility: 'hover', hints: 'nope' as never })).toThrow()
     expect(readFileSync(f, 'utf8')).toBe(before)
   })
 })
