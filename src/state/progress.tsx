@@ -13,7 +13,7 @@ export type Progress = {
   index: PracticeIndexEntry[]
   results: ResultsByMode
   marks: ProgressMark[]
-  /** Empty unless `status` is 'ready': when anything failed to load, nothing is locked. */
+  /** Empty unless `status` is 'ready': when anything failed to load, nothing is locked. `chapters` and `index` are kept once loaded, even in an error. */
   states: Map<number, ChapterState>
   /** Refetches results and marks (the content is static unless it never loaded). Never rejects. */
   reload(): Promise<void>
@@ -80,17 +80,24 @@ export function ProgressProvider({ children }: { children: ComponentChildren }):
 
   const reload = useCallback(async (): Promise<void> => {
     const mine = ++latest.current
-    try {
-      // Static content is fetched only until it has loaded once; a reload then refetches the dynamic part alone.
-      const [loadedContent, dynamic] = await Promise.all([content.current ?? loadContent(), loadDynamic()])
-      if (!live.current || latest.current !== mine) return
-      content.current = loadedContent
-      setData({ status: 'ready', ...loadedContent, ...dynamic })
-    } catch {
-      if (!live.current || latest.current !== mine) return
-      // Keep what loaded before, but never lock anything: states are empty unless ready.
-      setData((previous) => ({ ...previous, status: 'error' }))
+    // Static content is fetched only until it has loaded once, and cached the moment it arrives, so a failing
+    // dynamic half never throws it away. A reload then refetches the dynamic part alone.
+    const contentLoad =
+      content.current !== null
+        ? Promise.resolve(content.current)
+        : loadContent().then((loaded) => {
+            content.current = loaded
+            return loaded
+          })
+    const [loadedContent, dynamic] = await Promise.allSettled([contentLoad, loadDynamic()])
+    if (!live.current || latest.current !== mine) return
+    if (loadedContent.status === 'fulfilled' && dynamic.status === 'fulfilled') {
+      setData({ status: 'ready', ...loadedContent.value, ...dynamic.value })
+      return
     }
+    // Keep what loaded (the content even when only the dynamic half failed), but never lock anything:
+    // states are empty unless ready.
+    setData((previous) => ({ ...previous, ...(content.current ?? {}), status: 'error' }))
   }, [])
 
   useLayoutEffect(() => {

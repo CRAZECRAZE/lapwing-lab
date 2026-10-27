@@ -145,6 +145,68 @@ describe('ProgressProvider', () => {
     expect(out.latest?.chapters).toEqual(chapters)
   })
 
+  it('keeps the loaded content when only the progress call fails, with no states, and reload recovers without the static files', async () => {
+    getProgress.mockRejectedValueOnce(new Error('down'))
+    const { out } = mount()
+    await settled(out)
+    expect(out.latest?.status).toBe('error')
+    expect(out.latest?.chapters).toEqual(chapters)
+    expect(out.latest?.index).toEqual(index)
+    expect(out.latest?.states.size).toBe(0)
+    expect(isLocked(out.latest!, 5)).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      await out.latest!.reload()
+    })
+    expect(out.latest?.status).toBe('ready')
+    expect(out.latest?.chapters).toEqual(chapters)
+    expect(isLocked(out.latest!, 5)).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the loaded content when only a results call fails, and through a second failure', async () => {
+    getResults.mockRejectedValue(new Error('down'))
+    const { out } = mount()
+    await settled(out)
+    expect(out.latest?.status).toBe('error')
+    expect(out.latest?.chapters).toEqual(chapters)
+    expect(out.latest?.index).toEqual(index)
+    expect(out.latest?.states.size).toBe(0)
+    expect(isLocked(out.latest!, 5)).toBe(false)
+    await act(async () => {
+      await out.latest!.reload()
+    })
+    expect(out.latest?.status).toBe('error')
+    expect(out.latest?.chapters).toEqual(chapters)
+    expect(out.latest?.states.size).toBe(0)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    getResults.mockResolvedValue([])
+    await act(async () => {
+      await out.latest!.reload()
+    })
+    expect(out.latest?.status).toBe('ready')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('has no content when the static fetch fails, and a later reload fetches the static files again', async () => {
+    failContent = true
+    const { out } = mount()
+    await settled(out)
+    expect(out.latest?.status).toBe('error')
+    expect(out.latest?.chapters).toEqual([])
+    expect(out.latest?.index).toEqual([])
+    expect(out.latest?.states.size).toBe(0)
+    const before = fetchMock.mock.calls.length
+    failContent = false
+    await act(async () => {
+      await out.latest!.reload()
+    })
+    expect(fetchMock.mock.calls.length).toBe(before + 2)
+    expect(out.latest?.status).toBe('ready')
+    expect(out.latest?.chapters).toEqual(chapters)
+    expect(out.latest?.index).toEqual(index)
+  })
+
   it('a content file that is not a list is an error', async () => {
     fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }))
     const { out } = mount()

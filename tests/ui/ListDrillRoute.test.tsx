@@ -146,7 +146,7 @@ describe('ListDrillRoute', () => {
       getResults.mockRejectedValue(new Error('offline'))
     })
 
-    it('still runs the list, unlocked and without a pass mark', async () => {
+    it('still runs the list, unlocked', async () => {
       stubContent(CONTENT)
       const rig = await mountRig(<ListDrillRoute listId="6-fqm" />)
       expect(screen.queryByRole('region', { name: 'Locked' })).toBeNull()
@@ -154,6 +154,26 @@ describe('ListDrillRoute', () => {
       rig.stroke(SAP)
       await waitFor(() => expect(loggers[0].start).toHaveBeenCalled())
       expect(loggers[0].start).toHaveBeenCalledWith({ mode: 'section', chapter: 6, section: '6-fqm', itemCount: 2 })
+    })
+
+    it('still grades a drills-gate list, because the chapter list loaded', async () => {
+      stubContent(CONTENT)
+      const rig = await mountRig(<ListDrillRoute listId="6-fqm" />)
+      rig.stroke(SAP)
+      rig.stroke(SAP)
+      const card = await screen.findByRole('region', { name: 'Result' })
+      expect(loggers[0].finish.mock.calls[0][0].meta).toMatchObject({ passed: true })
+      expect(within(card).getByText('Passed')).toBeTruthy()
+    })
+
+    it('grades a drills-gate list as not passed below 90%', async () => {
+      stubContent(CONTENT)
+      const rig = await mountRig(<ListDrillRoute listId="6-fqm" />)
+      rig.stroke(TAP)
+      rig.stroke(SAP)
+      rig.stroke(SAP)
+      await screen.findByRole('region', { name: 'Result' })
+      expect(loggers[0].finish.mock.calls[0][0].meta).toMatchObject({ passed: false })
     })
 
     it('treats a missing list file as unknown', async () => {

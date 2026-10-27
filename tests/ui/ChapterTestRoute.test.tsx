@@ -112,6 +112,27 @@ describe('ChapterTestRoute', () => {
     expect(screen.getByRole('link', { name: 'Back to the book' }).getAttribute('href')).toBe('/')
   })
 
+  it('still runs and grades the test when only the progress call failed, because the chapter list loaded', async () => {
+    getProgress.mockRejectedValue(new Error('offline'))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(0)
+    const rig = await mountRig(<ChapterTestRoute chapter="5" />)
+    expect(screen.queryByText(/Couldn't load the chapter list/)).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Locked' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Chapter 5 test' })).toBeTruthy()
+    runAll(rig, 60_000)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(loggers[0].finish.mock.calls[0][0].meta).toMatchObject({ passed: true })
+    expect(within(card).getByText('Passed')).toBeTruthy()
+  })
+
+  it('never locks the test while progress is in error, even for a chapter that would be locked', async () => {
+    getResults.mockRejectedValue(new Error('offline')) // Chapter 4 unknown, so nothing can be locked
+    await mountRig(<ChapterTestRoute chapter="5" />)
+    expect(screen.queryByRole('region', { name: 'Locked' })).toBeNull()
+    expect(document.querySelector('.drill__prompt')).not.toBeNull()
+  })
+
   it('shows the locked notice while an earlier chapter blocks it', async () => {
     getResults.mockResolvedValue([]) // Chapter 4 not passed
     const rig = await mountRig(<ChapterTestRoute chapter="5" />)
