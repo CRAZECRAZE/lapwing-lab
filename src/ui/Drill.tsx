@@ -270,7 +270,7 @@ export function Drill(props: DrillProps): JSX.Element {
         {item ? item.prompt : '✓'}
       </div>
       <p class="drill__stats">
-        {stats.completed} / {session.total} · acc {Math.round(stats.accuracy * 100)}% · {Math.round(stats.wpm)} wpm
+        {stats.completed} / {session.total} · acc {stats.completed > 0 ? `${Math.round(stats.accuracy * 100)}%` : '—'} · {Math.round(stats.wpm)} wpm
       </p>
       <p class="drill__expected" aria-live="polite">
         {expectedText}
@@ -308,7 +308,8 @@ export function Drill(props: DrillProps): JSX.Element {
           swallow(e)
           if (e.key === 'Escape') onExit()
           // Stray steno-engine typing (Tab, Space, Enter...) must neither move focus nor press a button.
-          else e.preventDefault()
+          // Tab is always held; other keys with Ctrl/Meta/Alt are browser shortcuts (F5, Ctrl+R) and pass through.
+          else if (e.key === 'Tab' || !(e.ctrlKey || e.metaKey || e.altKey)) e.preventDefault()
         }}
         onBlur={(e) => {
           const next = e.relatedTarget as Node | null

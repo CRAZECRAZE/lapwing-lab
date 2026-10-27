@@ -37,6 +37,7 @@ beforeAll(async () => {
   write('content/build/pages/ch05.json', '{}')
   write('content/buildx/secret.txt', 'sibling secret')
   write('content/lapwing-book/src/img/x.png', 'png-bytes')
+  write('content/lapwing-book/src/img/x.pdf', 'pdf-bytes')
   write('content/lapwing-book/src/Chapter-05.md', 'not an image')
   write('dist/index.html', '<!doctype html><title>app</title>')
   write('dist/assets/app.js', 'console.log(1)')
@@ -81,6 +82,13 @@ describe('routes', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/png')
     expect(await res.text()).toBe('png-bytes')
+  })
+
+  it('serves a vendored PDF from /media/* as application/pdf', async () => {
+    const res = await fetch(`${base}/media/x.pdf`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('application/pdf')
+    expect(await res.text()).toBe('pdf-bytes')
   })
 
   it('serves dist files with the right content types', async () => {

@@ -250,7 +250,7 @@ describe('Stage 0 drill route', () => {
     rig.stroke(SAP)
     fireEvent.click(await screen.findByRole('button', { name: 'Again' }))
     expect(document.querySelector('.drill__prompt')!.textContent).toBe('SAP')
-    expect(screen.getByText(/0 \/ 1 · acc 0%/)).toBeTruthy()
+    expect(screen.getByText(/0 \/ 1 · acc —/)).toBeTruthy()
     await waitFor(() => expect(rig.server.count('POST', '/api/tests')).toBe(2))
     rig.stroke(SAP)
     await screen.findByText('Passed')

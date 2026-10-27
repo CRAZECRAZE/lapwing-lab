@@ -184,9 +184,9 @@ describe('Drill prompt and progress', () => {
 
   it('advances the counter and logs a correct stroke when SAP is struck', async () => {
     const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
-    expect(screen.getByText(/0 \/ 2 · acc 0% · 0 wpm/)).toBeTruthy()
+    expect(document.querySelector('.drill__stats')!.textContent).toBe('0 / 2 · acc — · 0 wpm')
     rig.stroke(SAP)
-    expect(screen.getByText(/1 \/ 2 · acc 100% · /)).toBeTruthy()
+    expect(document.querySelector('.drill__stats')!.textContent).toMatch(/^1 \/ 2 · acc 100% · \d+ wpm$/)
     expect(document.querySelector('.drill__prompt')!.textContent).toBe('KAT')
     expect(rig.logger.strokes).toHaveLength(1)
     expect(rig.logger.strokes[0]).toMatchObject({
@@ -199,6 +199,15 @@ describe('Drill prompt and progress', () => {
     expect(rig.logger.strokes[0].pressedMask).toBeGreaterThan(0)
     expect(rig.logger.strokes[0].latencyMs).toBeGreaterThanOrEqual(0)
     expect(rig.logger.strokes[0].tsMs).toBeGreaterThan(1e12)
+  })
+
+  it('shows acc 50% once one of two items needed a second try', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
+    rig.stroke(TAP) // first-try miss on item 1
+    expect(document.querySelector('.drill__stats')!.textContent).toMatch(/^0 \/ 2 · acc — · /)
+    rig.stroke(SAP)
+    rig.stroke(KAT)
+    expect(document.querySelector('.drill__stats')!.textContent).toMatch(/^2 \/ 2 · acc 50% · \d+ wpm$/)
   })
 
   it('draws the live pressed keys on the board', async () => {
@@ -400,6 +409,36 @@ describe('Drill stray-output sink', () => {
     expect(fireEvent.keyDown(sink(), { key: 'Tab' })).toBe(false)
     expect(fireEvent.keyDown(sink(), { key: 'Tab', shiftKey: true })).toBe(false)
     expect(document.activeElement).toBe(sink())
+  })
+
+  it('lets browser shortcuts through: Ctrl/Meta/Alt chords are not default-prevented, but still stay in the sink', async () => {
+    await mountDrill()
+    const onDocument = vi.fn()
+    document.addEventListener('keydown', onDocument)
+    try {
+      expect(fireEvent.keyDown(sink(), { key: 'r', ctrlKey: true })).toBe(true)
+      expect(fireEvent.keyDown(sink(), { key: 'F5', ctrlKey: true })).toBe(true)
+      expect(fireEvent.keyDown(sink(), { key: 'l', metaKey: true })).toBe(true)
+      expect(fireEvent.keyDown(sink(), { key: 'ArrowLeft', altKey: true })).toBe(true)
+    } finally {
+      document.removeEventListener('keydown', onDocument)
+    }
+    expect(onDocument).not.toHaveBeenCalled()
+  })
+
+  it('prevents the default of plain stray output: letters, Space, Enter, Backspace, Tab, Shift+Tab', async () => {
+    await mountDrill()
+    for (const init of [
+      { key: 'a' },
+      { key: 'A', shiftKey: true },
+      { key: ' ' },
+      { key: 'Enter' },
+      { key: 'Backspace' },
+      { key: 'Tab' },
+      { key: 'Tab', shiftKey: true },
+    ]) {
+      expect(fireEvent.keyDown(sink(), init), init.key).toBe(false)
+    }
   })
 
   it('prevents the default of every key but Escape, and stray Space/Enter activate no button', async () => {
