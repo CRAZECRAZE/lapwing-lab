@@ -1,0 +1,74 @@
+.board {
+  --left: #e8a24a;
+  --vowel: #5b9bd5;
+  --right: #a07ad8;
+  --lit: #f4f1ea;
+  --miss: #e0645c;
+  --gap: calc(var(--s) * 0.7);
+
+  display: inline-grid;
+  grid-template-columns: repeat(4, var(--s)) var(--gap) repeat(7, var(--s));
+  grid-auto-rows: var(--s);
+  gap: calc(var(--s) * 0.15);
+  font-size: calc(var(--s) * 0.42);
+}
+
+/* The first key after the split starts past the gap track. */
+.board__cell--gap {
+  grid-column-start: 6;
+}
+
+.key {
+  --c: var(--left);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c);
+  border-radius: calc(var(--s) * 0.2);
+  background: color-mix(in srgb, var(--c) 28%, transparent);
+  color: var(--c);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  line-height: 1;
+  user-select: none;
+  opacity: 0.55;
+  transition: opacity 0.12s, box-shadow 0.12s;
+}
+
+.key--left {
+  --c: var(--left);
+}
+
+.key--vowel {
+  --c: var(--vowel);
+}
+
+.key--right {
+  --c: var(--right);
+}
+
+.key--target,
+.key--down {
+  opacity: 1;
+  background: color-mix(in srgb, var(--c) 70%, transparent);
+  color: #14151a;
+  box-shadow: 0 0 0 2px var(--lit), 0 0 calc(var(--s) * 0.5) color-mix(in srgb, var(--c) 60%, transparent);
+}
+
+.key--down:not(.key--target) {
+  background: var(--c);
+}
+
+.key--missing {
+  opacity: 1;
+  border-style: dashed;
+  border-width: 2px;
+  background: transparent;
+  color: var(--c);
+  box-shadow: none;
+}
+
+.key--extra {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--miss);
+}
