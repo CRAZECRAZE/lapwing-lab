@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import type { ComponentChildren } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { addDays, localDate } from '../../src/core/days.ts'
 import type { RawStroke } from '../../src/core/uni.ts'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import { UniProvider, useUni } from '../../src/state/uni-context.tsx'
@@ -61,6 +62,17 @@ function Probe({ out }: { out: { latest: UniState | null } }) {
   return null
 }
 
+/** A fetch stub that answers /api/days with the given dates (one stroke-day each), or fails when null. */
+function daysFetch(dates: string[] | null) {
+  return vi.fn(async () => {
+    if (dates === null) return new Response('{}', { status: 500 })
+    return new Response(
+      JSON.stringify(dates.map((date) => ({ date, tests: 1, strokes: 10, activeMs: 60000 }))),
+      { status: 200 },
+    )
+  })
+}
+
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20))
 
 function withUni(hid: HidLike | null, children: ComponentChildren) {
@@ -70,6 +82,7 @@ function withUni(hid: HidLike | null, children: ComponentChildren) {
 beforeEach(() => {
   history.replaceState(null, '', '/nope')
   vi.stubGlobal('scrollTo', vi.fn())
+  vi.stubGlobal('fetch', daysFetch([]))
 })
 
 afterEach(() => {
@@ -79,7 +92,7 @@ afterEach(() => {
 
 describe('StatusLine', () => {
   it('without WebHID says it needs a Chromium-based browser and offers no Connect button', () => {
-    withUni(null, <StatusLine />)
+    withUni(null, <StatusLine refreshKey="/nope" />)
     expect(screen.getByText(/needs a Chromium-based browser/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /connect/i })).toBeNull()
     expect(screen.getByText('Plover output: turn it off while practicing')).toBeTruthy()
@@ -101,7 +114,7 @@ describe('StatusLine', () => {
     vi.stubGlobal('navigator', { hid })
     render(
       <UniProvider>
-        <StatusLine />
+        <StatusLine refreshKey="/nope" />
       </UniProvider>,
     )
     await settle()
@@ -112,7 +125,7 @@ describe('StatusLine', () => {
   it('shows Not connected and a Connect button that asks for a device', async () => {
     const hid = new FakeHid()
     hid.requestResult = [new FakeDevice()]
-    withUni(hid, <StatusLine />)
+    withUni(hid, <StatusLine refreshKey="/nope" />)
     await settle()
     expect(screen.getByText(/Not connected/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
@@ -125,7 +138,7 @@ describe('StatusLine', () => {
     const hid = new FakeHid()
     let finish!: (devices: HidDeviceLike[]) => void
     hid.requestDevice.mockImplementation(() => new Promise<HidDeviceLike[]>((resolve) => (finish = resolve)))
-    withUni(hid, <StatusLine />)
+    withUni(hid, <StatusLine refreshKey="/nope" />)
     await settle()
     const button = screen.getByRole('button', { name: 'Connect' })
     fireEvent.click(button)
@@ -144,7 +157,7 @@ describe('StatusLine', () => {
   it('shows the reason after a failed attach and clears it on the next click', async () => {
     const hid = new FakeHid()
     hid.requestError = new Error('Permission denied')
-    withUni(hid, <StatusLine />)
+    withUni(hid, <StatusLine refreshKey="/nope" />)
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     expect(await screen.findByText('Permission denied')).toBeTruthy()
@@ -159,9 +172,60 @@ describe('StatusLine', () => {
   it('connects by itself to an already-permitted Uni', async () => {
     const hid = new FakeHid()
     hid.known = [new FakeDevice()]
-    withUni(hid, <StatusLine />)
+    withUni(hid, <StatusLine refreshKey="/nope" />)
     expect(await screen.findByText(/Uni v4 connected/)).toBeTruthy()
     expect(hid.requestDevice).not.toHaveBeenCalled()
+  })
+})
+
+describe('StatusLine streak', () => {
+  const today = (): string => localDate(Date.now())
+
+  it('shows the streak on the right, plural', async () => {
+    const t = today()
+    vi.stubGlobal('fetch', daysFetch([addDays(t, -2), addDays(t, -1), t]))
+    withUni(null, <StatusLine refreshKey="/practice" />)
+    expect(await screen.findByText('Streak: 3 days')).toBeTruthy()
+    expect(screen.getByText('Plover output: turn it off while practicing')).toBeTruthy()
+  })
+
+  it('says day for a streak of one', async () => {
+    vi.stubGlobal('fetch', daysFetch([today()]))
+    withUni(null, <StatusLine refreshKey="/practice" />)
+    expect(await screen.findByText('Streak: 1 day')).toBeTruthy()
+  })
+
+  it('shows nothing for a streak of 0', async () => {
+    const fetchStub = daysFetch([addDays(today(), -5)])
+    vi.stubGlobal('fetch', fetchStub)
+    withUni(null, <StatusLine refreshKey="/practice" />)
+    await waitFor(() => expect(fetchStub).toHaveBeenCalled())
+    await settle()
+    expect(screen.queryByText(/Streak/)).toBeNull()
+  })
+
+  it('shows nothing while loading or when the load fails', async () => {
+    const fetchStub = daysFetch(null)
+    vi.stubGlobal('fetch', fetchStub)
+    withUni(null, <StatusLine refreshKey="/practice" />)
+    expect(screen.queryByText(/Streak/)).toBeNull()
+    await waitFor(() => expect(fetchStub).toHaveBeenCalled())
+    await settle()
+    expect(screen.queryByText(/Streak/)).toBeNull()
+  })
+
+  it('updates when the key changes', async () => {
+    const t = today()
+    vi.stubGlobal('fetch', daysFetch([t]))
+    const view = withUni(null, <StatusLine refreshKey="/a" />)
+    expect(await screen.findByText('Streak: 1 day')).toBeTruthy()
+    vi.stubGlobal('fetch', daysFetch([addDays(t, -1), t]))
+    view.rerender(
+      <UniProvider hid={null}>
+        <StatusLine refreshKey="/b" />
+      </UniProvider>,
+    )
+    expect(await screen.findByText('Streak: 2 days')).toBeTruthy()
   })
 })
 

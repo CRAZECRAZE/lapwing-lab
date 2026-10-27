@@ -483,6 +483,17 @@ body {
   margin: 0;
 }
 
+.status__aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.25rem;
+}
+
+.status__streak {
+  color: var(--heading);
+}
+
 .status__device--on {
   color: var(--heading);
 }

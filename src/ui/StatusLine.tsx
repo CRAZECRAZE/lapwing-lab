@@ -1,8 +1,10 @@
 import type { JSX } from 'preact'
+import { useStreak } from '../state/streak.ts'
 import { useUni } from '../state/uni-context.tsx'
 
-export function StatusLine(): JSX.Element {
+export function StatusLine({ refreshKey }: { refreshKey: string }): JSX.Element {
   const { available, connected, connecting, reason, connect } = useUni()
+  const streak = useStreak(refreshKey)
   return (
     <footer class="status" aria-label="Device status">
       {!available && (
@@ -25,7 +27,12 @@ export function StatusLine(): JSX.Element {
           {reason && <span class="status__reason" role="status">{reason}</span>}
         </p>
       )}
-      <p class="status__note">Plover output: turn it off while practicing</p>
+      <div class="status__aside">
+        {streak !== null && streak >= 1 && (
+          <p class="status__streak">Streak: {streak} {streak === 1 ? 'day' : 'days'}</p>
+        )}
+        <p class="status__note">Plover output: turn it off while practicing</p>
+      </div>
     </footer>
   )
 }

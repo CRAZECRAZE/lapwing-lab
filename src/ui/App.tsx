@@ -45,7 +45,7 @@ export function App(): JSX.Element {
             ))}
           {route.name === 'notfound' && <p class="page__status">No such page. Pick a chapter from the list.</p>}
         </main>
-        <StatusLine />
+        <StatusLine refreshKey={location.pathname} />
       </div>
     </UniProvider>
   )
