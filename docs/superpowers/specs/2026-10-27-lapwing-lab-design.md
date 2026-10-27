@@ -80,7 +80,7 @@ Dark, calm, keyboard-first. Left-hand keys orange, vowel keys blue, right-hand k
 
 A top bar switches between **Book · Practice · History · Days · Journal**. Book is the reader as built; the chapter list shows only there, and the other tabs use the full width. Same calm, dark look.
 - **Practice** is the launcher: the Chapter 4 drills (as in the reader), and **free type**. Section drills and chapter tests join it in M3.
-- **Free type** (Monkeytype-like): a flowing line of words with the current word highlighted, live wpm and accuracy, and a result card. Modes: 25 or 50 words, or 30 or 60 seconds. *My call:* the words come only from what the book has taught so far: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter the owner picks. Judging, hint-on-miss and logging are the drill screen's. Board visibility follows the existing setting.
+- **Free type** (Monkeytype-like): a flowing line of words with the current word highlighted, live wpm and accuracy, and a result card. Modes: 25 or 50 words, or 30 or 60 seconds, or a custom number of words (1–500) or seconds (5–600) (owner request 2026-10-28; the timed wpm is unchanged: first stroke to last completed word). *My call:* the words come only from what the book has taught so far: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter the owner picks. Judging, hint-on-miss and logging are the drill screen's. Board visibility follows the existing setting.
 - **History:** every practice test, newest first, with date, kind, speed, accuracy and stroke count. Opening one shows its stats, every miss (what was pressed against what was required) and the slowest words. Tests with no strokes are never listed.
 - **Days:** a month calendar showing which days had practice and how much, the current streak (also shown in the status line), month totals, and a day view with that day's tests and journal note. A "day" is the local calendar day of a test's first stroke.
 - **Journal:** one plain markdown note per day, editable, with the day's results shown read-only beneath it. After a drill or free-type run, the result card offers "Add a note", which appends a stamped entry to today's file. (Replaces 4.5's "opens at the end of a session": the app has no formal session, and a prompt after every run would nag.)
@@ -232,7 +232,7 @@ Parser design; board and stroke component internals; visual design within the st
 
 Added 2026-10-27 with the lab shell (3.5):
 11. M2 jumps ahead of core practice; later milestones shift by one.
-12. Free type draws only from taught words; its modes are 25/50 words and 30/60 seconds.
+12. Free type draws only from taught words; its modes are 25/50 words and 30/60 seconds (item 24 adds a custom amount).
 13. No formal "session" in the UI; notes are per day, added from result cards or the Journal tab.
 14. The journal's auto-summary is shown live and never stored in the file.
 15. "Time practiced" is first-to-last stroke per test (3.6); weeks start on Monday.
@@ -248,3 +248,4 @@ Added 2026-10-27 with the M3 plan (4.1, "Settled for M3"):
 Added 2026-10-27 at the owner's request, after trying M3 (4.1, "Skipping ahead"):
 22. "Open anyway" marks every uncleared chapter from 4 up to the one before as "moved on anyway", so the chapter opens in one step; each mark can be undone on its own.
 23. "Move on anyway" and "Open anyway" ask for confirmation in a dialog before writing; Cancel, Esc or a click outside writes nothing.
+24. Free type also takes a custom number of words (1–500) or seconds (5–600), typed in a Custom box (owner request 2026-10-28); the timed wpm definition is unchanged.

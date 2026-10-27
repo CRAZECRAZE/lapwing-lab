@@ -64,3 +64,14 @@ Deferred from the M3 reviews; M4 plans start from these and the items above.
 - The post-run reload can read stale results if the archive is slower than the drill's finish timeout.
 - No test strikes a wrong stroke and then checks the hint in the new drills.
 - Result-card markup and test helpers are copied between `DrillRunner`, `FreeRoute` and `Stage0Route`.
+
+## Left open by the M3 tweaks (confirmation dialog)
+
+From the review of the `ConfirmDialog` / `Open anyway` change.
+
+- After a successful skip the opener button is gone, so focus falls to `<body>`; focus the new `Undo` button or the panel instead.
+- The content behind the dialog is not `inert` (render through a portal and set `inert` on the app root).
+- A click on the dialog backdrop while a write is in flight drops focus to `<body>`.
+- Dragging a text selection from the panel onto the backdrop cancels the dialog.
+- `chapterList([])` returns a malformed string (callers never pass an empty list).
+- No test covers focus after a `ChapterPanel` failure, or a real-provider `setMarks` racing another reload.
