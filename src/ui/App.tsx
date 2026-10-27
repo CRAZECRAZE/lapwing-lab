@@ -1,16 +1,18 @@
 import type { JSX } from 'preact'
 import { tabOf, useRoute } from '../router.ts'
 import { UniProvider } from '../state/uni-context.tsx'
+import { History } from './History.tsx'
 import { Nav } from './Nav.tsx'
 import { Reader } from './Reader.tsx'
 import { StatusLine } from './StatusLine.tsx'
 import { Stage0Route } from './Stage0Route.tsx'
+import { TestDetail } from './TestDetail.tsx'
 import { TopBar } from './TopBar.tsx'
 import './reader.css'
 
 /**
  * Stand-in for a tab whose view is not built yet. Replaced by: Practice and free type (Task 10),
- * History and the test view (Task 7), Journal (Task 12), Days (Task 13).
+ * Journal (Task 12), Days (Task 13).
  */
 function Soon({ name }: { name: string }): JSX.Element {
   return <p class="page__status">The {name} tab is coming in this milestone.</p>
@@ -26,7 +28,8 @@ export function App(): JSX.Element {
         {tab === 'book' && <Nav currentId={route.name === 'page' ? route.id : null} />}
         <main class="main">
           {(route.name === 'practice' || route.name === 'free') && <Soon name="Practice" />}
-          {(route.name === 'history' || route.name === 'test') && <Soon name="History" />}
+          {route.name === 'history' && <History />}
+          {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
           {route.name === 'days' && <Soon name="Days" />}
           {route.name === 'journal' && <Soon name="Journal" />}
           {route.name === 'page' && <Reader id={route.id} />}

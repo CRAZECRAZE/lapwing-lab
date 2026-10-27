@@ -6,7 +6,11 @@ import { App } from '../../src/ui/App.tsx'
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify({ commit: 'abc', pages: [] }), { status: 200 })),
+    vi.fn(async (url: string) => {
+      if (url === '/api/tests') return new Response('[]', { status: 200 })
+      if (url.startsWith('/api/tests/')) return new Response('{}', { status: 404 })
+      return new Response(JSON.stringify({ commit: 'abc', pages: [] }), { status: 200 })
+    }),
   )
 })
 afterEach(() => {
@@ -29,14 +33,13 @@ describe('App shell', () => {
     expect(screen.getByRole('navigation', { name: 'Sections' })).toBeTruthy()
     expect(screen.queryByRole('navigation', { name: 'Book pages' })).toBeNull()
     expect(wide.container.querySelector('.app--wide')).toBeTruthy()
-    expect(screen.getByText('The History tab is coming in this milestone.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'History' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('aria-current')).toBe('page')
   })
 
   it.each([
     ['/practice', 'Practice'],
     ['/practice/free/ch-8/time-60', 'Practice'],
-    ['/history/12', 'History'],
     ['/days', 'Days'],
     ['/journal/2026-10-27', 'Journal'],
   ])('shows the placeholder at %s', (path, name) => {
@@ -44,5 +47,12 @@ describe('App shell', () => {
     render(<App />)
     expect(screen.getByText(`The ${name} tab is coming in this milestone.`)).toBeTruthy()
     expect(screen.getByRole('link', { name }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows one test at /history/:id, and its tab stays current', async () => {
+    history.replaceState(null, '', '/history/12')
+    render(<App />)
+    expect(await screen.findByText('No such test.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'History' }).getAttribute('aria-current')).toBe('page')
   })
 })
