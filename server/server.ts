@@ -8,6 +8,7 @@ import { LEVERS } from '../src/core/uni.ts'
 import type { Lever } from '../src/core/uni.ts'
 import { MissingRowError, openArchive } from './archive.ts'
 import type { Archive } from './archive.ts'
+import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
 import { readSettings, writeSettings } from './settings.ts'
 
 export interface ServerOptions {
@@ -70,6 +71,9 @@ async function sendFile(req: IncomingMessage, res: ServerResponse, file: string)
 
 const JSON_TYPE = 'application/json; charset=utf-8'
 const MAX_BODY_BYTES = 1024 * 1024
+const MAX_JOURNAL_CHARS = 200000
+const MAX_DAYS_SPAN = 800
+const MS_PER_DAY = 86400000
 
 class HttpError extends Error {
   status: number
@@ -182,6 +186,36 @@ function levers(o: Fields, name: string): Lever[] {
   return v.every((x) => known.includes(x)) ? (v as Lever[]) : bad(name, 'an array of known levers')
 }
 
+// A journal body: a string of at most MAX_JOURNAL_CHARS; blank is allowed only when asked for.
+function journalText(o: Fields, allowBlank: boolean): string {
+  const v = o.text
+  if (typeof v !== 'string') return bad('text', 'a string')
+  if (v.length > MAX_JOURNAL_CHARS) return bad('text', `at most ${MAX_JOURNAL_CHARS} characters`)
+  return allowBlank || v.trim() !== '' ? v : bad('text', 'not blank')
+}
+
+// A YYYY-MM-DD that names a real day; it ends up in a file name, so nothing else passes.
+function journalDate(value: string | null, name: string): string {
+  return value !== null && isJournalDate(value) ? value : bad(name, 'a date as YYYY-MM-DD')
+}
+
+// An optional query integer: absent -> undefined; otherwise digits only and within [min, max].
+function queryInt(params: URLSearchParams, name: string, min: number, max = Number.MAX_SAFE_INTEGER): number | undefined {
+  const raw = params.get(name)
+  if (raw === null) return undefined
+  const v = Number(raw)
+  return /^\d+$/.test(raw) && Number.isSafeInteger(v) && v >= min && v <= max
+    ? v
+    : bad(name, `an integer between ${min} and ${max === Number.MAX_SAFE_INTEGER ? 'the safe maximum' : max}`)
+}
+
+function dayNumber(date: string): number {
+  const [y, m, d] = date.split('-').map(Number)
+  const t = new Date(Date.UTC(2000, m - 1, d))
+  t.setUTCFullYear(y)
+  return t.getTime() / MS_PER_DAY
+}
+
 function allow(res: ServerResponse, ...methods: string[]): never {
   res.setHeader('allow', methods.join(', '))
   throw new HttpError(405, 'Method not allowed')
@@ -192,6 +226,7 @@ interface ApiContext {
   /** The archive if it is open or its file already exists; null when nothing was ever saved (never creates it). */
   existingArchive(): Archive | null
   settingsFile: string
+  journalDir: string
   ensureDataDir(): void
 }
 
@@ -248,7 +283,16 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
   }
 
   if (pathname === '/api/tests') {
-    if (method !== 'POST') allow(res, 'POST')
+    if (method === 'GET') {
+      const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+      const limit = queryInt(params, 'limit', 1, 200) ?? 50
+      const beforeId = queryInt(params, 'beforeId', 0)
+      const rawDate = params.get('date')
+      const date = rawDate === null ? undefined : journalDate(rawDate, 'date')
+      sendJson(res, 200, ctx.existingArchive()?.listTests({ limit, beforeId, date }) ?? [])
+      return
+    }
+    if (method !== 'POST') allow(res, 'GET', 'POST')
     const body = asObject(await readBody(req, res))
     const test = {
       sessionId: int(body, 'sessionId'),
@@ -270,6 +314,16 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     const section = params.get('section')
     if (!mode || !section) throw new HttpError(400, '"mode" and "section" query parameters are required')
     sendJson(res, 200, ctx.existingArchive()?.lastTest(mode, section) ?? null)
+    return
+  }
+
+  const one = /^\/api\/tests\/(\d+)$/.exec(pathname)
+  if (one) {
+    if (method !== 'GET') allow(res, 'GET')
+    const testId = Number(one[1])
+    const found = Number.isSafeInteger(testId) ? ctx.existingArchive()?.getTest(testId) : undefined
+    if (!found) throw new HttpError(404, 'No such test')
+    sendJson(res, 200, found)
     return
   }
 
@@ -303,6 +357,47 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     return
   }
 
+  if (pathname === '/api/days') {
+    if (method !== 'GET') allow(res, 'GET')
+    const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+    const from = journalDate(params.get('from'), 'from')
+    const to = journalDate(params.get('to'), 'to')
+    const span = dayNumber(to) - dayNumber(from)
+    if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
+    if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
+    sendJson(res, 200, ctx.existingArchive()?.dayStats(from, to) ?? [])
+    return
+  }
+
+  if (pathname === '/api/journal') {
+    if (method !== 'GET') allow(res, 'GET')
+    sendJson(res, 200, listEntries(ctx.journalDir))
+    return
+  }
+
+  // The date segment excludes '/', so a decoded ../x never reaches the filesystem; it is also
+  // validated by isJournalDate before use.
+  const entry = /^\/api\/journal\/([^/]+)(\/append)?$/.exec(pathname)
+  if (entry) {
+    const append = entry[2] !== undefined
+    if (append && method !== 'POST') allow(res, 'POST')
+    if (!append && method !== 'GET' && method !== 'PUT') allow(res, 'GET', 'PUT')
+    const date = journalDate(entry[1], 'date')
+    if (method === 'GET') {
+      sendJson(res, 200, { date, text: readEntry(ctx.journalDir, date) })
+      return
+    }
+    const body = asObject(await readBody(req, res))
+    const text = journalText(body, !append)
+    if (append) {
+      sendJson(res, 200, { date, text: appendEntry(ctx.journalDir, date, text) })
+    } else {
+      writeEntry(ctx.journalDir, date, text)
+      sendJson(res, 200, { date, text })
+    }
+    return
+  }
+
   throw new HttpError(404, 'Not found')
 }
 
@@ -317,6 +412,7 @@ export function createServer(opts: ServerOptions): Server {
   let archive: Archive | undefined
   const ctx: ApiContext = {
     settingsFile: join(dataDir, 'settings.json'),
+    journalDir: join(dataDir, 'journal'),
     ensureDataDir: () => {
       mkdirSync(dataDir, { recursive: true })
     },

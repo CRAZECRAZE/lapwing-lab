@@ -417,7 +417,8 @@ describe('archive API', () => {
   it('405s wrong methods with an Allow header', async () => {
     const cases: [string, string, string][] = [
       ['GET', '/api/sessions', 'POST'],
-      ['GET', '/api/tests', 'POST'],
+      ['DELETE', '/api/tests', 'GET, POST'],
+      ['PUT', '/api/tests', 'GET, POST'],
       ['POST', '/api/tests/last', 'GET'],
       ['GET', '/api/tests/1/strokes', 'POST'],
       ['GET', '/api/tests/1/finish', 'POST'],
@@ -479,5 +480,197 @@ describe('archive API', () => {
     await start()
     const last = (await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()) as { id: number }
     expect(last.id).toBe(testId)
+  })
+})
+
+describe('lab routes', () => {
+  let dir: string
+  let dataDir: string
+  let api: Server
+  let url: string
+
+  function call(method: string, path: string, body?: unknown) {
+    return fetch(`${url}${path}`, { method, body: body === undefined ? undefined : JSON.stringify(body) })
+  }
+
+  async function json(method: string, path: string, body?: unknown): Promise<any> {
+    const res = await call(method, path, body)
+    expect(res.status, `${method} ${path}`).toBe(200)
+    return res.json()
+  }
+
+  // Seeds one finished test with `strokes` strokes through the public POST routes.
+  async function seed(startedAt: number, strokes = 2): Promise<number> {
+    const { id: sessionId } = await json('POST', '/api/sessions', { startedAt })
+    const { id } = await json('POST', '/api/tests', {
+      sessionId, startedAt, mode: 'stage0-test', chapter: 4, section: 'pseudo', itemCount: strokes,
+    })
+    for (let i = 0; i < strokes; i++) {
+      await json('POST', `/api/tests/${id}/strokes`, {
+        tsMs: startedAt + 1000 * (i + 1),
+        prompt: 'sap',
+        expected: ['SAP'],
+        pressedLevers: ['S1-', 'A-', 'P-'],
+        pressedMask: 11,
+        correct: true,
+        latencyMs: 400,
+        attemptNo: 1,
+      })
+    }
+    await json('POST', `/api/tests/${id}/finish`, { endedAt: startedAt + 5000, wpm: 10, accuracy: 1, meta: null })
+    return id
+  }
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'lapwing-lab-'))
+    dataDir = join(dir, 'data')
+    api = createServer({ root: dir, dataDir })
+    url = `http://127.0.0.1:${await listen(api, 0)}`
+  })
+
+  afterEach(async () => {
+    await new Promise((ok) => api.close(ok))
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('answers empty results on a fresh data dir without creating anything', async () => {
+    expect(await json('GET', '/api/tests')).toEqual([])
+    expect(await json('GET', '/api/days?from=2026-10-01&to=2026-10-31')).toEqual([])
+    expect(await json('GET', '/api/journal')).toEqual([])
+    expect(await json('GET', '/api/journal/2026-10-27')).toEqual({ date: '2026-10-27', text: '' })
+    expect((await call('GET', '/api/tests/1')).status).toBe(404)
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('lists tests newest first and honors limit, beforeId and date', async () => {
+    const day1 = new Date(2026, 9, 26, 12).getTime()
+    const day2 = new Date(2026, 9, 27, 12).getTime()
+    const a = await seed(day1)
+    const b = await seed(day2)
+    const c = await seed(day2 + 60000)
+    const all = await json('GET', '/api/tests')
+    expect(all.map((t: { id: number }) => t.id)).toEqual([c, b, a])
+    expect(all[0]).toMatchObject({ strokeCount: 2, mode: 'stage0-test' })
+    expect((await json('GET', '/api/tests?limit=2')).map((t: { id: number }) => t.id)).toEqual([c, b])
+    expect((await json('GET', `/api/tests?beforeId=${c}`)).map((t: { id: number }) => t.id)).toEqual([b, a])
+    expect((await json('GET', '/api/tests?date=2026-10-26')).map((t: { id: number }) => t.id)).toEqual([a])
+    expect((await json('GET', '/api/tests?limit=200')).length).toBe(3)
+  })
+
+  it('400s bad history parameters, with or without an archive', async () => {
+    const bads = ['limit=0', 'limit=abc', 'limit=201', 'limit=-1', 'limit=1.5', 'limit=', 'beforeId=-1', 'beforeId=x', 'date=2026-02-30', 'date=2026-2-3']
+    for (const q of bads) expect((await call('GET', `/api/tests?${q}`)).status, q).toBe(400)
+    await seed(1000)
+    for (const q of bads) expect((await call('GET', `/api/tests?${q}`)).status, q).toBe(400)
+  })
+
+  it('returns one test with its strokes, 404 for unknown ids, and keeps /last working', async () => {
+    const id = await seed(5000, 3)
+    const got = await json('GET', `/api/tests/${id}`)
+    expect(got.test).toMatchObject({ id, mode: 'stage0-test', wpm: 10 })
+    expect(got.strokes.length).toBe(3)
+    expect(got.strokes[0]).toMatchObject({ prompt: 'sap', expected: ['SAP'] })
+    expect((await call('GET', '/api/tests/999')).status).toBe(404)
+    expect((await call('GET', '/api/tests/abc')).status).toBe(404)
+    expect((await call('GET', `/api/tests/${'9'.repeat(30)}`)).status).toBe(404)
+    expect(await json('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).toMatchObject({ id })
+    const res = await call('DELETE', `/api/tests/${id}`)
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET')
+  })
+
+  it('validates /api/days parameters and returns seeded totals', async () => {
+    await seed(new Date(2026, 9, 27, 12).getTime(), 3)
+    await seed(new Date(2026, 9, 27, 13).getTime(), 1)
+    const days = await json('GET', '/api/days?from=2026-10-01&to=2026-10-31')
+    expect(days).toEqual([expect.objectContaining({ date: '2026-10-27', tests: 2, strokes: 4 })])
+    expect(await json('GET', '/api/days?from=2026-10-27&to=2026-10-27')).toHaveLength(1)
+    expect(await json('GET', '/api/days?from=2025-08-07&to=2027-10-16')).toHaveLength(1) // exactly 800 days apart
+    const bads = [
+      '', 'from=2026-10-01', 'to=2026-10-31', 'from=2026-10-31&to=2026-10-01', 'from=2026-02-30&to=2026-03-01',
+      'from=abc&to=2026-10-01', 'from=2025-08-06&to=2027-10-16', 'from=2000-01-01&to=2026-10-31',
+    ]
+    for (const q of bads) expect((await call('GET', `/api/days?${q}`)).status, q).toBe(400)
+    const res = await call('POST', '/api/days?from=2026-10-01&to=2026-10-31')
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET')
+  })
+
+  it('round-trips a journal entry through PUT, GET and the list', async () => {
+    expect(await json('PUT', '/api/journal/2026-10-27', { text: 'first line' })).toEqual({ date: '2026-10-27', text: 'first line' })
+    expect(await json('GET', '/api/journal/2026-10-27')).toEqual({ date: '2026-10-27', text: 'first line' })
+    expect(await json('GET', '/api/journal')).toEqual([{ date: '2026-10-27', chars: 10 }])
+    expect(readFileSync(join(dataDir, 'journal', '2026-10-27.md'), 'utf8')).toBe('first line')
+    expect(await json('PUT', '/api/journal/2026-10-27', { text: '' })).toEqual({ date: '2026-10-27', text: '' })
+    expect(await json('GET', '/api/journal')).toEqual([])
+  })
+
+  it('appends a stamped block and returns the full text', async () => {
+    await json('PUT', '/api/journal/2026-10-27', { text: 'morning' })
+    const out = await json('POST', '/api/journal/2026-10-27/append', { text: '  ## 14:05 stuck on the star keys  ' })
+    expect(out).toEqual({ date: '2026-10-27', text: 'morning\n\n## 14:05 stuck on the star keys\n' })
+    expect((await json('GET', '/api/journal/2026-10-27')).text).toBe(out.text)
+    const fresh = await json('POST', '/api/journal/2026-10-28/append', { text: 'hello' })
+    expect(fresh).toEqual({ date: '2026-10-28', text: 'hello\n' })
+  })
+
+  it('400s bad journal bodies and dates, and writes nothing for them', async () => {
+    const long = 'x'.repeat(200001)
+    const cases: [string, string, unknown][] = [
+      ['PUT', '/api/journal/2026-10-27', { text: 5 }],
+      ['PUT', '/api/journal/2026-10-27', {}],
+      ['PUT', '/api/journal/2026-10-27', []],
+      ['PUT', '/api/journal/2026-10-27', { text: long }],
+      ['POST', '/api/journal/2026-10-27/append', { text: '' }],
+      ['POST', '/api/journal/2026-10-27/append', { text: '  \n ' }],
+      ['POST', '/api/journal/2026-10-27/append', { text: 5 }],
+      ['POST', '/api/journal/2026-10-27/append', { text: long }],
+      ['PUT', '/api/journal/2026-02-30', { text: 'x' }],
+      ['PUT', '/api/journal/today', { text: 'x' }],
+      ['POST', '/api/journal/2026-13-01/append', { text: 'x' }],
+      ['GET', '/api/journal/2026-02-30', undefined],
+      ['GET', '/api/journal/2026-1-1', undefined],
+    ]
+    for (const [method, path, body] of cases) {
+      const res = await call(method, path, body)
+      expect(res.status, `${method} ${path} ${JSON.stringify(body)?.slice(0, 40)}`).toBe(400)
+      expect(typeof ((await res.json()) as { error: string }).error).toBe('string')
+    }
+    expect(existsSync(join(dataDir, 'journal'))).toBe(false)
+    expect((await call('PUT', '/api/journal/2026-10-27', { text: 'x'.repeat(200000) })).status).toBe(200)
+  })
+
+  it('never serves or writes outside data/journal for traversal-looking dates', async () => {
+    mkdirSync(dataDir, { recursive: true })
+    writeFileSync(join(dataDir, 'settings.json'), '{"boardVisibility":"hover"}')
+    const targets = ['..%2Fsettings', '..%2Fsettings.json', '%2E%2E%2Fsettings', '..%5Csettings', '2026-10-27%2F..%2Fx']
+    for (const t of targets) {
+      for (const method of ['GET', 'PUT', 'POST']) {
+        const path = method === 'POST' ? `/api/journal/${t}/append` : `/api/journal/${t}`
+        const res = await call(method, path, method === 'GET' ? undefined : { text: 'pwned' })
+        expect(res.status, `${method} ${path}`).toBeGreaterThanOrEqual(400)
+        expect(res.status, `${method} ${path}`).toBeLessThan(500)
+      }
+    }
+    expect(readdirSync(dataDir)).toEqual(['settings.json'])
+    expect(readFileSync(join(dataDir, 'settings.json'), 'utf8')).toBe('{"boardVisibility":"hover"}')
+    expect(readdirSync(dir).sort()).toEqual(['data'])
+  })
+
+  it('405s wrong journal methods with an Allow header', async () => {
+    const cases: [string, string, string][] = [
+      ['DELETE', '/api/journal/2026-10-27', 'GET, PUT'],
+      ['POST', '/api/journal/2026-10-27', 'GET, PUT'],
+      ['GET', '/api/journal/2026-10-27/append', 'POST'],
+      ['PUT', '/api/journal/2026-10-27/append', 'POST'],
+      ['POST', '/api/journal', 'GET'],
+      ['PUT', '/api/journal', 'GET'],
+    ]
+    for (const [method, path, allowed] of cases) {
+      const res = await call(method, path)
+      expect(res.status, `${method} ${path}`).toBe(405)
+      expect(res.headers.get('allow'), `${method} ${path}`).toBe(allowed)
+    }
+    expect(existsSync(dataDir)).toBe(false)
   })
 })
