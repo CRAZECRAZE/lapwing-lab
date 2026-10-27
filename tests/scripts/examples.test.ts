@@ -57,6 +57,37 @@ describe('parseExampleItems', () => {
     ])
   })
 
+  it('strips one wrapping pair of double quotes from the word', () => {
+    expect(parseExampleItems(13, '* "race" `RAEUS`\n* \u201crace\u201d `RAEUS`\n* "a "b" c `KAT`\n').map((r) => r.word)).toEqual(['race'])
+  })
+
+  it('keeps prefix and suffix forms and phrases of up to three tokens', () => {
+    const md = '* pro- `PRO`\n* co^ `KO`\n* how ever `HOU/EFR`\n* ice cream cone `KAT`\n* four word long phrase `KAT`\n'
+    expect(parseExampleItems(13, md).map((r) => r.word)).toEqual(['pro-', 'co^', 'how ever', 'ice cream cone'])
+  })
+
+  it('rejects prose before the code span', () => {
+    const md = [
+      '* Left hand, bottom row ( `SKWR`',
+      '* Vowels ( `AOEU`',
+      '* Long u = `U`',
+      '* Press: `KAT`',
+      '* red, blue, green ( `RBG`',
+      '* two words, then `KAT`',
+      '* wrinkl(e)/y `KAT`',
+      '* If `EU`',
+      '* As `SEPBT`',
+      '* Instead of `A/SAOEUPB/-PLT`',
+      '* Closest would be `TRUTS`',
+      '* Index finger presses `KAT`',
+      '* The Z sound is similar `-S`',
+      '* key is `-S`',
+      '* use `KAT`',
+      '',
+    ].join('\n')
+    expect(parseExampleItems(4, md).map((r) => r.word)).toEqual(['use'])
+  })
+
   it('finds dad in the real Chapter 5', () => {
     expect(parseExampleItems(5, book('Chapter-05.md'))).toContainEqual({ chapter: 5, word: 'dad', outlines: ['TKAD'] })
   })
@@ -73,5 +104,30 @@ describe('parseExampleItems', () => {
       const name = `Chapter-${String(n).padStart(2, '0')}.md`
       expect(() => parseExampleItems(n, book(name))).not.toThrow()
     }
+  })
+
+  it('keeps no prose rows from the real Chapters 4 and 7', () => {
+    for (const [n, name] of [[4, 'Chapter-04.md'], [7, 'Chapter-07.md']] as const) {
+      for (const row of parseExampleItems(n, book(name))) {
+        expect(row.word, `chapter ${n}`).not.toMatch(/[(,=:]/)
+        expect(row.word.split(' ').length, `chapter ${n} ${row.word}`).toBeLessThanOrEqual(3)
+      }
+    }
+  })
+
+  it('keeps the expected row counts per real chapter', () => {
+    // Chapters 5 and 17 each lost one prose row ("Closest would be", "Instead of"); 6, 14 and 21 are unchanged.
+    const counts: Record<number, number> = { 4: 0, 5: 21, 6: 19, 14: 14, 17: 61, 21: 32 }
+    for (const [n, count] of Object.entries(counts)) {
+      const name = `Chapter-${String(n).padStart(2, '0')}.md`
+      expect(parseExampleItems(Number(n), book(name)), `chapter ${n}`).toHaveLength(count)
+    }
+  })
+
+  it('totals between 420 and 440 rows over chapters 1 to 26', () => {
+    let total = 0
+    for (let n = 1; n <= 26; n++) total += parseExampleItems(n, book(`Chapter-${String(n).padStart(2, '0')}.md`)).length
+    expect(total).toBeGreaterThanOrEqual(420)
+    expect(total).toBeLessThanOrEqual(440)
   })
 })

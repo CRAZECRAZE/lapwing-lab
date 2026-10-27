@@ -94,7 +94,7 @@ describe('generatedLists for Chapter 21', () => {
   it('gives the UK spellings list', () => {
     expect(all.map((l) => l.id)).toEqual(['21-uk-spellings'])
     const uk = all[0]
-    expect(uk.items.length).toBeGreaterThanOrEqual(25)
+    expect(uk.items).toHaveLength(32)
     expect(outlinesOf(uk, 'centre')).toEqual(['SEPB/TER/#TPH'])
   })
 })
