@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildContent, gateFor, practiceChapter } from '../../scripts/build-content.ts'
-import { parseOutline } from '../../src/core/steno.ts'
+import { parseOutline, SLOTS } from '../../src/core/steno.ts'
 import type { LookupEntry } from '../../scripts/lib/lookup.ts'
 import type { BuildStats, ChapterInfo, PracticeIndexEntry } from '../../scripts/build-content.ts'
 
@@ -82,6 +82,14 @@ describe('buildContent on the vendored book', () => {
     expect(new Set(briefs.map((b: { chapter: number }) => b.chapter))).toEqual(new Set([5, 6, 7, 8, 9, 10, 11, 12]))
     expect(readJson('sentences.json').length).toBeGreaterThan(0)
     expect(readJson('stage0.json').test).toHaveLength(100)
+  })
+})
+
+describe('keychart.json', () => {
+  it('is written with one entry per slot', () => {
+    const chart = readJson('keychart.json')
+    expect(chart).toHaveLength(23)
+    expect(chart.map((e: { slot: string }) => e.slot)).toEqual([...SLOTS])
   })
 })
 

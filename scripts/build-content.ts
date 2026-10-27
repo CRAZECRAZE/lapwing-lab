@@ -5,6 +5,7 @@ import type { PassMark } from './lib/passmark.ts'
 import { parseExampleItems } from './lib/examples.ts'
 import type { ExampleRow } from './lib/examples.ts'
 import { generatedLists } from './lib/generated.ts'
+import { parseKeyChart } from './lib/keychart.ts'
 import { buildLookup } from './lib/lookup.ts'
 import type { LookupList } from './lib/lookup.ts'
 import { parsePracticeFile } from './lib/practice.ts'
@@ -209,6 +210,15 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   await writeJson(join(outDir, 'chapters.json'), chapterInfos(entries, practiceIndex, passMarks))
   await writeJson(join(outDir, 'briefs.json'), briefs)
   await writeJson(join(outDir, 'sentences.json'), sentences)
+  // The key chart needs Chapters 4, 5 and 18; a book with none of them (a test fixture) simply has no chart.
+  const chartFiles = ['Chapter-04.md', 'Chapter-05.md', 'Chapter-18.md']
+  const chartMarkdown = chartFiles.map((file) => markdowns.get(file))
+  if (chartMarkdown.some((markdown) => markdown !== undefined)) {
+    const missing = chartFiles.filter((_, i) => chartMarkdown[i] === undefined)
+    if (missing.length > 0) throw new Error(`SUMMARY.md does not list ${missing.join(', ')}, needed for the key chart`)
+    const [ch4, ch5, ch18] = chartMarkdown as string[]
+    await writeJson(join(outDir, 'keychart.json'), parseKeyChart({ ch4, ch5, ch18 }))
+  }
   const lookup = buildLookup({ lists: bookLists, briefs, examples })
   const lookupJson = JSON.stringify(lookup)
   const lookupBytes = Buffer.byteLength(lookupJson)
