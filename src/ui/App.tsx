@@ -3,6 +3,7 @@ import { tabOf, useRoute } from '../router.ts'
 import { UniProvider } from '../state/uni-context.tsx'
 import { FreeRoute } from './FreeRoute.tsx'
 import { History } from './History.tsx'
+import { Journal } from './Journal.tsx'
 import { Nav } from './Nav.tsx'
 import { Practice } from './Practice.tsx'
 import { Reader } from './Reader.tsx'
@@ -12,7 +13,7 @@ import { TestDetail } from './TestDetail.tsx'
 import { TopBar } from './TopBar.tsx'
 import './reader.css'
 
-/** Stand-in for a tab whose view is not built yet. Replaced by: Journal (Task 12), Days (Task 13). */
+/** Stand-in for a tab whose view is not built yet. Replaced by: Days (Task 13). */
 function Soon({ name }: { name: string }): JSX.Element {
   return <p class="page__status">The {name} tab is coming in this milestone.</p>
 }
@@ -33,7 +34,7 @@ export function App(): JSX.Element {
           {route.name === 'history' && <History />}
           {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
           {route.name === 'days' && <Soon name="Days" />}
-          {route.name === 'journal' && <Soon name="Journal" />}
+          {route.name === 'journal' && <Journal key={route.date ?? 'today'} date={route.date} />}
           {route.name === 'page' && <Reader id={route.id} />}
           {route.name === 'drill' &&
             (route.id.startsWith('stage0/') ? (

@@ -1,0 +1,150 @@
+/* Journal tab: a list of days on the left, one day's note and results on the right */
+
+.journal {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 2rem;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.journal__days ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journal__days a {
+  display: block;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.journal__days a:hover,
+.journal__days a:focus-visible {
+  color: var(--heading);
+  background: var(--panel);
+}
+
+.journal__days a[aria-current='page'] {
+  color: var(--heading);
+  background: var(--raised);
+}
+
+.journal__main {
+  min-width: 0;
+}
+
+.journal__heading {
+  margin: 0 0 0.25rem;
+  color: var(--heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.journal__step {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.journal__step a,
+.journal__status a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.journal__step a:hover,
+.journal__step a:focus-visible,
+.journal__status a:hover,
+.journal__status a:focus-visible {
+  text-decoration: underline;
+}
+
+.journal__text {
+  display: block;
+  width: 100%;
+  min-height: 24rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.journal__text:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.journal__text[readonly] {
+  color: var(--muted);
+}
+
+.journal__state {
+  min-height: 1.6rem;
+  margin: 0.4rem 0 2rem;
+  font-size: 0.9rem;
+}
+
+.journal__muted,
+.journal__status {
+  color: var(--muted);
+}
+
+.journal__warn {
+  color: var(--left);
+}
+
+.journal__button {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.journal__button:hover {
+  color: var(--heading);
+  border-color: var(--muted);
+}
+
+.journal__subheading {
+  margin: 0 0 0.6rem;
+  color: var(--heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.journal__totals {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 700px) {
+  .journal {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .journal__days ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .journal__text {
+    min-height: 16rem;
+  }
+}

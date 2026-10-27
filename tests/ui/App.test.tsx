@@ -7,7 +7,11 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (url === '/api/tests') return new Response('[]', { status: 200 })
+      if (url === '/api/tests' || url.startsWith('/api/tests?')) return new Response('[]', { status: 200 })
+      if (url === '/api/journal') return new Response('[]', { status: 200 })
+      if (url.startsWith('/api/journal/')) {
+        return new Response(JSON.stringify({ date: url.slice('/api/journal/'.length), text: 'Kept words.' }), { status: 200 })
+      }
       if (url.startsWith('/api/tests/last')) return new Response('null', { status: 200 })
       if (url.startsWith('/api/tests/')) return new Response('{}', { status: 404 })
       if (url === '/api/settings') return new Response('{"boardVisibility":"always"}', { status: 200 })
@@ -60,14 +64,22 @@ describe('App shell', () => {
     expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
   })
 
-  it.each([
-    ['/days', 'Days'],
-    ['/journal/2026-10-27', 'Journal'],
-  ])('shows the placeholder at %s', (path, name) => {
-    history.replaceState(null, '', path)
+  it('shows the placeholder at /days', () => {
+    history.replaceState(null, '', '/days')
     render(<App />)
-    expect(screen.getByText(`The ${name} tab is coming in this milestone.`)).toBeTruthy()
-    expect(screen.getByRole('link', { name }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByText('The Days tab is coming in this milestone.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Days' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows the Journal for a day at /journal/:date, under the Journal tab', async () => {
+    history.replaceState(null, '', '/journal/2026-10-26')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Mon 26 Oct 2026', level: 1 })).toBeTruthy()
+    const box = (await screen.findByDisplayValue('Kept words.')) as HTMLTextAreaElement
+    expect(box.getAttribute('aria-label')).toBe('Journal for Mon 26 Oct 2026')
+    expect(box.readOnly).toBe(false)
+    expect(await screen.findByText('No practice recorded this day.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Journal' }).getAttribute('aria-current')).toBe('page')
   })
 
   it('shows one test at /history/:id, and its tab stays current', async () => {
