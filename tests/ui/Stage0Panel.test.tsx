@@ -227,6 +227,7 @@ describe('Stage 0 drill route', () => {
     expect(screen.getByText(/wpm/)).toBeTruthy()
     expect(screen.getByText(/^\d+:\d\d$/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Again' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add a note' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Back to Chapter 4' }))
     expect(location.pathname).toBe('/page/ch04')
   })

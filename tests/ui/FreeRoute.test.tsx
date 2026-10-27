@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import type { TestLogger } from '../../src/api.ts'
@@ -11,6 +11,7 @@ vi.mock('../../src/api.ts', () => ({
   getSettings: vi.fn(),
   putSettings: vi.fn(),
   getLastTest: vi.fn(),
+  appendJournal: vi.fn(),
 }))
 const api = await import('../../src/api.ts')
 const createTestLogger = vi.mocked(api.createTestLogger)
@@ -217,6 +218,7 @@ describe('FreeRoute', () => {
     expect(card.textContent).toContain('25')
     expect(card.textContent).toMatch(/\d+:\d\d/)
     expect(screen.queryByText("Time's up.")).toBeNull()
+    expect(within(card).getByRole('button', { name: 'Add a note' })).toBeTruthy()
     expect(loggers).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Again' }))
     expect(loggers).toHaveLength(2)

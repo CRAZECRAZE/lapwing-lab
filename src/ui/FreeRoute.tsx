@@ -10,6 +10,7 @@ import type { FreeMode, FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
+import { QuickNote } from './QuickNote.tsx'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 import './practice.css'
 
@@ -85,6 +86,7 @@ function FreeResult({ title, result, onAgain }: { title: string; result: DrillRe
         <div><dt>Words</dt><dd>{stats.completed}</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
+      <QuickNote title={title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
       <div class="stage0-summary__actions">
         <button type="button" class="stage0-button" onClick={onAgain}>Again</button>
         <button type="button" class="stage0-button" onClick={() => navigate(PRACTICE_HREF)}>Back to Practice</button>

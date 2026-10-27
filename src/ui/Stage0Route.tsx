@@ -7,6 +7,7 @@ import { ROW_DRILLS, STAGE0_INFO, buildStage0Drills, itemsForRun } from '../stag
 import type { Stage0Drill } from '../stage0/lists.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
+import { QuickNote } from './QuickNote.tsx'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 
 const CHAPTER_HREF = '/page/ch04'
@@ -58,6 +59,7 @@ function Summary({ drill, result, onAgain }: { drill: Stage0Drill; result: Drill
         <div><dt>Speed</dt><dd>{Math.round(stats.wpm)} wpm</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
+      <QuickNote title={drill.title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
       <div class="stage0-summary__actions">
         <button type="button" class="stage0-button" onClick={onAgain}>Again</button>
         <button type="button" class="stage0-button" onClick={() => navigate(CHAPTER_HREF)}>Back to Chapter 4</button>

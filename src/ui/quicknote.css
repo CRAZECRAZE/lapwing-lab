@@ -1,0 +1,79 @@
+.quicknote {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 1rem;
+}
+
+.quicknote__open {
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.quicknote__open:hover {
+  color: var(--heading);
+}
+
+.quicknote__open:focus-visible,
+.quicknote__text:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.quicknote__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(32rem, 100%);
+  margin: 0 0 1rem;
+}
+
+.quicknote__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.quicknote__text {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.quicknote__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.quicknote__actions .stage0-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.quicknote__error {
+  margin: 0;
+  color: var(--left);
+  font-size: 0.85rem;
+}
+
+.quicknote__saved {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
