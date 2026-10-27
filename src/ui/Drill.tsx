@@ -73,6 +73,9 @@ function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | n
 
 export function Drill(props: DrillProps): JSX.Element {
   const { title, kind, items, logger, boardVisibility = 'always', view = 'prompt', timeLimitMs, onExit } = props
+  // Anything but a finite number above zero means no time limit.
+  const limit =
+    typeof timeLimitMs === 'number' && Number.isFinite(timeLimitMs) && timeLimitMs > 0 ? timeLimitMs : undefined
   const uni = useUni()
   const [, redraw] = useReducer((n: number) => n + 1, 0)
   const [unsaved, setUnsaved] = useState(logger.unsaved)
@@ -104,7 +107,7 @@ export function Drill(props: DrillProps): JSX.Element {
   const alive = useRef(true)
 
   const timeLeft = (): number =>
-    timeLimitMs === undefined ? Infinity : timeLimitMs - (startedAt.current === null ? 0 : clock() - startedAt.current)
+    limit === undefined ? Infinity : limit - (startedAt.current === null ? 0 : clock() - startedAt.current)
 
   const root = useRef<HTMLElement>(null)
   const sink = useRef<HTMLTextAreaElement>(null)
@@ -159,7 +162,7 @@ export function Drill(props: DrillProps): JSX.Element {
         firstTryCorrect: stats.firstTryCorrect,
         elapsedMs: stats.elapsedMs,
         passed,
-        ...(timedOut ? { timeLimitMs, timedOut: true } : {}),
+        ...(timedOut ? { timeLimitMs: limit, timedOut: true } : {}),
       }
       let timer: ReturnType<typeof setTimeout> | undefined
       const timeout = new Promise<void>((resolve) => {
@@ -196,7 +199,7 @@ export function Drill(props: DrillProps): JSX.Element {
       if (!started.current) {
         started.current = true
         startedAt.current = clock()
-        if (timeLimitMs !== undefined) {
+        if (limit !== undefined) {
           countdown = setInterval(() => {
             if (!timeUp()) redraw(0)
           }, COUNTDOWN_TICK_MS)
@@ -280,7 +283,7 @@ export function Drill(props: DrillProps): JSX.Element {
       ? hintStrokes.map(formatStroke).join('/')
       : ''
   const flowFrom = Math.max(0, session.index - FLOW_BEHIND)
-  const progress = timeLimitMs === undefined ? `${stats.completed} / ${session.total}` : `${formatLeft(timeLeft())} left`
+  const progress = limit === undefined ? `${stats.completed} / ${session.total}` : `${formatLeft(timeLeft())} left`
   const diff = showMiss ? { missing: showMiss.missing, extra: showMiss.extra } : undefined
 
   const board = <Board size={BOARD_KEY_PX} target={target} pressed={uni.pressed} diff={diff} />

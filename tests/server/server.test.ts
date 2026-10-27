@@ -330,6 +330,14 @@ describe('archive API', () => {
     })
   })
 
+  it('does not answer GET /api/tests/last with a test that was left early', async () => {
+    const done = await newTest()
+    await call('POST', `/api/tests/${done}/finish`, { endedAt: 2000, wpm: 12, accuracy: 0.9, meta: {} })
+    const left = await newTest()
+    await call('POST', `/api/tests/${left}/finish`, { endedAt: 3000, wpm: 50, accuracy: 1, meta: { abandoned: true } })
+    expect(await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()).toMatchObject({ id: done })
+  })
+
   it('answers GET /api/tests/last for an unknown test with null, and 400 without params', async () => {
     expect(await (await call('GET', '/api/tests/last?mode=x&section=y')).json()).toBeNull()
     expect((await call('GET', '/api/tests/last?mode=x')).status).toBe(400)

@@ -104,6 +104,34 @@ describe('archive', () => {
     expect(a.lastTest('stage0-test', 'nope')).toBeUndefined()
   })
 
+  it('lastTest skips abandoned tests', () => {
+    const a = memory()
+    const done = newTest(a)
+    a.finishTest(done, { endedAt: 2000, wpm: 10, accuracy: 0.9, meta: { passed: true } })
+    const left = newTest(a)
+    a.finishTest(left, { endedAt: 3000, wpm: 55, accuracy: 1, meta: { abandoned: true } })
+    expect(a.lastTest('stage0-test', 'pseudo')?.id).toBe(done)
+    const onlyLeft = newTest(a, { section: 'real' })
+    a.finishTest(onlyLeft, { endedAt: 4000, wpm: 55, accuracy: 1, meta: { kind: 'word', abandoned: true } })
+    expect(a.lastTest('stage0-test', 'real')).toBeUndefined()
+    expect(a.getTest(onlyLeft)?.test.meta).toEqual({ kind: 'word', abandoned: true }) // still stored and listed
+  })
+
+  it('lastTest still counts tests with null metadata, no abandoned key, or abandoned that is not true', () => {
+    const a = memory()
+    const cases: [string, unknown][] = [
+      ['nullmeta', null],
+      ['nokey', { missed: [] }],
+      ['falseflag', { abandoned: false }],
+      ['stringflag', { abandoned: 'true' }],
+    ]
+    for (const [section, meta] of cases) {
+      const id = newTest(a, { section })
+      a.finishTest(id, { endedAt: 2000, wpm: 1, accuracy: 1, meta })
+      expect(a.lastTest('stage0-test', section)?.id).toBe(id)
+    }
+  })
+
   it('stores null chapter and section', () => {
     const a = memory()
     const sessionId = a.createSession(1)

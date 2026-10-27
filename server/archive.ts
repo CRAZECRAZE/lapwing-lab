@@ -143,6 +143,7 @@ export function openArchive(path: string): Archive {
   )
   const selectLast = db.prepare(
     `SELECT * FROM tests WHERE mode = ? AND section = ? AND ended_at IS NOT NULL
+       AND json_extract(meta_json, '$.abandoned') IS NOT 1
      ORDER BY ended_at DESC, id DESC LIMIT 1`,
   )
   const selectStrokes = db.prepare('SELECT * FROM strokes WHERE test_id = ? ORDER BY id')

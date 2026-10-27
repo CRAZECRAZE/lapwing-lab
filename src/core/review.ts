@@ -48,9 +48,13 @@ export function misses(strokes: readonly StrokeRecord[]): Miss[] {
     })
 }
 
-/** The slowest correct strokes, slowest first; equal times keep log order. */
+/**
+ * The slowest correct strokes, slowest first; equal times keep log order. The test's first logged
+ * stroke is left out: its latency runs from when the drill opened, so it is mostly the time spent settling in.
+ */
 export function slowest(strokes: readonly StrokeRecord[], n: number): { prompt: string; latencyMs: number }[] {
   return strokes
+    .slice(1)
     .filter((s) => s.correct)
     .map((s) => ({ prompt: s.prompt, latencyMs: s.latencyMs }))
     .sort((a, b) => b.latencyMs - a.latencyMs)

@@ -877,6 +877,21 @@ describe('Drill time limit', () => {
     expect(rig.onDone).not.toHaveBeenCalled()
   })
 
+  it.each([0, -5, NaN, Infinity])('treats a time limit of %s as no limit', async (limit) => {
+    const rig = await mountDrill({ items: many(), timeLimitMs: limit })
+    expect(statsText()).toMatch(/^0 \/ 40 · /)
+    rig.stroke(SAP)
+    tick(60_000)
+    rig.stroke(TAP) // a miss: still no time-up
+    await settle()
+    expect(rig.logger.starts).toHaveLength(1)
+    expect(rig.logger.strokes).toHaveLength(2)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    expect(rig.logger.finishes).toHaveLength(0)
+    expect(statsText()).toMatch(/^1 \/ 40 · /)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('formats minutes', async () => {
     await mountDrill({ items: many(), timeLimitMs: 90_000 })
     expect(statsText()).toBe('1:30 left · acc — · 0 wpm')

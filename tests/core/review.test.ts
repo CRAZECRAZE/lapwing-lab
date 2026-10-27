@@ -59,7 +59,9 @@ describe('misses', () => {
 })
 
 describe('slowest', () => {
+  // The first logged stroke carries the pre-start idle, so it is never a candidate.
   const list = [
+    stroke({ prompt: 'first', latencyMs: 30000 }),
     stroke({ prompt: 'a', latencyMs: 300 }),
     stroke({ prompt: 'b', latencyMs: 900 }),
     stroke({ prompt: 'c', latencyMs: 900 }),
@@ -76,9 +78,36 @@ describe('slowest', () => {
     ])
   })
 
+  it('leaves out the first logged stroke even when it is the slowest and correct', () => {
+    expect(slowest(list, 10).map((s) => s.prompt)).not.toContain('first')
+    expect(slowest([stroke({ prompt: 'p', latencyMs: 9000 }), stroke({ prompt: 'q', latencyMs: 10 })], 5)).toEqual([
+      { prompt: 'q', latencyMs: 10 },
+    ])
+  })
+
+  it('still orders correctly when the slowest later stroke is not first', () => {
+    const rest = [
+      stroke({ prompt: 'a', latencyMs: 100 }),
+      stroke({ prompt: 'b', latencyMs: 700 }),
+      stroke({ prompt: 'c', latencyMs: 400 }),
+    ]
+    expect(slowest(rest, 10).map((s) => s.prompt)).toEqual(['b', 'c']) // 'a' is first: dropped
+    expect(slowest([stroke({ prompt: 'z', latencyMs: 1 }), ...rest], 10).map((s) => s.prompt)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('has nothing for a single stroke or an empty list', () => {
+    expect(slowest([stroke({ prompt: 'only', latencyMs: 9000 })], 5)).toEqual([])
+    expect(slowest([], 5)).toEqual([])
+  })
+
+  it('keeps log order among equal times once the first stroke is out', () => {
+    const ties = [stroke({ latencyMs: 1 }), stroke({ prompt: 'b', latencyMs: 500 }), stroke({ prompt: 'c', latencyMs: 500 })]
+    expect(slowest(ties, 10).map((s) => s.prompt)).toEqual(['b', 'c'])
+  })
+
   it('limits to n and does not reorder its input', () => {
     expect(slowest(list, 2).map((s) => s.prompt)).toEqual(['b', 'c'])
-    expect(list.map((s) => s.prompt)).toEqual(['a', 'b', 'c', 'x', 'd'])
+    expect(list.map((s) => s.prompt)).toEqual(['first', 'a', 'b', 'c', 'x', 'd'])
   })
 })
 
