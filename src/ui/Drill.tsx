@@ -7,6 +7,7 @@ import type { DrillItem, DrillStats } from '../core/drill.ts'
 import { formatStroke, parseOutline, parseStroke, slotMask } from '../core/steno.ts'
 import type { Slot, SlotMask } from '../core/steno.ts'
 import type { RawStroke } from '../core/uni.ts'
+import { useDockOpen } from '../state/dock.tsx'
 import { useUni } from '../state/uni-context.tsx'
 import { Board } from './Board.tsx'
 import './drill.css'
@@ -81,6 +82,9 @@ export function Drill(props: DrillProps): JSX.Element {
   const limit =
     typeof timeLimitMs === 'number' && Number.isFinite(timeLimitMs) && timeLimitMs > 0 ? timeLimitMs : undefined
   const uni = useUni()
+  // A dock tool open pauses the drill like an unplugged board: no strokes, no clock.
+  const dockOpen = useDockOpen()
+  const paused = dockOpen || !uni.connected
   const [, redraw] = useReducer((n: number) => n + 1, 0)
   const [unsaved, setUnsaved] = useState(logger.unsaved)
   const [hovering, setHovering] = useState(false)
@@ -88,10 +92,12 @@ export function Drill(props: DrillProps): JSX.Element {
   // The stroke handler is subscribed once, so it reads the latest props through this ref.
   const latest = useRef(props)
   latest.current = props
+  const dockOpenNow = useRef(dockOpen)
+  dockOpenNow.current = dockOpen
 
-  // Session clock without disconnected time: frozen from the unplug to the reconnect.
+  // Session clock without paused time: frozen from the unplug (or the tool opening) until both are over.
   const pausedTotal = useRef(0)
-  const pausedSince = useRef<number | null>(uni.connected ? null : Date.now())
+  const pausedSince = useRef<number | null>(paused ? Date.now() : null)
   const clock = (): number => (pausedSince.current ?? Date.now()) - pausedTotal.current
   const sessionRef = useRef<DrillSession | null>(null)
   sessionRef.current ??= new DrillSession(items, clock)
@@ -117,8 +123,9 @@ export function Drill(props: DrillProps): JSX.Element {
   const sink = useRef<HTMLTextAreaElement>(null)
 
   // Bookkeeping happens in render (idempotent ref updates), not in an effect, so the pause
-  // starts and ends when the connection state changes rather than a tick later.
-  if (uni.connected) {
+  // starts and ends when the connection or dock state changes rather than a tick later. One contiguous pause
+  // (disconnected, a tool open, or both) is counted once.
+  if (!paused) {
     if (pausedSince.current !== null) {
       pausedTotal.current += Date.now() - pausedSince.current
       pausedSince.current = null
@@ -128,8 +135,13 @@ export function Drill(props: DrillProps): JSX.Element {
   }
 
   useEffect(() => {
-    sink.current?.focus()
+    if (!dockOpenNow.current) sink.current?.focus()
   }, [uni.connected])
+
+  // The tool closed: the focus comes back to the drill.
+  useLayoutEffect(() => {
+    if (!dockOpen && sink.current?.isConnected) sink.current.focus()
+  }, [dockOpen])
 
   // A layout effect: its cleanup runs synchronously at unmount (useEffect cleanups run after paint),
   // so no stroke can be logged, and onDone cannot fire, once the drill has closed.
@@ -188,6 +200,7 @@ export function Drill(props: DrillProps): JSX.Element {
     }
 
     const onStroke = (stroke: RawStroke): void => {
+      if (dockOpenNow.current) return
       if (timeUp()) return
       const item = session.current
       if (!item) return
@@ -344,6 +357,11 @@ export function Drill(props: DrillProps): JSX.Element {
           </button>
         </p>
       )}
+      {uni.connected && dockOpen && (
+        <p class="drill__banner" role="status">
+          Paused while a tool is open
+        </p>
+      )}
 
       {view === 'flow' ? (
         <p class={`drill__flow drill__flow--${kind}`}>
@@ -410,6 +428,8 @@ export function Drill(props: DrillProps): JSX.Element {
           else if (e.key === 'Tab' || !(e.ctrlKey || e.metaKey || e.altKey)) e.preventDefault()
         }}
         onBlur={(e) => {
+          // While a tool is open the focus belongs to it (its own focus moves may have no relatedTarget).
+          if (dockOpenNow.current) return
           const next = e.relatedTarget as Node | null
           if (next && root.current?.contains(next)) return
           queueMicrotask(() => {

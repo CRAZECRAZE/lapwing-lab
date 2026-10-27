@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TestLogger } from '../../src/api.ts'
 import type { DrillItem } from '../../src/core/drill.ts'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
+import { DockProvider, useDock } from '../../src/state/dock.tsx'
+import type { Dock } from '../../src/state/dock.tsx'
 import { UniProvider } from '../../src/state/uni-context.tsx'
 import { Drill } from '../../src/ui/Drill.tsx'
 import type { DrillResult } from '../../src/ui/Drill.tsx'
@@ -110,13 +112,15 @@ type Rig = {
   /** Presses and releases the given report bytes. */
   stroke(bytes: number[]): void
   unmount(): void
+  /** The dock, when mounted with `{ dock: true }`. */
+  dock: () => Dock
 }
 
 type DrillProps = Parameters<typeof Drill>[0]
 
 async function mountDrill(
   props: Partial<DrillProps> = {},
-  opts: { connected?: boolean; logger?: LoggerFake } = {},
+  opts: { connected?: boolean; logger?: LoggerFake; dock?: boolean } = {},
 ): Promise<Rig> {
   const hid = new FakeHid()
   const device = new FakeDevice()
@@ -124,18 +128,36 @@ async function mountDrill(
   const logger = opts.logger ?? fakeLogger()
   const onDone = vi.fn<(r: DrillResult) => void>()
   const onExit = vi.fn<() => void>()
+  const drill = (
+    <Drill
+      title="Chapter 4 test"
+      kind="stroke"
+      items={[item('SAP', 'SAP')]}
+      logger={logger}
+      logTest={LOG_TEST}
+      onDone={onDone}
+      onExit={onExit}
+      {...props}
+    />
+  )
+  let dock: Dock | null = null
+  function DockProbe(): null {
+    dock = useDock()
+    return null
+  }
   const { unmount } = render(
     <UniProvider hid={hid}>
-      <Drill
-        title="Chapter 4 test"
-        kind="stroke"
-        items={[item('SAP', 'SAP')]}
-        logger={logger}
-        logTest={LOG_TEST}
-        onDone={onDone}
-        onExit={onExit}
-        {...props}
-      />
+      {opts.dock ? (
+        <DockProvider>
+          <DockProbe />
+          {drill}
+          <aside data-dock tabIndex={-1}>
+            <button type="button">in the dock</button>
+          </aside>
+        </DockProvider>
+      ) : (
+        drill
+      )}
     </UniProvider>,
   )
   if (opts.connected !== false) await waitFor(() => expect(screen.queryByText(/Board disconnected/)).toBeNull())
@@ -150,6 +172,10 @@ async function mountDrill(
       act(() => device.report([]))
     },
     unmount,
+    dock() {
+      if (!dock) throw new Error('mounted without { dock: true }')
+      return dock
+    },
   }
 }
 
@@ -1164,5 +1190,212 @@ describe('Drill time limit', () => {
     tick(60_000)
     expect(rig.onDone).not.toHaveBeenCalled()
     expect(rig.logger.finishes).toHaveLength(1)
+  })
+})
+
+describe('Drill paused while a dock tool is open', () => {
+  const PAUSE = 'Paused while a tool is open'
+  const open = (rig: Rig): void => {
+    act(() => rig.dock().open('lookup'))
+  }
+  const close = (rig: Rig): void => {
+    act(() => rig.dock().close())
+  }
+  const keyDown = (target: EventTarget, init: KeyboardEventInit): KeyboardEvent => {
+    const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+    act(() => {
+      target.dispatchEvent(e)
+    })
+    return e
+  }
+  const pause = (ms = 20): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+  it('ignores strokes while open: nothing judged, logged or started; they count again after closing', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT'), item('SAP', 'SAP')] }, { dock: true })
+    open(rig)
+    rig.stroke(SAP)
+    rig.stroke(TAP)
+    expect(rig.logger.strokes).toHaveLength(0)
+    expect(rig.logger.starts).toHaveLength(0)
+    expect(statsText()).toBe('0 / 3 · acc — · 0 wpm')
+    expect(document.querySelector('.drill__prompt')!.textContent).toBe('SAP')
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('')
+
+    close(rig)
+    rig.stroke(SAP)
+    expect(rig.logger.strokes).toHaveLength(1)
+    expect(statsText()).toMatch(/^1 \/ 3 · acc 100% /)
+
+    open(rig) // mid-session too
+    rig.stroke(TAP)
+    expect(rig.logger.strokes).toHaveLength(1)
+    expect(statsText()).toMatch(/^1 \/ 3 · acc 100% /)
+    close(rig)
+    rig.stroke(KAT)
+    expect(rig.logger.strokes).toHaveLength(2)
+    expect(statsText()).toMatch(/^2 \/ 3 · acc 100% /)
+  })
+
+  it('stops the session clock while open: elapsed time and latency leave the open time out', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_000_000)
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] }, { dock: true })
+    vi.setSystemTime(1_010_000)
+    rig.stroke(SAP) // the session starts here; KAT appears
+    vi.setSystemTime(1_020_000)
+    open(rig)
+    vi.setSystemTime(1_080_000) // open for 60 s
+    close(rig)
+    vi.setSystemTime(1_085_000)
+    rig.stroke(KAT)
+    expect(rig.logger.strokes.map((s) => s.latencyMs)).toEqual([10_000, 15_000])
+    expect(rig.logger.finishes[0].meta).toMatchObject({ elapsedMs: 15_000 })
+    expect(rig.onDone).not.toHaveBeenCalled() // still finishing
+    await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+    expect(rig.onDone.mock.calls[0][0].stats.elapsedMs).toBe(15_000)
+  })
+
+  it('counts the time once when the dock opens during a disconnect and closes while still disconnected', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_000_000)
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] }, { dock: true })
+    vi.setSystemTime(1_010_000)
+    rig.stroke(SAP)
+    vi.setSystemTime(1_020_000)
+    unplug(rig)
+    vi.setSystemTime(1_030_000)
+    open(rig)
+    expect(screen.getByText(/Board disconnected/)).toBeTruthy()
+    expect(screen.queryByText(PAUSE)).toBeNull()
+    vi.setSystemTime(1_050_000)
+    close(rig)
+    expect(screen.getByText(/Board disconnected/)).toBeTruthy()
+    vi.setSystemTime(1_080_000)
+    await replug(rig)
+    vi.setSystemTime(1_085_000)
+    rig.stroke(KAT)
+    expect(rig.logger.finishes[0].meta).toMatchObject({ elapsedMs: 15_000 })
+  })
+
+  it('counts the time once when the board is unplugged and replugged while the dock is open', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_000_000)
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] }, { dock: true })
+    vi.setSystemTime(1_010_000)
+    rig.stroke(SAP)
+    vi.setSystemTime(1_020_000)
+    open(rig)
+    vi.setSystemTime(1_030_000)
+    unplug(rig)
+    vi.setSystemTime(1_050_000)
+    await replug(rig)
+    expect(screen.getByText(PAUSE)).toBeTruthy()
+    vi.setSystemTime(1_080_000)
+    close(rig)
+    vi.setSystemTime(1_085_000)
+    rig.stroke(KAT)
+    expect(rig.logger.finishes[0].meta).toMatchObject({ elapsedMs: 15_000 })
+  })
+
+  it('freezes the countdown of a time-limited drill while open', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(1_000_000)
+    const tick = (ms: number): void => {
+      act(() => {
+        vi.advanceTimersByTime(ms)
+      })
+    }
+    const many = Array.from({ length: 40 }, (_, i) => (i % 2 === 0 ? item('SAP', 'SAP') : item('KAT', 'KAT')))
+    const rig = await mountDrill({ items: many, timeLimitMs: 30_000 }, { dock: true })
+    rig.stroke(SAP)
+    tick(10_000)
+    expect(statsText()).toMatch(/^0:20 left/)
+    open(rig)
+    tick(60_000)
+    expect(statsText()).toMatch(/^0:20 left/)
+    expect(rig.onDone).not.toHaveBeenCalled()
+    close(rig)
+    tick(19_000)
+    expect(statsText()).toMatch(/^0:01 left/)
+    expect(rig.logger.finishes).toHaveLength(0)
+    tick(1000)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    expect(rig.onDone).toHaveBeenCalledTimes(1)
+    expect(rig.onDone.mock.calls[0][0].meta).toMatchObject({ timedOut: true })
+  })
+
+  it('shows the quiet pause line while open and connected; the disconnect banner wins, never both', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    expect(screen.queryByText(PAUSE)).toBeNull()
+    open(rig)
+    const line = screen.getByText(PAUSE)
+    expect(line.getAttribute('role')).toBe('status')
+    unplug(rig)
+    expect(screen.getByText(/Board disconnected/)).toBeTruthy()
+    expect(screen.queryByText(PAUSE)).toBeNull()
+    await replug(rig)
+    expect(screen.getByText(PAUSE)).toBeTruthy()
+    close(rig)
+    expect(screen.queryByText(PAUSE)).toBeNull()
+  })
+
+  it('Escape in the sink with a tool open closes the tool and does not exit; the next Escape exits', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    open(rig)
+    keyDown(sink(), { key: 'Escape', code: 'Escape' })
+    expect(rig.dock().tool).toBeNull()
+    expect(rig.onExit).not.toHaveBeenCalled()
+    keyDown(sink(), { key: 'Escape', code: 'Escape' })
+    expect(rig.onExit).toHaveBeenCalledTimes(1)
+  })
+
+  it('Escape with the dock mounted but closed still exits', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    keyDown(sink(), { key: 'Escape', code: 'Escape' })
+    expect(rig.onExit).toHaveBeenCalledTimes(1)
+  })
+
+  it('Alt+K in the sink opens the key chart; a bare k stays stray output', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    const bare = keyDown(sink(), { key: 'k', code: 'KeyK' })
+    expect(rig.dock().tool).toBeNull()
+    expect(bare.defaultPrevented).toBe(true) // the sink's own swallow
+    keyDown(sink(), { key: 'k', code: 'KeyK', altKey: true })
+    expect(rig.dock().tool).toBe('chart')
+  })
+
+  it('does not pull the focus back while open, and returns it to the sink on close', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    expect(document.activeElement).toBe(sink())
+    open(rig)
+    const inDock = screen.getByRole('button', { name: 'in the dock' })
+    inDock.focus() // relatedTarget inside [data-dock]
+    await pause()
+    expect(document.activeElement).toBe(inDock)
+    close(rig)
+    expect(document.activeElement).toBe(sink())
+  })
+
+  it('does not pull the focus back while open even when the blur has no relatedTarget', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    open(rig)
+    sink().blur()
+    await pause()
+    expect(document.activeElement).not.toBe(sink())
+    close(rig)
+    expect(document.activeElement).toBe(sink())
+  })
+
+  it('a reconnect while open does not take the focus from the dock', async () => {
+    const rig = await mountDrill({}, { dock: true })
+    open(rig)
+    const inDock = screen.getByRole('button', { name: 'in the dock' })
+    inDock.focus()
+    unplug(rig)
+    await replug(rig)
+    await pause()
+    expect(document.activeElement).toBe(inDock)
   })
 })
