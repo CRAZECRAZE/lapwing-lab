@@ -1,7 +1,7 @@
 # Lapwing Lab — Design
 
 Working name: `lapwing-lab` (the owner has not confirmed a name).
-Date: 2026-10-27. Status: draft for owner review. Nothing is built.
+Date: 2026-10-27. Status: approved by the owner; M0 and M1 are built. The order of work was amended the same day (§9, §3.5): the owner asked for the lab's tabs (history, free type, day tracking, journal) right after M1, ahead of core practice.
 
 ## 1. Intent
 
@@ -65,14 +65,29 @@ Prompt-first (chosen by the owner). A large word or stroke in the middle, a smal
 
 ### 3.3 The dock (quick pulls)
 All one keypress, available from the reader and the drill screen. These five are the builder's starting set; the owner has not yet said what they most often need.
-1. **Lookup `/`** — "how do I write …". Early on it searches only what the book has taught so far (practice-list words, example words, brief tables). Once the dictionary merge exists (M4) it searches the full Lapwing dictionary and classifies results (see 4.3).
+1. **Lookup `/`** — "how do I write …". Early on it searches only what the book has taught so far (practice-list words, example words, brief tables). Once the dictionary merge exists (M5) it searches the full Lapwing dictionary and classifies results (see 4.3).
 2. **Key chart `K`** — the board with the sound each key makes.
 3. **Briefs so far `B`** — every brief table from chapters up to the current one.
 4. **My notes `N`** — free-form notes per chapter, kept as plain markdown.
-5. **Today** — the session composer's plan and progress (M6).
+5. **Today** — the session composer's plan and progress (M7).
 
 ### 3.4 Look and feel
 Dark, calm, keyboard-first. Left-hand keys orange, vowel keys blue, right-hand keys purple; star keys follow the left hand. Typographic detail is left to the builder.
+
+### 3.5 The lab tabs (M2)
+*Owner's request, 2026-10-27, after trying M1:* "my vision was more than just [the book and drills] — several tabs, with history, practice session loggings, free type like Monkeytype, session logs, personal notes after each session, day-tracking."
+
+A top bar switches between **Book · Practice · History · Days · Journal**. Book is the reader as built; the chapter list shows only there, and the other tabs use the full width. Same calm, dark look.
+- **Practice** is the launcher: the Chapter 4 drills (as in the reader), and **free type**. Section drills and chapter tests join it in M3.
+- **Free type** (Monkeytype-like): a flowing line of words with the current word highlighted, live wpm and accuracy, and a result card. Modes: 25 or 50 words, or 30 or 60 seconds. *My call:* the words come only from what the book has taught so far: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter the owner picks. Judging, hint-on-miss and logging are the drill screen's. Board visibility follows the existing setting.
+- **History:** every practice test, newest first, with date, kind, speed, accuracy and stroke count. Opening one shows its stats, every miss (what was pressed against what was required) and the slowest words. Tests with no strokes are never listed.
+- **Days:** a month calendar showing which days had practice and how much, the current streak (also shown in the status line), month totals, and a day view with that day's tests and journal note. A "day" is the local calendar day of a test's first stroke.
+- **Journal:** one plain markdown note per day, editable, with the day's results shown read-only beneath it. After a drill or free-type run, the result card offers "Add a note", which appends a stamped entry to today's file. (Replaces 4.5's "opens at the end of a session": the app has no formal session, and a prompt after every run would nag.)
+
+Practice logging is fixed in the same milestone: a test is created on its first stroke, so opening a drill and leaving writes nothing, and leaving early closes the test with its partial results marked abandoned.
+
+### 3.6 Practice time
+"Time practiced" means the span from a test's first to its last stroke, summed over tests. It excludes time spent reading, idling before a first stroke, or paused. It is approximate by design.
 
 ## 4. Systems
 
@@ -90,12 +105,12 @@ A deck of briefs taught by the book, scheduled SM-2-style, with a daily due queu
 Searches a merged Lapwing dictionary (the owner's real Plover stack, in Plover's priority order; see `docs/reference/steno-lab-plan.md` §5.1) and labels each result: *Book brief* (with the chapter that teaches it), *Derivable from rules*, or *Not in dictionary* (fingerspelling hint). Needs a brief → chapter provenance map built from the book's brief tables. Known test cases: `especially` → `EPS` (brief) + derivable `ES/PERB/HREU`; `the` → `-T` (brief only).
 
 ### 4.4 Training archive
-All practice is recorded from the first session: sessions, tests, and every stroke. See §6. Views come later (M5): month calendar heatmap, per-day detail, trend lines per mode and chapter, confusion pairs (which wrong key was hit instead of the right one), plateau detection and an end-of-month report (wpm and accuracy deltas, weakest keys, top confusion pairs, practice time, suggested focus, owner-annotatable).
+All practice is recorded from the first session: sessions, tests, and every stroke. See §6. Basic history and per-day views arrive in M2 (3.5). The rest comes later (M6): a heatmap, trend lines per mode and chapter, confusion pairs (which wrong key was hit instead of the right one), plateau detection and an end-of-month report (wpm and accuracy deltas, weakest keys, top confusion pairs, practice time, suggested focus, owner-annotatable).
 
 ### 4.5 Training journal
-At the end of a session the app opens a plain-text note for the owner's own words (what they think, how it went). One markdown file per day (`data/journal/YYYY-MM-DD.md`); the app appends an auto-generated summary of the day's tests below the owner's text.
+At the end of a session the app opens a plain-text note for the owner's own words (what they think, how it went). One markdown file per day (`data/journal/YYYY-MM-DD.md`) holding only the owner's words. *My call, M2:* the auto-generated summary of the day's tests is shown live beneath the note and is never written into the file, so the file stays the owner's text and the summary cannot go stale.
 
-### 4.6 Routine planner and session composer (M6)
+### 4.6 Routine planner and session composer (M7)
 An editable weekly template of day blocks that changes over time ("much like working out"); versions are kept with dates so a routine can later be compared with progress. "Today's session" assembles a warm-up (recent misses, due briefs), the day's template block, current-chapter practice, and then the journal prompt. Every part is skippable. The book recommends 15 minutes to an hour a day and warns against more than three hours; the planner should respect that.
 
 ### 4.7 Extras (last)
@@ -183,11 +198,12 @@ The pipeline's output: chapters with sections, rendered prose, media references,
 
 - **M0 — Pipeline and shell.** Vendor the book; build the structured content; render every page of the book read-only with the live-stroke component (board drawing only, no device). *After M0, the whole book is already in the app.*
 - **M1 — Stage 0.** Device connection, chord reader, board, Chapter 4 row drills and pseudo-word test, and the stroke-level archive from the first stroke.
-- **M2 — Core practice.** Section drills and chapter tests inline in the reader (Chapters 5 onward as lists exist), prompt-first drill screen, hint on miss, mistake diff, gates with override.
-- **M3 — The dock.** Lookup over book data, key chart, briefs so far, notes; generated drills for table-only chapters.
-- **M4 — Memory and lookup.** SRS; dictionary merge; full lookup with classification.
-- **M5 — The record.** Journal, heatmap, month-end report, confusion pairs, plateau detection.
-- **M6 — The architecture around it.** Routine planner, session composer, ghosts, real-text practice.
+- **M2 — The lab shell** (moved up at the owner's request). Top-bar tabs; free type; History; Days with streak; Journal with result-card notes; lazy logging so abandoned runs leave no ghost rows (3.5).
+- **M3 — Core practice.** Section drills and chapter tests inline in the reader (Chapters 5 onward as lists exist), prompt-first drill screen, hint on miss, mistake diff, gates with override. They also appear on the Practice tab.
+- **M4 — The dock.** Lookup over book data, key chart, briefs so far, notes; generated drills for table-only chapters.
+- **M5 — Memory and lookup.** SRS; dictionary merge; full lookup with classification.
+- **M6 — The record.** Heatmap, trend lines, month-end report, confusion pairs, plateau detection (the basic views are M2).
+- **M7 — The architecture around it.** Routine planner, session composer, ghosts, real-text practice.
 
 ## 10. Left to the builder
 Parser design; board and stroke component internals; visual design within the stated direction; the exact database schema and stroke-event encoding; scoring formulas (wpm, accuracy) within 4.1; how stray output is swallowed; how confusion pairs are derived from missing and extra keys; keyboard shortcuts beyond those named.
@@ -203,3 +219,11 @@ Parser design; board and stroke component internals; visual design within the st
 8. M0 renders the entire book before any practice exists.
 9. Chapters without a test or drills unlock on "marked read" (4.1).
 10. Greyed chapters are readable; only their practice is locked (3.1).
+
+Added 2026-10-27 with the lab shell (3.5):
+11. M2 jumps ahead of core practice; later milestones shift by one.
+12. Free type draws only from taught words; its modes are 25/50 words and 30/60 seconds.
+13. No formal "session" in the UI; notes are per day, added from result cards or the Journal tab.
+14. The journal's auto-summary is shown live and never stored in the file.
+15. "Time practiced" is first-to-last stroke per test (3.6); weeks start on Monday.
+16. Opening a drill without a stroke writes nothing; leaving early closes the test marked abandoned.
