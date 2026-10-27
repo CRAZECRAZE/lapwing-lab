@@ -4,6 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QuickNote } from '../../src/ui/QuickNote.tsx'
 
 vi.mock('../../src/api.ts', () => ({ appendJournal: vi.fn() }))
+
+// Records every state update so a test can see one arriving after the component is gone.
+const stateSets: unknown[] = []
+vi.mock('preact/hooks', async (importActual) => {
+  const actual = await importActual<typeof import('preact/hooks')>()
+  return {
+    ...actual,
+    useState: (initial: unknown) => {
+      const [value, set] = actual.useState(initial)
+      return [value, (next: unknown) => (stateSets.push(next), set(next as never))]
+    },
+  }
+})
 const { appendJournal } = await import('../../src/api.ts')
 const append = vi.mocked(appendJournal)
 
@@ -107,17 +120,46 @@ describe('QuickNote', () => {
     expect(open().value).toBe('')
   })
 
-  it('does not touch state when the card is left while a save is pending', async () => {
+  it('keeps Cancel disabled while a save is in flight, then settles normally', async () => {
     let finish: () => void = () => {}
     append.mockReturnValueOnce(new Promise<void>((resolve) => (finish = resolve)))
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<QuickNote title="Row drill" stats={STATS} />)
+    type(open(), 'mine')
+    fireEvent.click(save())
+    const cancel = screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement
+    await waitFor(() => expect(cancel.disabled).toBe(true))
+    fireEvent.click(cancel)
+    expect((screen.getByRole('textbox', { name: 'Note for today' }) as HTMLTextAreaElement).value).toBe('mine')
+    finish()
+    await screen.findByText("Saved to today's journal")
+    expect(append).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps Cancel disabled in flight and shows the true error when the save then fails', async () => {
+    let fail: (e: Error) => void = () => {}
+    append.mockReturnValueOnce(new Promise<void>((_, reject) => (fail = reject)))
+    render(<QuickNote title="Row drill" stats={STATS} />)
+    type(open(), 'mine')
+    fireEvent.click(save())
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fail(new Error('HTTP 500'))
+    await screen.findByRole('alert')
+    expect((screen.getByRole('textbox', { name: 'Note for today' }) as HTMLTextAreaElement).value).toBe('mine')
+    expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(save().disabled).toBe(false)
+  })
+
+  it('makes no state update when the card is left while a save is pending', async () => {
+    let finish: () => void = () => {}
+    append.mockReturnValueOnce(new Promise<void>((resolve) => (finish = resolve)))
     const view = render(<QuickNote title="Row drill" stats={STATS} />)
     type(open(), 'bye')
     fireEvent.click(save())
     view.unmount()
+    stateSets.length = 0
     finish()
     await waitFor(() => expect(append).toHaveBeenCalledTimes(1))
-    expect(errors).not.toHaveBeenCalled()
-    errors.mockRestore()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(stateSets).toEqual([])
   })
 })

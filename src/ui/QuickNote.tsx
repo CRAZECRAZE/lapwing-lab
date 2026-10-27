@@ -1,5 +1,5 @@
 import type { JSX } from 'preact'
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { appendJournal } from '../api.ts'
 import { formatNoteBlock } from '../core/journal.ts'
 import { localDate } from '../core/days.ts'
@@ -18,7 +18,7 @@ export function QuickNote({ title, stats }: { title: string; stats: { accuracy: 
   const busy = useRef(false)
 
   // The result card can be left while a save is pending.
-  useEffect(() => {
+  useLayoutEffect(() => {
     live.current = true
     return () => {
       live.current = false
@@ -97,7 +97,9 @@ export function QuickNote({ title, stats }: { title: string; stats: { accuracy: 
         <button
           type="button"
           class="stage0-button"
+          disabled={saving}
           onClick={() => {
+            if (busy.current) return
             setText('')
             setPhase('closed')
           }}
