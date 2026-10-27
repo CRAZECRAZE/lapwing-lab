@@ -61,7 +61,7 @@ Everything the app writes lives in `data/`:
 
 Each is created on first save (the journal folder when you first write a note), so `data/` does not exist until you first use a drill or change a setting, and merely opening a tab writes nothing. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
 
-Opening a drill and leaving without a stroke writes nothing. Leaving a drill early (Exit or Esc) keeps the strokes you already did and closes the test as left early: it shows in History as "Left early" with the partial numbers. A test whose `ended_at` is still empty means the browser tab was closed mid-drill.
+Opening a drill and leaving without a stroke writes nothing. Leaving a drill early (Exit or Esc) keeps the strokes you already did and closes the test as left early: it shows in History as "Left early" with the partial numbers. A run left early is never shown as the last result on the Chapter 4 panel or the Practice tab. A test whose `ended_at` is still empty means the browser tab was closed mid-drill.
 
 The Journal has one limit: if two browser tabs edit the same day's note, the last save wins and can overwrite the other tab's text.
 

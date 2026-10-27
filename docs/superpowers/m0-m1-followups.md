@@ -16,14 +16,19 @@ What the final review of the M0+M1 build left for later, so the M2 plan starts f
 
 If 1–3 fail, the fix is in `src/core/uni.ts` or `src/hid/uni-link.ts`, not a redesign.
 
-## Decide before M2
+## Open from before M2
 
-M2 resolved only the first item (abandoned tests); the others stayed open.
+These were listed as "decide before M2" and M2 did not take them up.
 
-- **Abandoned tests.** Resolved by M2. A drill or free-type run left early is now closed with the partial stats and `meta.abandoned: true` (History shows it as `Left early`). `ended_at IS NULL` now only means the browser tab was closed mid-drill. The logger starts lazily on the first stroke, so a test with no strokes is never created. M5 reports should still treat `ended_at IS NULL` and `meta.abandoned` consistently.
 - **Sessions** are one per attempt and never ended; use stroke timestamps for timelines rather than trusting `sessions`.
-- **Single sources of truth:** the Stage 0 pass mark is defined in `src/stage0/lists.ts` and parsed from the book by `scripts/lib/passmark.ts`; the board-visibility values are listed in four places (`server/settings.ts`, `server/server.ts`, `src/api.ts`, `src/ui/Stage0Route.tsx`).
+- **Single sources of truth:** the Stage 0 pass mark is defined in `src/stage0/lists.ts` and parsed from the book by `scripts/lib/passmark.ts`; the board-visibility values are listed in four places (`server/settings.ts`, `server/server.ts`, `src/api.ts`, `src/ui/VisibilityPicker.tsx`).
 - **API writes** accept any content type. Requiring `application/json` on POST/PUT (forces a preflight) needs the client and server changed together.
+
+## Resolved by M2
+
+M2 is done. It resolved only one item of the pre-M2 list (abandoned tests); the others stayed open (above).
+
+- **Abandoned tests.** A drill or free-type run left early is now closed with the partial stats and `meta.abandoned: true` (History shows it as `Left early`; the Chapter 4 panel and the Practice tab do not count it as the last result). `ended_at IS NULL` now only means the browser tab was closed mid-drill. The logger starts lazily on the first stroke, so a test with no strokes is never created. M6 reports should still treat `ended_at IS NULL` and `meta.abandoned` consistently.
 
 ## Small items by area
 
@@ -41,7 +46,6 @@ Deferred from the M2 reviews; M3 plans start from these and the items above.
 - A QuickNote/journal append in one browser tab is overwritten by another tab's autosave (needs a server-side version check).
 - Text still unsaved when the page closes, or after 10 minutes of failed orphan retries, is lost (no client-side persistence).
 - A 400 on an over-long journal note (200000 chars) retries forever with no reason shown, and the textarea has no `maxLength`.
-- `timeLimitMs` of 0, negative or NaN on `Drill` would finish on any stroke without logging (no caller passes one).
 - The flow line has no live announcement for screen readers.
 - The Journal date check is duplicated between `server/journal.ts` and `src/ui/Journal.tsx`, and `isCalendarDate` lives in `Journal.tsx`.
 - `isJournalDate` refuses `0000-02-29`.
