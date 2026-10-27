@@ -501,6 +501,106 @@ describe('archive API', () => {
     expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
   })
 
+  async function finishedRun(mode: string, section: string, meta: unknown, accuracy = 0.9, wpm = 20): Promise<number> {
+    const { id: sessionId } = (await (await call('POST', '/api/sessions', { startedAt: 1000 })).json()) as { id: number }
+    const res = await call('POST', '/api/tests', {
+      sessionId, startedAt: 1001, mode, chapter: 4, section, itemCount: 1,
+    })
+    const id = ((await res.json()) as { id: number }).id
+    await call('POST', `/api/tests/${id}/strokes`, strokeBody)
+    await call('POST', `/api/tests/${id}/finish`, { endedAt: 2000, wpm, accuracy, meta })
+    return id
+  }
+
+  it('answers results and progress reads on a fresh data dir without creating anything', async () => {
+    for (const mode of ['stage0', 'section', 'chapter-test']) {
+      const res = await call('GET', `/api/results?mode=${mode}`)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual([])
+    }
+    expect(await (await call('GET', '/api/progress')).json()).toEqual([])
+    const del = await call('DELETE', '/api/progress/5')
+    expect(del.status).toBe(200)
+    expect(await del.json()).toEqual({ ok: true })
+    expect(existsSync(join(dir, 'data'))).toBe(false)
+  })
+
+  it('reports results from runs seeded through the POST routes and ignores abandoned ones', async () => {
+    await finishedRun('section', 'rows-star', { passed: true }, 0.95, 30)
+    await finishedRun('section', 'rows-star', { abandoned: true }, 1, 99)
+    await finishedRun('stage0', 'other', { passed: true })
+    const res = await call('GET', '/api/results?mode=section')
+    expect(res.headers.get('content-type')).toContain('application/json')
+    expect(await res.json()).toEqual([
+      {
+        section: 'rows-star',
+        runs: 1,
+        passed: true,
+        best: { accuracy: 0.95, wpm: 30 },
+        last: { accuracy: 0.95, wpm: 30, endedAt: 2000, passed: true },
+      },
+    ])
+    expect(((await (await call('GET', '/api/results?mode=stage0')).json()) as { section: string }[]).map((r) => r.section)).toEqual(['other'])
+    expect(await (await call('GET', '/api/results?mode=chapter-test')).json()).toEqual([])
+  })
+
+  it('400s a missing or unknown results mode', async () => {
+    for (const path of ['/api/results', '/api/results?mode=', '/api/results?mode=nope', '/api/results?mode=Section']) {
+      const res = await call('GET', path)
+      expect(res.status, path).toBe(400)
+      expect(((await res.json()) as { error: string }).error, path).toContain('mode')
+    }
+  })
+
+  it('round-trips, replaces and deletes progress marks', async () => {
+    const before = Date.now()
+    const put = await call('PUT', '/api/progress/5', { kind: 'read' })
+    expect(put.status).toBe(200)
+    const mark = (await put.json()) as { chapter: number; kind: string; at: number }
+    expect(mark).toMatchObject({ chapter: 5, kind: 'read' })
+    expect(mark.at).toBeGreaterThanOrEqual(before)
+    expect(mark.at).toBeLessThanOrEqual(Date.now())
+    expect(await (await call('GET', '/api/progress')).json()).toEqual([mark])
+    await call('PUT', '/api/progress/2', { kind: 'override' })
+    const replaced = (await (await call('PUT', '/api/progress/5', { kind: 'override' })).json()) as { kind: string }
+    expect(replaced.kind).toBe('override')
+    const all = (await (await call('GET', '/api/progress')).json()) as { chapter: number; kind: string }[]
+    expect(all.map((m) => [m.chapter, m.kind])).toEqual([[2, 'override'], [5, 'override']])
+    expect(await (await call('DELETE', '/api/progress/5')).json()).toEqual({ ok: true })
+    expect(await (await call('DELETE', '/api/progress/5')).json()).toEqual({ ok: true })
+    expect(((await (await call('GET', '/api/progress')).json()) as { chapter: number }[]).map((m) => m.chapter)).toEqual([2])
+    expect((await call('PUT', '/api/progress/1', { kind: 'read' })).status).toBe(200)
+    expect((await call('PUT', '/api/progress/99', { kind: 'read' })).status).toBe(200)
+  })
+
+  it('400s bad progress kinds and chapters before writing anything', async () => {
+    for (const body of [{ kind: 'nope' }, { kind: 3 }, {}, [], 'x']) {
+      expect((await call('PUT', '/api/progress/5', body)).status, JSON.stringify(body)).toBe(400)
+    }
+    expect((await call('PUT', '/api/progress/5', '{oops')).status).toBe(400)
+    for (const chapter of ['0', '100', 'abc', '-1', '1.5', '007x', '12345678901234567890']) {
+      expect((await call('PUT', `/api/progress/${chapter}`, { kind: 'read' })).status, `PUT ${chapter}`).toBe(400)
+      expect((await call('DELETE', `/api/progress/${chapter}`)).status, `DELETE ${chapter}`).toBe(400)
+    }
+    expect(existsSync(join(dir, 'data'))).toBe(false)
+  })
+
+  it('405s wrong methods on results and progress with an Allow header', async () => {
+    const cases: [string, string, string][] = [
+      ['POST', '/api/results', 'GET'],
+      ['PUT', '/api/results', 'GET'],
+      ['POST', '/api/progress', 'GET'],
+      ['DELETE', '/api/progress', 'GET'],
+      ['GET', '/api/progress/5', 'PUT, DELETE'],
+      ['POST', '/api/progress/5', 'PUT, DELETE'],
+    ]
+    for (const [method, path, allowed] of cases) {
+      const res = await call(method, path)
+      expect(res.status, `${method} ${path}`).toBe(405)
+      expect(res.headers.get('allow'), `${method} ${path}`).toBe(allowed)
+    }
+  })
+
   it('keeps data across a server restart', async () => {
     const testId = await newTest()
     await call('POST', `/api/tests/${testId}/finish`, { endedAt: 2000, wpm: 1, accuracy: 0.5, meta: null })

@@ -216,6 +216,14 @@ function dayNumber(date: string): number {
   return t.getTime() / MS_PER_DAY
 }
 
+// A chapter number from a path segment: digits only, 1-99.
+function chapterParam(raw: string): number {
+  const v = Number(raw)
+  return /^\d+$/.test(raw) && v >= 1 && v <= 99 ? v : bad('chapter', 'an integer between 1 and 99')
+}
+
+const RESULT_MODES = ['stage0', 'section', 'chapter-test']
+
 function allow(res: ServerResponse, ...methods: string[]): never {
   res.setHeader('allow', methods.join(', '))
   throw new HttpError(405, 'Method not allowed')
@@ -363,6 +371,38 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
       })
     }
     sendJson(res, 200, { ok: true })
+    return
+  }
+
+  if (pathname === '/api/results') {
+    if (method !== 'GET') allow(res, 'GET')
+    const mode = new URL(req.url ?? '/', 'http://localhost').searchParams.get('mode')
+    if (mode === null || !RESULT_MODES.includes(mode)) bad('mode', `one of ${RESULT_MODES.join(', ')}`)
+    sendJson(res, 200, ctx.existingArchive()?.sectionResults(mode) ?? [])
+    return
+  }
+
+  if (pathname === '/api/progress') {
+    if (method !== 'GET') allow(res, 'GET')
+    sendJson(res, 200, ctx.existingArchive()?.listMarks() ?? [])
+    return
+  }
+
+  // Any single segment lands here so a non-numeric chapter answers 400, not 404.
+  const progress = /^\/api\/progress\/([^/]+)$/.exec(pathname)
+  if (progress) {
+    if (method !== 'PUT' && method !== 'DELETE') allow(res, 'PUT', 'DELETE')
+    const chapter = chapterParam(progress[1])
+    if (method === 'DELETE') {
+      ctx.existingArchive()?.clearMark(chapter)
+      sendJson(res, 200, { ok: true })
+      return
+    }
+    const kind = asObject(await readBody(req, res)).kind
+    if (kind !== 'read' && kind !== 'override') bad('kind', 'one of read, override')
+    const at = Date.now()
+    ctx.archive().setMark(chapter, kind, at)
+    sendJson(res, 200, { chapter, kind, at })
     return
   }
 
