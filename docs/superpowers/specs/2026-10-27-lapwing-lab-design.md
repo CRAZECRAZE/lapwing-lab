@@ -1,0 +1,205 @@
+# Lapwing Lab — Design
+
+Working name: `lapwing-lab` (the owner has not confirmed a name).
+Date: 2026-10-27. Status: draft for owner review. Nothing is built.
+
+## 1. Intent
+
+The owner is teaching themself stenography from day one (started 2026-10-26) with a Uni v4 board and the free *Lapwing for Beginners* book (https://lapwing.aerick.ca/). They are at the start of Chapter 4.
+
+The book is good, but doing it means juggling the book, Steno Jig, Typey Type, Plover's lookup tool and a notebook. The owner wants one place for all of it, for themself only:
+
+> A modernized, interactive version of the actual book, with practice, quick lookups and progress logging all attached to the page they are reading.
+
+The point is to learn Lapwing *theory*, not just to memorize key positions. The owner tried a key-unlocking drill app (steno-lessions): good for learning where the keys sit, but "not really learning theory there." This app should be the opposite: the book's rules are the lesson, and drills exist to cement them.
+
+## 2. Goals, non-goals, anti-goals
+
+**Goals**
+- The entire book is inside the app: all 26 chapters, Home, Glossary, Changes and Appendices A–D. Reading it there is a complete experience.
+- Every stroke in the text is live: it shows on a board, and pressing it on the Uni confirms it.
+- Every section that has a drill in the book has that drill attached to its place on the page.
+- Practice is judged on the owner's real Uni v4, with feedback that explains misses.
+- Every practice stroke is logged from the first session, so progress can be shown later.
+- Chapter-by-chapter progression with pass marks taken from the book.
+- A set of "quick pull" tools one keypress away while reading or practicing.
+- Later systems: briefs memory (SRS), reverse lookup, training journal, monthly progress report, weekly routine planner, a "today's session" composer, ghost replay of your own best runs, and practice on pasted real text.
+
+**Non-goals**
+- Not public, not multi-user: no accounts, no network calls once installed.
+- Not a replacement for Plover. The app never sends strokes to Plover, never types text, never edits Plover's config.
+- Not new theory: the app teaches Lapwing as the book does.
+- No no-board (normal keyboard) practice mode in v1.
+- No mobile or small-screen layout.
+- No Javelin support (Appendix C is rendered but ignored).
+- No import of the owner's old steno-lessions progress unless they ask.
+- No code copied from steno-lessions (AGPL; the owner said this is a brand-new project).
+
+**Anti-goals** (a failure even if everything works)
+- A screen where the *board* dominates attention. The owner tested two layouts and picked the one where the word/prompt dominates, because the board-first one "puts attention on memorization rather than actual learning."
+- A drill farm that has lost the book. Practice must trace back to a book section.
+- Loud or harsh visuals. Target is calm and dark, Monkeytype-like.
+- Gates that nag or trap. Pass marks inform; the owner can move on.
+- Losing or being unable to reconstruct practice data.
+- Breaking the owner's Plover setup, e.g. by taking the device exclusively.
+
+## 3. Product shape
+
+### 3.1 The reader (the spine)
+The main screen is a chapter page rendered from the book's own text, in order, with a chapter list on the left, the reading column in the middle and a dock of quick pulls on the right. Chapters ahead of the owner's progress are visible but greyed: they stay fully readable, but their practice and tests are locked until the gate opens (4.1). A status line shows device connection, a Plover-output reminder and a streak. (A mockup was shown and the owner called it "exactly how I imagined it".)
+
+- **Live strokes.** Every `<steno-outline stroke="…">` tag and every stroke written in backticks in prose, lists and tables becomes an addressable stroke element. Hovering or focusing it lights the keys on a small board; pressing it on the Uni confirms it.
+- **Clickable examples.** Example words (`dad TKAD`) can be clicked to try.
+- **Section practice.** Each section that links a practice file in the book gets a "Practice this section" row at its end, showing the word count and last result. Starting it opens the drill screen (3.2) on that list.
+- **Media.** The book's images, GIFs and pronunciation videos are copied in and played inline (about 60 MB, 231 files). The book's own SVG-style stroke graphics are replaced by the live component.
+- **Chapter tests** appear at the end of a chapter with the book's recommended pass mark.
+- **Chapter briefs** tables (end of chapters 5–12) and their "practice sentences with answers" are practiceable in place.
+
+### 3.2 The drill screen
+Prompt-first (chosen by the owner). A large word or stroke in the middle, a small board underneath, a thin stats line (progress, accuracy, wpm).
+- **Two prompt kinds:** *stroke prompts* (Stage 0 / Chapter 4: the prompt is raw steno such as `SAP` or `-RBGSZ`) and *word prompts* (Chapter 5 onward: the prompt is the English word and the owner must produce its stroke).
+- **Board visibility** setting: always on / on hover / hidden. Default always on early; the owner fades it out when ready. In word-prompt mode the board and the stroke are *hint on miss* (the book's own test setting "show hint on misstroke").
+- **Mistake diff.** On a miss, show the pressed keys against the required keys on the physical layout (missing and extra keys marked), plus the stroke in notation. Record exactly which keys were wrong.
+- **Chord scoring.** A stroke is complete when all keys are released (see 5.2). A lone `*` stroke undoes the previous attempt (as in Plover), except where the expected stroke itself is `*`.
+- **Book-faithful tests.** A chapter test uses the book's settings: a union of the chapter's drill lists, 45 words, 3 repetitions each (the owner or builder should confirm the exact meaning of "repetitions" against Typey Type), random order.
+
+### 3.3 The dock (quick pulls)
+All one keypress, available from the reader and the drill screen. These five are the builder's starting set; the owner has not yet said what they most often need.
+1. **Lookup `/`** — "how do I write …". Early on it searches only what the book has taught so far (practice-list words, example words, brief tables). Once the dictionary merge exists (M4) it searches the full Lapwing dictionary and classifies results (see 4.3).
+2. **Key chart `K`** — the board with the sound each key makes.
+3. **Briefs so far `B`** — every brief table from chapters up to the current one.
+4. **My notes `N`** — free-form notes per chapter, kept as plain markdown.
+5. **Today** — the session composer's plan and progress (M6).
+
+### 3.4 Look and feel
+Dark, calm, keyboard-first. Left-hand keys orange, vowel keys blue, right-hand keys purple; star keys follow the left hand. Typographic detail is left to the builder.
+
+## 4. Systems
+
+### 4.1 Progression and gates
+Every chapter has a pass mark, parsed from the book's text ("Aim for 10–20 WPM with 90% accuracy"; Chapter 4: "10 minutes or less with 90% accuracy"). Chapters 12, 14 and 17 have no test.
+- *Owner's request:* "qualifications to go to the next chapters."
+- *My call:* the gate unlocks the next chapter when the owner reaches **at least the book's accuracy and the low end of its wpm range** on the chapter test. It is shown plainly as a requirement and the owner can override ("move on anyway") at any time, because the book calls its own marks "only a suggestion." For no-test chapters the gate is completing each section drill once at ≥ 90% accuracy.
+- Chapters with no test and no drills (1–3, 19, 22–26 and the appendices) unlock the next chapter once they are marked read (one button, no timer). Chapters 18, 20 and 21, whose drills are generated from tables, unlock on completing each generated drill once at ≥ 90% accuracy. The same override applies everywhere.
+- Accuracy is words answered correctly on the first stroke attempt ÷ words shown. Speed is words per minute counted per translation, since the book's goals come from Typey Type (the builder should verify).
+
+### 4.2 Briefs memory (SRS)
+A deck of briefs taught by the book, scheduled SM-2-style, with a daily due queue. The book says briefs are optional until Chapter 16 and that write-outs come first. *My call:* the deck is **opt-in per chapter** (one button "add this chapter's briefs to my deck") and everything auto-enrolls at Chapter 16. Only briefs the book explicitly teaches are enrolled; derivable spellings never are.
+
+### 4.3 Reverse lookup and the brief/derivable classification
+Searches a merged Lapwing dictionary (the owner's real Plover stack, in Plover's priority order; see `docs/reference/steno-lab-plan.md` §5.1) and labels each result: *Book brief* (with the chapter that teaches it), *Derivable from rules*, or *Not in dictionary* (fingerspelling hint). Needs a brief → chapter provenance map built from the book's brief tables. Known test cases: `especially` → `EPS` (brief) + derivable `ES/PERB/HREU`; `the` → `-T` (brief only).
+
+### 4.4 Training archive
+All practice is recorded from the first session: sessions, tests, and every stroke. See §6. Views come later (M5): month calendar heatmap, per-day detail, trend lines per mode and chapter, confusion pairs (which wrong key was hit instead of the right one), plateau detection and an end-of-month report (wpm and accuracy deltas, weakest keys, top confusion pairs, practice time, suggested focus, owner-annotatable).
+
+### 4.5 Training journal
+At the end of a session the app opens a plain-text note for the owner's own words (what they think, how it went). One markdown file per day (`data/journal/YYYY-MM-DD.md`); the app appends an auto-generated summary of the day's tests below the owner's text.
+
+### 4.6 Routine planner and session composer (M6)
+An editable weekly template of day blocks that changes over time ("much like working out"); versions are kept with dates so a routine can later be compared with progress. "Today's session" assembles a warm-up (recent misses, due briefs), the day's template block, current-chapter practice, and then the journal prompt. Every part is skippable. The book recommends 15 minutes to an hour a day and warns against more than three hours; the planner should respect that.
+
+### 4.7 Extras (last)
+- **Ghost replay:** race your own best run on a fixed text.
+- **Real-text practice:** paste any text; each word is annotated learned / derivable / not-yet-learned, and the annotation thins as the owner progresses.
+
+## 5. The Uni v4 and the input layer
+
+Full verified facts are in `docs/reference/steno-lab-plan.md` §4. The essentials:
+
+### 5.1 Hardware
+28 keys: left half 5 columns, right half 6, two key rows plus a thumb row.
+```
+Row 0:  S1  T   P   H   *1  │  *3  -F  -P  -L  -T  -D
+Row 1:  S2  K   W   R   *2  │  *4  -R  -B  -G  -S  -Z
+Row 2:          #1  A   O   │  -E  -U  #2
+```
+The two S keys, four star keys and two `#` keys each map to one steno slot. The owner's board runs the Plover HID firmware. In this environment it appears as `/dev/hidraw9` with a StenoKeyboards udev rule present; access from the browser is *expected* to work but is unverified.
+
+### 5.2 Reading it
+- WebHID, usage page `0xFF50`, usage `0x4C56`. Connect requires a user click and a permission prompt; Chromium or Brave only; `http://localhost` qualifies as a secure context.
+- Reports are full-state snapshots: report id `0x50` followed by a 64-bit big-endian bitmask, MSB first, using Plover's 64-entry key chart (the Uni uses the first 28).
+- **WebHID strips the report id from the data buffer** and delivers it as `event.reportId`. A parser that expects it at byte 0 silently drops every report (this was a critical bug in an earlier attempt).
+- Stroke semantics: OR-accumulate every non-zero report; when an all-zero report arrives and the accumulated chord is non-empty, that chord is the stroke and the accumulator resets.
+- The report carries individual levers, so the board can light the exact key (upper vs lower S, which star). Judging compares *slots*; logging keeps levers.
+- On Linux, Plover can stay connected while the app listens. Guard against double-connect, remove listeners on disconnect, and ignore disconnect events for other devices.
+- **Stray output.** While Plover's Output is on, it types translations into the focused window. The app shows a persistent reminder, and the builder should consider a hidden focused input that swallows any stray typed text so a misplaced translation cannot disturb the page.
+
+### 5.3 Raw steno notation
+The book's stroke strings use the order `#STKPWHRAO*EUFRPBLGTSDZ`. A hyphen marks right-hand-only strokes (`-T`, `-RBGSZ`); it is omitted when a vowel or `*` is present. `/` separates strokes of a multi-stroke outline. The parser maps each string to a set of slots and back.
+
+## 6. Data
+
+Everything the owner creates lives under `data/` in the project and is easy to back up by copying.
+- `data/steno.db` (SQLite via Node's built-in `node:sqlite`).
+- `data/journal/YYYY-MM-DD.md`, `data/notes/*.md`, `data/settings.json`.
+
+Starting sketch (the builder refines):
+- `sessions(id, started_at, ended_at)`
+- `tests(id, session_id, started_at, ended_at, mode, chapter, section, item_count, wpm, accuracy, meta_json)`
+- `strokes(id, test_id, ts_ms, prompt, expected_json, pressed_levers_json, pressed_slots_mask, correct, latency_ms, attempt_no)` — enough to rebuild a session and to derive confusion pairs.
+- `srs_cards(id, prompt, answer, chapter, source, ease, interval_days, due_at, lapses)`
+- `routine_versions(id, valid_from, json)`
+- progress and unlock state per chapter.
+
+## 7. Book content pipeline
+
+Source: https://github.com/aerickt/lapwing-for-beginners, copied into `content/lapwing-book/` at commit **`46b53e1ebe…`** (2026-06-21), with a script that re-syncs to a chosen commit. **GPL-3.0**: fine for a private repo; if the project is ever published, GPL applies to the derived content.
+
+What the source contains (checked):
+- `src/*.md`: Home, Chapter-01…26, Appendix-A…D, Glossary, Changes, SUMMARY.
+- `src/practice/*.txt`: 57 files, 7,299 lines, every line `word<TAB>stroke`, none malformed. Multi-stroke outlines use `/` (e.g. `SPR*EUPBG/HRER/-Z`). Chapters 5–11 and 13, 15, 16 have a `*-test.txt`. There is no test file for 12, 14 or 17.
+- Strokes appear as: `<steno-outline stroke="…">` tags (about 100 across the book, many in the Chapter 18 tables); example bullets like ``* dad `TKAD` ``; markdown tables (Chapter briefs: Word | Brief | Explanation; Extra briefs; Chapter 14's suffix table; Chapter 20 punctuation); and "Practice sentences" with an answers list of `/`-joined outlines.
+- Chapter 4's drills are *not* in a practice file: the pseudo-word test and its extra-practice blocks are in code fences in the chapter body, and the row drills (`SKWR`, `-RBGSZ`, `#TPH`, `-FPLTD`, `AOEU`) came from the external Steno Jig. The app defines these itself.
+- Each chapter ends with a test section and an "Aim for X–Y WPM with Z% accuracy" line (parsed into the gate data).
+- Chapter 16 gives every top-200 word its own heading with *Brief* and *Write-out* lines; some words allow either, so **a word may have several accepted outlines**.
+- `theme/steno-viz.js` is the book's own renderer for the stroke tag; the live component replaces it (study, do not copy, unless the project accepts GPL for it).
+
+The pipeline's output: chapters with sections, rendered prose, media references, stroke references, brief tables, practice lists, practice sentences, pass marks, and the brief → chapter provenance map.
+
+### 7.1 Chapter by chapter
+
+| Book part | In the app |
+|---|---|
+| Home, 1–3 | Read-only; Chapter 1 and 3 strokes are live |
+| 4 The layout | **Stage 0.** App-defined row drills, then the pseudo-word test (stroke prompts), pass mark 90% in ≤ 10 min |
+| 5–11 | Full treatment: reader, section drills, chapter test, chapter briefs tables with practice sentences |
+| 12, 14, 17 | Reader and section drills; no test |
+| 13, 15, 16 | Reader, drills, test; Chapter 16 also a per-word brief/write-out view |
+| 18–21 | Reader with live strokes; drills *generated from the tables* (fingerspelling, numbers, punctuation, UK spellings) — my call, no practice files exist |
+| 19, 22, 23 | Reader; mostly prose |
+| 24–26 | Reader with live strokes; they depend on Plover extension dictionaries and are read-only in v1 |
+| Appendices A–D, Glossary, Changes | Reader only. Appendix D is marked work-in-progress by the author. |
+
+## 8. Technical choices (my calls; the owner delegated these)
+
+- **Run:** `npm start` launches a small Node server (Node 26 is installed) and opens a Chromium or Brave tab. Fully offline. Electron and Tauri are rejected: Tauri's Linux webview has no WebHID.
+- **Language / UI:** TypeScript; Preact with Vite; few dependencies.
+- **Server:** plain Node, a handful of routes: serve the app, read and write archive data, files for journal and notes.
+- **Tests:** Vitest on the chord reader, notation parser, scoring and the book parser. Real-hardware checks are done by the owner. A simulated device is allowed for tests only.
+- **Repo:** git, local only, no remote. Location `~/lapwing-lab`.
+- **Reference code:** steno-lessions (`steno-lessions-main`) is AGPL; read for ideas such as confidence per key and confusion tracking, never copied.
+
+## 9. Order of work
+
+- **M0 — Pipeline and shell.** Vendor the book; build the structured content; render every page of the book read-only with the live-stroke component (board drawing only, no device). *After M0, the whole book is already in the app.*
+- **M1 — Stage 0.** Device connection, chord reader, board, Chapter 4 row drills and pseudo-word test, and the stroke-level archive from the first stroke.
+- **M2 — Core practice.** Section drills and chapter tests inline in the reader (Chapters 5 onward as lists exist), prompt-first drill screen, hint on miss, mistake diff, gates with override.
+- **M3 — The dock.** Lookup over book data, key chart, briefs so far, notes; generated drills for table-only chapters.
+- **M4 — Memory and lookup.** SRS; dictionary merge; full lookup with classification.
+- **M5 — The record.** Journal, heatmap, month-end report, confusion pairs, plateau detection.
+- **M6 — The architecture around it.** Routine planner, session composer, ghosts, real-text practice.
+
+## 10. Left to the builder
+Parser design; board and stroke component internals; visual design within the stated direction; the exact database schema and stroke-event encoding; scoring formulas (wpm, accuracy) within 4.1; how stray output is swallowed; how confusion pairs are derived from missing and extra keys; keyboard shortcuts beyond those named.
+
+## 11. Calls I made without the owner (please check)
+1. Gate rule (book's accuracy + low end of its wpm range, always overridable), and completion-based gates for no-test chapters.
+2. Briefs memory is opt-in per chapter, auto-enrolling at Chapter 16 (differs from the earlier "auto-enroll every brief").
+3. Drills for Chapters 18–21 are generated from the book's tables.
+4. Chapters 24–26 are read-only in v1.
+5. The five dock items and their hotkeys.
+6. No no-board mode in v1.
+7. The whole tech list in §8, and the project folder `~/lapwing-lab`.
+8. M0 renders the entire book before any practice exists.
+9. Chapters without a test or drills unlock on "marked read" (4.1).
+10. Greyed chapters are readable; only their practice is locked (3.1).
