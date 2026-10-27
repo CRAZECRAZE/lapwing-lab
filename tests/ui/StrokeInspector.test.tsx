@@ -90,6 +90,14 @@ const confirmed = (): boolean => card().classList.contains('confirmed')
 const keys = (cls: string): string[] =>
   [...document.querySelectorAll(`.${cls}`)].map((el) => el.getAttribute('data-lever')!).sort()
 const advance = (ms: number): void => void act(() => void vi.advanceTimersByTime(ms))
+/** Advances in separate acts, so every render (and the timers it creates) happens between the steps. */
+const stepped = (steps: number, ms: number, after: (step: number) => void): void => {
+  for (let i = 1; i <= steps; i++) {
+    advance(ms)
+    after(i)
+  }
+}
+const shown = (text: string): void => void expect(screen.getByText(text)).toBeTruthy()
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -145,10 +153,11 @@ describe('StrokeInspector press-to-confirm', () => {
     expect(screen.getByText('2/3')).toBeTruthy()
     rig.press(bytesOf('PHREU'))
     expect(screen.getByText('3/3')).toBeTruthy()
-    // Paused: the owner is mid-sequence, so the display does not cycle on by itself.
-    advance(2000)
-    expect(screen.getByText('3/3')).toBeTruthy()
-    expect(confirmed()).toBe(false)
+    // Paused: the owner is mid-sequence, so the display does not cycle on by itself (checked after every step).
+    stepped(5, 400, (i) => {
+      shown('3/3')
+      if (i >= 2) expect(confirmed()).toBe(false) // the ✓ for stroke 2 lasts 600 ms
+    })
   })
 
   it('confirms the whole outline on the last stroke, then returns to 1/n after the flash', async () => {
@@ -180,23 +189,38 @@ describe('StrokeInspector press-to-confirm', () => {
     expect(keys('key--extra')).toEqual([])
   })
 
-  it('does not advance on a wrong stroke in the middle of a sequence', async () => {
+  it('does not advance on a wrong stroke in the middle of a sequence, and stays paused after it', async () => {
     const rig = await mount(MULTI)
     rig.press(bytesOf('KOPL'))
     rig.press(bytesOf('KOPL')) // stroke 1 again while 2 is displayed
-    expect(screen.getByText('2/3')).toBeTruthy()
+    shown('2/3')
     expect(keys('key--extra').length).toBeGreaterThan(0)
+    // Still engaged: the flash ends at 600 ms and the display then stays put (an 800 ms cycle would show 3/3 by 1400).
+    stepped(5, 400, () => shown('2/3'))
+  })
+
+  it('pauses cycling during a bad flash and restarts a full cycle interval after it ends', async () => {
+    const rig = await mount(MULTI)
+    rig.press(bytesOf('PHREU')) // wrong: 1/3 is displayed
+    shown('1/3')
+    // Flash ends at 600 ms; the interval restarts then, so the first change is visible only at 600 + 800.
+    stepped(6, 200, () => shown('1/3'))
+    advance(200)
+    shown('2/3')
+    expect(keys('key--extra')).toEqual([])
   })
 
   it('resumes cycling from 1/n after 3000 ms without a press mid-sequence', async () => {
     const rig = await mount(MULTI)
     rig.press(bytesOf('KOPL'))
-    advance(2999)
-    expect(screen.getByText('2/3')).toBeTruthy()
+    stepped(2, 1000, () => shown('2/3'))
+    advance(999)
+    shown('2/3')
     advance(1)
-    expect(screen.getByText('1/3')).toBeTruthy()
-    advance(800)
-    expect(screen.getByText('2/3')).toBeTruthy()
+    shown('1/3')
+    stepped(1, 799, () => shown('1/3'))
+    advance(1)
+    shown('2/3')
   })
 
   it('re-arms the 3000 ms inactivity window on every press', async () => {
@@ -241,6 +265,24 @@ describe('StrokeInspector press-to-confirm', () => {
     expect(screen.queryByText('✓')).toBeNull()
   })
 
+  it('names the check mark for assistive technology', async () => {
+    const rig = await mount('SAP')
+    rig.press(SAP)
+    expect(screen.getByRole('img', { name: 'Confirmed' }).textContent?.trim()).toBe('✓')
+  })
+
+  it('ignores a device stroke while the outline is unparseable, without throwing', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const rig = await mount('ZZZ')
+    expect(screen.getByText(/hover/i)).toBeTruthy()
+    rig.press(SAP)
+    expect(confirmed()).toBe(false)
+    expect(keys('key--extra')).toEqual([])
+    expect(screen.queryByText('✓')).toBeNull()
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
+  })
+
   it('ignores device strokes while no outline is shown', async () => {
     const rig = await mount(null)
     rig.press(SAP)
@@ -269,5 +311,57 @@ describe('StrokeInspector press-to-confirm', () => {
     rig.press(TAP)
     rig.removeInspector()
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('a sequence only starts from stroke 1', () => {
+  it('confirms just that stroke when the cycle shows the last one, without completing the outline', async () => {
+    const rig = await mount(MULTI)
+    stepped(2, 800, (i) => shown(`${i + 1}/3`))
+    rig.press(bytesOf('KAEUT'))
+    expect(confirmed()).toBe(true)
+    expect(screen.getByText('✓')).toBeTruthy()
+    shown('3/3')
+    advance(599)
+    shown('3/3')
+    advance(1)
+    expect(confirmed()).toBe(false)
+    shown('3/3') // no jump back to 1/n: the outline was not completed
+    // Not engaged: the auto-cycle carries on 800 ms after the flash.
+    stepped(1, 799, () => shown('3/3'))
+    advance(1)
+    shown('1/3')
+  })
+
+  it('confirms just that stroke when the cycle shows stroke 2, without advancing or engaging', async () => {
+    const rig = await mount(MULTI)
+    advance(800)
+    shown('2/3')
+    rig.press(bytesOf('PHREU'))
+    expect(confirmed()).toBe(true)
+    shown('2/3')
+    stepped(3, 200, () => shown('2/3'))
+    expect(confirmed()).toBe(false)
+    stepped(3, 200, () => shown('2/3'))
+    advance(200) // 800 ms after the flash: still cycling, so the next stroke is shown
+    shown('3/3')
+  })
+
+  it('starts the sequence when the cycle shows stroke 1', async () => {
+    const rig = await mount(MULTI)
+    shown('1/3')
+    rig.press(bytesOf('KOPL'))
+    expect(confirmed()).toBe(true)
+    shown('2/3')
+    stepped(5, 400, () => shown('2/3'))
+  })
+
+  it('still confirms a single-stroke outline as a whole', async () => {
+    const rig = await mount('SAP')
+    rig.press(SAP)
+    expect(confirmed()).toBe(true)
+    expect(screen.getByText('✓')).toBeTruthy()
+    advance(600)
+    expect(confirmed()).toBe(false)
   })
 })

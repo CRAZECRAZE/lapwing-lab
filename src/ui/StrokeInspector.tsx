@@ -76,6 +76,11 @@ function reduce(state: View, action: Action): View {
         }
         return { ...view, flash, presses: id }
       }
+      // A sequence only starts from stroke 1. Hitting the stroke the auto-cycle happens to show, without a
+      // sequence in progress, confirms that stroke alone: no advance, no engagement, no completion.
+      if (!view.engaged && view.index > 0) {
+        return { ...view, flash: { id, kind: 'ok', done: false }, presses: id }
+      }
       const done = view.index === masks.length - 1
       return {
         ...view,
@@ -142,7 +147,11 @@ export function StrokeInspector({ outline }: { outline: string | null }): JSX.El
             </span>
           ))}
           {masks.length > 1 && <span class="inspector__count">{`${current + 1}/${masks.length}`}</span>}
-          {confirmed && <span class="inspector__check">✓</span>}
+          {confirmed && (
+            <span class="inspector__check" role="img" aria-label="Confirmed">
+              ✓
+            </span>
+          )}
         </p>
       )}
     </div>

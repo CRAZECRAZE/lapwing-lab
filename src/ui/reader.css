@@ -11,6 +11,7 @@
   --left: #e8a24a;
   --vowel: #5b9bd5;
   --right: #a07ad8;
+  --ok: #6fae7e;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
@@ -223,13 +224,13 @@ body {
 
 /* Press-to-confirm: a soft green settles over the card for the length of the flash. */
 .inspector.confirmed {
-  border-color: #6fae7e;
-  box-shadow: 0 0 0 1px #6fae7e, 0 0 18px rgb(111 174 126 / 0.25);
+  border-color: var(--ok);
+  box-shadow: 0 0 0 1px var(--ok), 0 0 18px color-mix(in srgb, var(--ok) 25%, transparent);
 }
 
 .inspector__check {
   margin-left: 0.8em;
-  color: #8fcf9c;
+  color: color-mix(in srgb, var(--ok) 70%, white);
   font-weight: 600;
 }
 
