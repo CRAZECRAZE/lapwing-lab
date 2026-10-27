@@ -1,6 +1,6 @@
 // Client for the local archive server. Type-only imports from server/ keep
 // node:sqlite and node:fs out of the browser bundle.
-import type { StrokeRecord, TestRow } from '../server/archive.ts'
+import type { DayStat, StrokeRecord, TestRow, TestSummary } from '../server/archive.ts'
 import type { Settings } from '../server/settings.ts'
 
 type FetchFn = typeof fetch
@@ -12,8 +12,18 @@ const defaultFetch: FetchFn = (input, init) => fetch(input, init)
 
 const REQUEST_TIMEOUT_MS = 5000
 
+export class HttpStatusError extends Error {
+  readonly status: number
+
+  constructor(method: string, url: string, status: number) {
+    super(`${method} ${url} failed with ${status}`)
+    this.name = 'HttpStatusError'
+    this.status = status
+  }
+}
+
 // Sends one JSON request and returns the parsed body; throws on a rejected
-// fetch, a timeout, a non-2xx status or an unreadable body.
+// fetch, a timeout, a non-2xx status (HttpStatusError) or an unreadable body.
 async function request(fetchFn: FetchFn, method: string, url: string, body?: unknown): Promise<unknown> {
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const res = await fetchFn(
@@ -22,7 +32,7 @@ async function request(fetchFn: FetchFn, method: string, url: string, body?: unk
       ? { method, signal }
       : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal },
   )
-  if (!res.ok) throw new Error(`${method} ${url} failed with ${res.status}`)
+  if (!res.ok) throw new HttpStatusError(method, url, res.status)
   return res.json()
 }
 
@@ -171,4 +181,56 @@ export async function getSettings(fetchFn: FetchFn = defaultFetch): Promise<Sett
 export async function putSettings(patch: Partial<Settings>, fetchFn: FetchFn = defaultFetch): Promise<Settings> {
   const s = (await request(fetchFn, 'PUT', '/api/settings', patch)) as Settings
   return s
+}
+
+// The calls below REJECT on failure so views can show an error line.
+
+export async function listTests(
+  q: { limit?: number; beforeId?: number; date?: string } = {},
+  fetchFn: FetchFn = defaultFetch,
+): Promise<TestSummary[]> {
+  const params = new URLSearchParams()
+  if (q.limit !== undefined) params.set('limit', String(q.limit))
+  if (q.beforeId !== undefined) params.set('beforeId', String(q.beforeId))
+  if (q.date !== undefined) params.set('date', q.date)
+  const qs = params.toString()
+  return (await request(fetchFn, 'GET', qs ? `/api/tests?${qs}` : '/api/tests')) as TestSummary[]
+}
+
+// null when the test does not exist (404); any other failure rejects.
+export async function getTest(
+  id: number,
+  fetchFn: FetchFn = defaultFetch,
+): Promise<{ test: TestRow; strokes: StrokeRecord[] } | null> {
+  try {
+    return (await request(fetchFn, 'GET', `/api/tests/${encodeURIComponent(String(id))}`)) as {
+      test: TestRow
+      strokes: StrokeRecord[]
+    }
+  } catch (err) {
+    if (err instanceof HttpStatusError && err.status === 404) return null
+    throw err
+  }
+}
+
+export async function getDays(from: string, to: string, fetchFn: FetchFn = defaultFetch): Promise<DayStat[]> {
+  const params = new URLSearchParams({ from, to })
+  return (await request(fetchFn, 'GET', `/api/days?${params}`)) as DayStat[]
+}
+
+export async function listJournal(fetchFn: FetchFn = defaultFetch): Promise<{ date: string; chars: number }[]> {
+  return (await request(fetchFn, 'GET', '/api/journal')) as { date: string; chars: number }[]
+}
+
+export async function getJournal(date: string, fetchFn: FetchFn = defaultFetch): Promise<string> {
+  const entry = (await request(fetchFn, 'GET', `/api/journal/${encodeURIComponent(date)}`)) as { text: string }
+  return entry.text
+}
+
+export async function putJournal(date: string, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
+  await request(fetchFn, 'PUT', `/api/journal/${encodeURIComponent(date)}`, { text })
+}
+
+export async function appendJournal(date: string, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
+  await request(fetchFn, 'POST', `/api/journal/${encodeURIComponent(date)}/append`, { text })
 }

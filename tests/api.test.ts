@@ -1,5 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTestLogger, getLastTest, getSettings, putSettings } from '../src/api.ts'
+import {
+  HttpStatusError,
+  appendJournal,
+  createTestLogger,
+  getDays,
+  getJournal,
+  getLastTest,
+  getSettings,
+  getTest,
+  listJournal,
+  listTests,
+  putJournal,
+  putSettings,
+} from '../src/api.ts'
 import type { StrokeRecord, TestRow } from '../server/archive.ts'
 
 type Call = { url: string; method: string; body: unknown }
@@ -393,5 +406,88 @@ describe('settings', () => {
     await expect(
       putSettings({ boardVisibility: 'hidden' }, fakeFetch(() => json({ error: 'bad' }, 400)).fetch),
     ).rejects.toThrow(/400/)
+  })
+})
+
+describe('history and journal calls', () => {
+  it('listTests builds the query string and omits absent options', async () => {
+    const { calls, fetch } = fakeFetch(() => json([]))
+    await expect(listTests(undefined, fetch)).resolves.toEqual([])
+    await listTests({}, fetch)
+    await listTests({ limit: 20, beforeId: 99, date: '2026-10-27' }, fetch)
+    await listTests({ date: '2026-10-27' }, fetch)
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      'GET /api/tests',
+      'GET /api/tests',
+      'GET /api/tests?limit=20&beforeId=99&date=2026-10-27',
+      'GET /api/tests?date=2026-10-27',
+    ])
+  })
+
+  it('listTests rejects on failure', async () => {
+    await expect(listTests({}, fakeFetch(() => json({ error: 'x' }, 500)).fetch)).rejects.toThrow(/500/)
+    await expect(listTests({}, fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
+  })
+
+  it('getTest fetches one test with its strokes', async () => {
+    const payload = { test: { id: 5 }, strokes: [] }
+    const { calls, fetch } = fakeFetch(() => json(payload))
+    await expect(getTest(5, fetch)).resolves.toEqual(payload)
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/tests/5' })
+  })
+
+  it('getTest returns null on 404 and rejects on any other failure', async () => {
+    await expect(getTest(5, fakeFetch(() => json({ error: 'nope' }, 404)).fetch)).resolves.toBeNull()
+    await expect(getTest(5, fakeFetch(() => json({ error: 'x' }, 500)).fetch)).rejects.toThrow(/500/)
+    await expect(getTest(5, fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
+  })
+
+  it('getDays sends from and to', async () => {
+    const days = [{ date: '2026-10-27', tests: 1, strokes: 2, activeMs: 3 }]
+    const { calls, fetch } = fakeFetch(() => json(days))
+    await expect(getDays('2026-10-01', '2026-10-31', fetch)).resolves.toEqual(days)
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/days?from=2026-10-01&to=2026-10-31' })
+  })
+
+  it('listJournal returns the entries', async () => {
+    const { calls, fetch } = fakeFetch(() => json([{ date: '2026-10-27', chars: 12 }]))
+    await expect(listJournal(fetch)).resolves.toEqual([{ date: '2026-10-27', chars: 12 }])
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/journal' })
+  })
+
+  it('getJournal returns the text of one day', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ date: '2026-10-27', text: 'hello' }))
+    await expect(getJournal('2026-10-27', fetch)).resolves.toBe('hello')
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/journal/2026-10-27' })
+  })
+
+  it('putJournal PUTs the text and appendJournal POSTs to /append', async () => {
+    const { calls, fetch } = fakeFetch((c) => json({ date: '2026-10-27', text: String((c.body as { text: string }).text) }))
+    await expect(putJournal('2026-10-27', 'a b', fetch)).resolves.toBeUndefined()
+    await expect(appendJournal('2026-10-27', 'more', fetch)).resolves.toBeUndefined()
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/journal/2026-10-27', body: { text: 'a b' } })
+    expect(calls[1]).toMatchObject({ method: 'POST', url: '/api/journal/2026-10-27/append', body: { text: 'more' } })
+  })
+
+  it('encodes journal dates in the path', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ date: 'x', text: '' }))
+    await getJournal('a/b', fetch)
+    expect(calls[0].url).toBe('/api/journal/a%2Fb')
+  })
+
+  it('journal writes and reads reject on a non-2xx', async () => {
+    const bad = () => fakeFetch(() => json({ error: 'bad' }, 400)).fetch
+    await expect(putJournal('2026-10-27', 'x', bad())).rejects.toThrow(/400/)
+    await expect(appendJournal('2026-10-27', 'x', bad())).rejects.toThrow(/400/)
+    await expect(getJournal('2026-10-27', bad())).rejects.toThrow(/400/)
+    await expect(getDays('a', 'b', bad())).rejects.toThrow(/400/)
+    await expect(listJournal(bad())).rejects.toThrow(/400/)
+  })
+
+  it('request failures are HttpStatusError with a numeric status and the usual message', async () => {
+    const err = await putJournal('2026-10-27', 'x', fakeFetch(() => json({ error: 'bad' }, 409)).fetch).catch((e) => e)
+    expect(err).toBeInstanceOf(HttpStatusError)
+    expect(err.status).toBe(409)
+    expect(err.message).toBe('PUT /api/journal/2026-10-27 failed with 409')
   })
 })
