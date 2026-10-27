@@ -100,4 +100,16 @@ describe('renderPage', () => {
     const page = renderPage('[w](https://plover.wiki/)', ids)
     expect(page.html).toContain('href="https://plover.wiki/" target="_blank" rel="noreferrer"')
   })
+
+  it('rewrites img/ links to /media/ for markdown and raw HTML', () => {
+    const page = renderPage('[g](img/18-numbers.png) <a href="img/x.png">x</a>', ids)
+    expect(page.html).toContain('href="/media/18-numbers.png"')
+    expect(page.html).toContain('href="/media/x.png"')
+    expect(page.html).not.toContain('href="img/')
+  })
+
+  it('throws when a steno-outline tag survives conversion', () => {
+    expect(() => renderPage('<steno-outline stroke="SAP" />', ids)).toThrow(/steno-outline/)
+    expect(() => renderPage("<steno-outline stroke='SAP'></steno-outline>", ids)).toThrow(/steno-outline/)
+  })
 })

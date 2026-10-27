@@ -17,7 +17,7 @@ const PRACTICE_HREF = /^practice\/([^/]+)\.txt$/
 const PAGE_HREF = /^([^/#]+\.md)(#.*)?$/
 const OUTLINE_TAG = /<steno-outline\b([^>]*)>\s*<\/steno-outline>/g
 const IFRAME = /<iframe\b([^>]*)>\s*<\/iframe>/g
-const MEDIA_SRC = /\b(src|poster)="img\//g
+const MEDIA_SRC = /\b(src|poster|href)="img\//g
 
 function escapeAttr(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -79,6 +79,9 @@ export function renderPage(markdown: string, pageIds: Record<string, string>): R
           if (pageId === undefined) throw new Error(`Link to unknown page ${JSON.stringify(href)}`)
           return `<a href="/page/${escapeAttr(pageId)}${escapeAttr(page[2] ?? '')}"${titleAttr}>${inline}</a>`
         }
+        if (href.startsWith('img/')) {
+          return `<a href="/media/${escapeAttr(href.slice('img/'.length))}"${titleAttr}>${inline}</a>`
+        }
         const external = /^https?:/i.test(href) ? ' target="_blank" rel="noreferrer"' : ''
         return `<a href="${escapeAttr(href)}"${titleAttr}${external}>${inline}</a>`
       },
@@ -101,6 +104,7 @@ export function renderPage(markdown: string, pageIds: Record<string, string>): R
       return `<a class="needs-network" href="${src}" target="_blank" rel="noreferrer">Watch online (needs network)</a>`
     })
     .replace(MEDIA_SRC, '$1="/media/')
+  if (html.includes('<steno-outline')) throw new Error('Unconverted <steno-outline> tag left in page')
 
   return { html, headings, practiceLinks, strokeCount: codeStrokes + outlineTagCount, outlineTagCount }
 }
