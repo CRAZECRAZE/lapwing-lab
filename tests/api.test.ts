@@ -347,6 +347,27 @@ describe('getLastTest', () => {
   })
 })
 
+describe('GET timeouts', () => {
+  it('getLastTest and getSettings send the 5000 ms timeout signal too', async () => {
+    const controller = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
+    const seen: (AbortSignal | null | undefined)[] = []
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push(init?.signal)
+      return json({ boardVisibility: 'hover' })
+    }) as unknown as typeof globalThis.fetch
+    try {
+      await getLastTest('stage0', 'rows', fetch)
+      await getSettings(fetch)
+      expect(timeout).toHaveBeenCalledTimes(2)
+      expect(timeout).toHaveBeenCalledWith(5000)
+      expect(seen).toEqual([controller.signal, controller.signal])
+    } finally {
+      timeout.mockRestore()
+    }
+  })
+})
+
 describe('settings', () => {
   it('round-trips through GET and PUT', async () => {
     let stored = { boardVisibility: 'always' }

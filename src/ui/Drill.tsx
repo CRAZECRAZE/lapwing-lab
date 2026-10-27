@@ -1,10 +1,10 @@
 import type { JSX } from 'preact'
-import { useEffect, useReducer, useRef, useState } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'preact/hooks'
 import type { Settings } from '../../server/settings.ts'
 import type { TestLogger } from '../api.ts'
 import { DrillSession } from '../core/drill.ts'
 import type { DrillItem, DrillStats } from '../core/drill.ts'
-import { parseOutline, parseStroke, slotMask } from '../core/steno.ts'
+import { formatStroke, parseOutline, parseStroke, slotMask } from '../core/steno.ts'
 import type { Slot, SlotMask } from '../core/steno.ts'
 import type { RawStroke } from '../core/uni.ts'
 import { useUni } from '../state/uni-context.tsx'
@@ -14,6 +14,7 @@ import './drill.css'
 export type DrillKind = 'stroke' | 'word'
 export type DrillResult = { stats: DrillStats; passed: boolean | null; meta: unknown }
 
+/** The session and the logger are fixed at mount: the parent must `key` the Drill per test/drill. */
 export type DrillProps = {
   title: string
   /** stroke: the prompt IS the raw steno; word: an English word whose outline is hidden until a miss. */
@@ -35,16 +36,16 @@ type Miss = { missing: SlotMask; extra: SlotMask; expected: string; target: Slot
 
 const maskOf = (slots: readonly Slot[]): SlotMask => slotMask(...slots)
 
-/** The stroke the owner should press next: the first accepted outline that agrees with what is entered so far. */
-function nextTarget(item: DrillItem | undefined, entered: readonly SlotMask[]): SlotMask {
-  if (!item) return 0
+/** The strokes still to press: the first accepted outline that agrees with what is entered so far. */
+function remaining(item: DrillItem | undefined, entered: readonly SlotMask[]): SlotMask[] {
+  if (!item) return []
   for (const outline of item.outlines) {
     const strokes = parseOutline(outline)
     if (strokes.length > entered.length && entered.every((mask, i) => strokes[i] === mask)) {
-      return strokes[entered.length]
+      return strokes.slice(entered.length)
     }
   }
-  return 0
+  return []
 }
 
 function judge(stats: DrillStats, passMark: DrillProps['passMark']): boolean | null {
@@ -78,6 +79,8 @@ export function Drill(props: DrillProps): JSX.Element {
   const misses = useRef(0) // misses so far on the current item
   const shownAt = useRef(clock()) // session-clock time the current item appeared
   const miss = useRef<Miss | null>(null)
+  /** A word item that has been missed keeps its hint for every remaining stroke until it completes. */
+  const hinted = useRef(false)
   const done = useRef(false)
   const alive = useRef(true)
 
@@ -99,9 +102,12 @@ export function Drill(props: DrillProps): JSX.Element {
     sink.current?.focus()
   }, [uni.connected])
 
-  useEffect(() => {
+  // A layout effect: its cleanup runs synchronously at unmount (useEffect cleanups run after paint),
+  // so no stroke can be logged, and onDone cannot fire, once the drill has closed.
+  useLayoutEffect(() => {
     alive.current = true
     const unsubscribeUnsaved = logger.onUnsaved(setUnsaved)
+    setUnsaved(logger.unsaved) // a failure may have landed since the first render
 
     if (session.finished) {
       // Nothing to drill: report zero stats at once and leave the archive alone.
@@ -147,7 +153,7 @@ export function Drill(props: DrillProps): JSX.Element {
       // A stray lone star after a miss (the habitual "undo") must not take the hint away.
       if (result.kind === 'ignored') return
 
-      latest.current.logger.stroke({
+      logger.stroke({
         tsMs: Date.now(),
         prompt: item.prompt,
         expected: item.outlines,
@@ -161,6 +167,7 @@ export function Drill(props: DrillProps): JSX.Element {
       if (result.kind === 'miss') {
         misses.current++
         entered.current = []
+        hinted.current = true
         miss.current = {
           missing: maskOf(result.diff.missing),
           extra: maskOf(result.diff.extra),
@@ -174,6 +181,7 @@ export function Drill(props: DrillProps): JSX.Element {
         } else {
           entered.current = []
           misses.current = 0
+          hinted.current = false
           shownAt.current = clock()
         }
       }
@@ -196,7 +204,13 @@ export function Drill(props: DrillProps): JSX.Element {
   const item = session.current
   const showMiss = miss.current
   // A word's outline stays hidden until the first miss; a stroke drill shows its own target.
-  const target = showMiss ? showMiss.target : kind === 'stroke' ? nextTarget(item, entered.current) : 0
+  const hintStrokes = showMiss || kind === 'stroke' || hinted.current ? remaining(item, entered.current) : []
+  const target = showMiss ? showMiss.target : (hintStrokes[0] ?? 0)
+  const expectedText = showMiss
+    ? showMiss.expected
+    : kind === 'word' && hinted.current
+      ? hintStrokes.map(formatStroke).join('/')
+      : ''
   const diff = showMiss ? { missing: showMiss.missing, extra: showMiss.extra } : undefined
 
   const board = <Board size={BOARD_KEY_PX} target={target} pressed={uni.pressed} diff={diff} />
@@ -218,7 +232,14 @@ export function Drill(props: DrillProps): JSX.Element {
     >
       <header class="drill__head">
         <h2 class="drill__title">{title}</h2>
-        <button type="button" class="drill__exit" onClick={onExit}>
+        <button
+          type="button"
+          class="drill__exit"
+          onClick={() => {
+            onExit()
+            sink.current?.focus()
+          }}
+        >
           Exit
         </button>
       </header>
@@ -231,7 +252,15 @@ export function Drill(props: DrillProps): JSX.Element {
       {uni.available && !uni.connected && (
         <p class="drill__banner" role="status">
           <span>Board disconnected — reconnect to continue</span>
-          <button type="button" class="drill__connect" disabled={uni.connecting} onClick={() => void uni.connect()}>
+          <button
+            type="button"
+            class="drill__connect"
+            disabled={uni.connecting}
+            onClick={() => {
+              void uni.connect()
+              sink.current?.focus()
+            }}
+          >
             {uni.connecting ? 'Connecting…' : 'Connect'}
           </button>
         </p>
@@ -244,7 +273,7 @@ export function Drill(props: DrillProps): JSX.Element {
         {stats.completed} / {session.total} · acc {Math.round(stats.accuracy * 100)}% · {Math.round(stats.wpm)} wpm
       </p>
       <p class="drill__expected" aria-live="polite">
-        {showMiss ? showMiss.expected : ''}
+        {expectedText}
       </p>
 
       {boardVisibility !== 'hidden' && (
@@ -278,6 +307,8 @@ export function Drill(props: DrillProps): JSX.Element {
         onKeyDown={(e) => {
           swallow(e)
           if (e.key === 'Escape') onExit()
+          // Stray steno-engine typing (Tab, Space, Enter...) must neither move focus nor press a button.
+          else e.preventDefault()
         }}
         onBlur={(e) => {
           const next = e.relatedTarget as Node | null

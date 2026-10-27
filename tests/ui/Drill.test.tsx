@@ -59,7 +59,9 @@ type LoggerFake = TestLogger & {
   setUnsaved(n: number): void
 }
 
-function fakeLogger(opts: { startPending?: boolean; finishHangs?: boolean } = {}): LoggerFake {
+function fakeLogger(
+  opts: { startPending?: boolean; finishHangs?: boolean; unsavedOnSubscribe?: number } = {},
+): LoggerFake {
   let unsaved = 0
   const listeners = new Set<(n: number) => void>()
   const log: LoggerFake = {
@@ -81,6 +83,8 @@ function fakeLogger(opts: { startPending?: boolean; finishHangs?: boolean } = {}
       return opts.finishHangs ? new Promise<void>(() => {}) : Promise.resolve()
     },
     onUnsaved(cb) {
+      // a failure that lands between the first render and the subscription, without a callback
+      if (opts.unsavedOnSubscribe !== undefined) unsaved = opts.unsavedOnSubscribe
       listeners.add(cb)
       return () => {
         listeners.delete(cb)
@@ -270,6 +274,37 @@ describe('Drill misses', () => {
   })
 })
 
+describe('Drill hints on a multi-stroke word', () => {
+  const KOPL = [0x20, 0x82, 0x80] // K- O- -P -L
+  const PHREU = [0x16, 0x30] // P- H- R- -E -U
+
+  it('keeps showing the remaining strokes after a miss until the item completes', async () => {
+    const rig = await mountDrill({
+      kind: 'word',
+      items: [item('copy', 'KOPL/PHREU'), item('sap', 'SAP')],
+    })
+    expect(document.querySelector('.key--target')).toBeNull()
+    rig.stroke(TAP) // miss on stroke 1
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('KOPL')
+    rig.stroke(KOPL) // correct stroke 1: the hint moves on to stroke 2
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('PHREU')
+    expect(lever('P-').classList.contains('key--target')).toBe(true)
+    expect(lever('-U').classList.contains('key--target')).toBe(true)
+    expect(lever('K-').classList.contains('key--target')).toBe(false)
+    rig.stroke(PHREU) // item complete: the next word starts with no hint
+    expect(document.querySelector('.drill__prompt')!.textContent).toBe('sap')
+    expect(document.querySelector('.key--target')).toBeNull()
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('')
+  })
+
+  it('shows no hint for stroke 2 when stroke 1 was right the first time', async () => {
+    const rig = await mountDrill({ kind: 'word', items: [item('copy', 'KOPL/PHREU')] })
+    rig.stroke(KOPL)
+    expect(document.querySelector('.key--target')).toBeNull()
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('')
+  })
+})
+
 describe('Drill board visibility', () => {
   it('hidden: no keys in the DOM at all', async () => {
     await mountDrill({ boardVisibility: 'hidden' })
@@ -351,10 +386,43 @@ describe('Drill stray-output sink', () => {
     expect(document.activeElement).toBe(exit)
   })
 
-  it('the Exit button calls onExit', async () => {
+  it('the Exit button calls onExit and hands focus back to the sink', async () => {
     const rig = await mountDrill()
-    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    const exit = screen.getByRole('button', { name: 'Exit' })
+    exit.focus()
+    fireEvent.click(exit)
     expect(rig.onExit).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(sink())
+  })
+
+  it('prevents the default of Tab and Shift+Tab so stray typing cannot move focus off the sink', async () => {
+    await mountDrill()
+    expect(fireEvent.keyDown(sink(), { key: 'Tab' })).toBe(false)
+    expect(fireEvent.keyDown(sink(), { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(sink())
+  })
+
+  it('prevents the default of every key but Escape, and stray Space/Enter activate no button', async () => {
+    const rig = await mountDrill({}, { connected: false })
+    await screen.findByRole('button', { name: 'Connect' })
+    for (const key of [' ', 'Enter', 'a']) {
+      expect(fireEvent.keyDown(sink(), { key })).toBe(false)
+    }
+    expect(rig.onExit).not.toHaveBeenCalled()
+    expect(rig.hid.requestDevice).not.toHaveBeenCalled()
+    // Escape is the one key that is acted on, and it is not swallowed as a no-op
+    fireEvent.keyDown(sink(), { key: 'Escape' })
+    expect(rig.onExit).toHaveBeenCalledTimes(1)
+  })
+
+  it('the Connect button asks for a device and hands focus back to the sink', async () => {
+    const rig = await mountDrill({}, { connected: false })
+    const connect = await screen.findByRole('button', { name: 'Connect' })
+    connect.focus()
+    expect(document.activeElement).toBe(connect)
+    fireEvent.click(connect)
+    expect(document.activeElement).toBe(sink())
+    await waitFor(() => expect(rig.hid.requestDevice).toHaveBeenCalledTimes(1))
   })
 })
 
@@ -416,6 +484,34 @@ describe('Drill connection', () => {
   })
 })
 
+describe('Drill latency', () => {
+  it('logs the time since the item appeared, resets it per item and leaves out disconnected time', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_000_000)
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
+    vi.setSystemTime(1_003_000)
+    rig.stroke(TAP) // miss, 3 s after item 1 appeared
+    vi.setSystemTime(1_007_000)
+    rig.stroke(SAP) // correct, 7 s after; item 2 appears now
+    vi.setSystemTime(1_010_000)
+    act(() => {
+      for (const cb of [...rig.hid.listeners.disconnect]) cb({ device: rig.device })
+    })
+    vi.setSystemTime(1_070_000) // unplugged for 60 s
+    act(() => {
+      for (const cb of [...rig.hid.listeners.connect]) cb({ device: rig.device })
+    })
+    await waitFor(() => expect(screen.queryByText(/Board disconnected/)).toBeNull())
+    vi.setSystemTime(1_072_000)
+    rig.stroke(KAT) // 3 s before the unplug + 2 s after the reconnect since item 2 appeared
+    expect(rig.logger.strokes.map((r) => [r.prompt, r.latencyMs])).toEqual([
+      ['SAP', 3000],
+      ['SAP', 7000],
+      ['KAT', 5000],
+    ])
+  })
+})
+
 describe('Drill logging', () => {
   it('calls logger.start once with the test fields and accepts input while it is pending', async () => {
     const logger = fakeLogger({ startPending: true })
@@ -442,13 +538,18 @@ describe('Drill logging', () => {
     expect(screen.getByText('⚠ 1 stroke not saved')).toBeTruthy()
   })
 
+  it('picks up a failure that happened between the first render and the subscription', async () => {
+    const logger = fakeLogger({ unsavedOnSubscribe: 2 })
+    await mountDrill({}, { logger })
+    expect(screen.getByText('⚠ 2 strokes not saved')).toBeTruthy()
+  })
+
   it('unsubscribes from the stroke stream and the logger on unmount', async () => {
     const logger = fakeLogger()
     const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] }, { logger })
     rig.stroke(SAP)
     expect(logger.strokes).toHaveLength(1)
     rig.unmount()
-    await new Promise((r) => setTimeout(r, 20)) // Preact runs unmount cleanups a tick later
     // the provider is gone too, so push the report straight to the device's listeners
     rig.device.report(KAT)
     rig.device.report([])
