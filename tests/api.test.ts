@@ -3,14 +3,18 @@ import {
   HttpStatusError,
   appendJournal,
   createTestLogger,
+  deleteMark,
   getDays,
   getJournal,
   getLastTest,
+  getProgress,
+  getResults,
   getSettings,
   getTest,
   listJournal,
   listTests,
   putJournal,
+  putMark,
   putSettings,
 } from '../src/api.ts'
 import type { StrokeRecord, TestRow } from '../server/archive.ts'
@@ -511,5 +515,47 @@ describe('history and journal calls', () => {
     expect(err).toBeInstanceOf(HttpStatusError)
     expect(err.status).toBe(409)
     expect(err.message).toBe('PUT /api/journal/2026-10-27 failed with 409')
+  })
+})
+
+describe('results and progress calls', () => {
+  const result = { section: '5-test', runs: 1, passed: true, best: { accuracy: 0.95, wpm: 12 }, last: null }
+  const mark = { chapter: 5, kind: 'override', at: 1000 }
+
+  it('getResults GETs the mode and returns the rows', async () => {
+    const { calls, fetch } = fakeFetch(() => json([result]))
+    await expect(getResults('chapter-test', fetch)).resolves.toEqual([result])
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/results?mode=chapter-test', body: undefined })
+  })
+
+  it('getProgress GETs the marks', async () => {
+    const { calls, fetch } = fakeFetch(() => json([mark]))
+    await expect(getProgress(fetch)).resolves.toEqual([mark])
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/progress' })
+  })
+
+  it('putMark PUTs the kind and returns the mark', async () => {
+    const { calls, fetch } = fakeFetch(() => json(mark))
+    await expect(putMark(5, 'override', fetch)).resolves.toEqual(mark)
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/progress/5', body: { kind: 'override' } })
+  })
+
+  it('deleteMark sends DELETE with no body', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ ok: true }))
+    await expect(deleteMark(5, fetch)).resolves.toBeUndefined()
+    expect(calls[0]).toEqual({ method: 'DELETE', url: '/api/progress/5', body: undefined })
+  })
+
+  it('all four reject on a non-2xx or a failed fetch', async () => {
+    const bad = () => fakeFetch(() => json({ error: 'bad' }, 500)).fetch
+    const down = () => fakeFetch(() => new Error('down')).fetch
+    await expect(getResults('section', bad())).rejects.toThrow(/500/)
+    await expect(getProgress(bad())).rejects.toThrow(/500/)
+    await expect(putMark(5, 'read', bad())).rejects.toThrow(/500/)
+    await expect(deleteMark(5, bad())).rejects.toThrow(/500/)
+    await expect(getResults('stage0', down())).rejects.toThrow()
+    await expect(getProgress(down())).rejects.toThrow()
+    await expect(putMark(5, 'read', down())).rejects.toThrow()
+    await expect(deleteMark(5, down())).rejects.toThrow()
   })
 })

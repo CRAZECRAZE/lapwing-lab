@@ -1,6 +1,6 @@
 // Client for the local archive server. Type-only imports from server/ keep
 // node:sqlite and node:fs out of the browser bundle.
-import type { DayStat, StrokeRecord, TestRow, TestSummary } from '../server/archive.ts'
+import type { DayStat, ProgressMark, SectionResult, StrokeRecord, TestRow, TestSummary } from '../server/archive.ts'
 import type { Settings } from '../server/settings.ts'
 
 type FetchFn = typeof fetch
@@ -236,4 +236,27 @@ export async function putJournal(date: string, text: string, fetchFn: FetchFn = 
 
 export async function appendJournal(date: string, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
   await request(fetchFn, 'POST', `/api/journal/${encodeURIComponent(date)}/append`, { text })
+}
+
+export async function getResults(
+  mode: 'stage0' | 'section' | 'chapter-test',
+  fetchFn: FetchFn = defaultFetch,
+): Promise<SectionResult[]> {
+  return (await request(fetchFn, 'GET', `/api/results?mode=${encodeURIComponent(mode)}`)) as SectionResult[]
+}
+
+export async function getProgress(fetchFn: FetchFn = defaultFetch): Promise<ProgressMark[]> {
+  return (await request(fetchFn, 'GET', '/api/progress')) as ProgressMark[]
+}
+
+export async function putMark(
+  chapter: number,
+  kind: 'read' | 'override',
+  fetchFn: FetchFn = defaultFetch,
+): Promise<ProgressMark> {
+  return (await request(fetchFn, 'PUT', `/api/progress/${encodeURIComponent(String(chapter))}`, { kind })) as ProgressMark
+}
+
+export async function deleteMark(chapter: number, fetchFn: FetchFn = defaultFetch): Promise<void> {
+  await request(fetchFn, 'DELETE', `/api/progress/${encodeURIComponent(String(chapter))}`)
 }
