@@ -290,17 +290,22 @@ describe('ProgressProvider', () => {
     expect(out.latest?.index).toEqual(index)
   })
 
-  it('makes no state updates after unmount mid-load', async () => {
-    const slow = deferred<SectionResult[]>()
-    getResults.mockReturnValue(slow.promise)
-    const { out, unmount } = mount()
-    await flush()
-    const seen = out.latest
-    unmount()
+  it('a reload started while the initial load is still in flight wins', async () => {
+    const slow = deferred<ProgressMark[]>()
+    getProgress.mockReturnValueOnce(slow.promise)
+    const { out } = mount()
+    expect(out.latest?.status).toBe('loading')
+    getProgress.mockResolvedValueOnce([override4])
+    await act(async () => {
+      await out.latest!.reload()
+    })
+    expect(out.latest?.status).toBe('ready')
+    expect(out.latest?.marks).toEqual([override4])
     slow.resolve([])
     await flush()
-    expect(out.latest).toBe(seen)
-    expect(out.latest?.status).toBe('loading')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(out.latest?.marks).toEqual([override4])
+    expect(isLocked(out.latest!, 5)).toBe(false)
   })
 })
 
