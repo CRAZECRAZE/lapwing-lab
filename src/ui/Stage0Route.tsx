@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import type { Stage0Words } from '../../scripts/lib/stage0.ts'
 import { createTestLogger } from '../api.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { useProgress } from '../state/progress.tsx'
 import { ROW_DRILLS, STAGE0_INFO, buildStage0Drills, itemsForRun } from '../stage0/lists.ts'
 import type { Stage0Drill } from '../stage0/lists.ts'
 import { Drill } from './Drill.tsx'
@@ -70,6 +71,7 @@ function Summary({ drill, result, onAgain }: { drill: Stage0Drill; result: Drill
 
 /** The `/drill/stage0/<id>` route; `id` is the part after `stage0/`. */
 export function Stage0Route({ id }: { id: string }): JSX.Element {
+  const progress = useProgress()
   const known = STAGE0_INFO.some((info) => info.id === id)
   const rowDrill = ROW_DRILLS.find((d) => d.id === id)
   const [words, setWords] = useState<Words>({ status: 'loading' })
@@ -132,7 +134,11 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
         logTest={{ mode: 'stage0', chapter: 4, section: id }}
         passMark={drill.passMark}
         boardVisibility={visibility}
-        onDone={setResult}
+        onDone={(done) => {
+          setResult(done)
+          // A finished run may clear Chapter 4's gate.
+          void progress.reload()
+        }}
         onExit={() => navigate(CHAPTER_HREF)}
       />
     </div>

@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
+import { ProgressProvider } from '../../src/state/progress.tsx'
 import { UniProvider } from '../../src/state/uni-context.tsx'
 import { App } from '../../src/ui/App.tsx'
 import { Reader } from '../../src/ui/Reader.tsx'
@@ -168,7 +169,9 @@ async function mountRoute(
   hid.known = [device]
   render(
     <UniProvider hid={hid}>
-      <Stage0Route id={id} />
+      <ProgressProvider>
+        <Stage0Route id={id} />
+      </ProgressProvider>
     </UniProvider>,
   )
   await waitFor(() => expect(screen.queryByText(/Board disconnected|Loading/)).toBeNull())
@@ -232,6 +235,22 @@ describe('Stage 0 drill route', () => {
     expect(location.pathname).toBe('/page/ch04')
   })
 
+  it('reloads progress when a run finishes, so the Chapter 4 gate reflects it', async () => {
+    const rig = await mountRoute('pseudo-test')
+    await waitFor(() => expect(rig.server.count('GET', '/api/progress')).toBe(1))
+    rig.stroke(SAP)
+    await screen.findByText('Passed')
+    await waitFor(() => expect(rig.server.count('GET', '/api/progress')).toBe(2))
+  })
+
+  it('does not reload progress when the drill is left early', async () => {
+    const rig = await mountRoute('pseudo-test')
+    await waitFor(() => expect(rig.server.count('GET', '/api/progress')).toBe(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    await act(async () => void (await new Promise((r) => setTimeout(r, 20))))
+    expect(rig.server.count('GET', '/api/progress')).toBe(1)
+  })
+
   it('shows Not yet when the test was not clean', async () => {
     const rig = await mountRoute('pseudo-test')
     rig.stroke(TAP)
@@ -276,11 +295,11 @@ describe('Stage 0 drill route', () => {
 
   it('gives calm messages for an unknown drill and for word lists that will not load', async () => {
     mockServer({ '/content/stage0.json': 'fail' })
-    const { unmount } = render(<Stage0Route id="nope" />)
+    const { unmount } = render(<ProgressProvider><Stage0Route id="nope" /></ProgressProvider>)
     expect(screen.getByText(/No such drill/)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Back to Chapter 4' })).toBeTruthy()
     unmount()
-    render(<Stage0Route id="pseudo-test" />)
+    render(<ProgressProvider><Stage0Route id="pseudo-test" /></ProgressProvider>)
     expect(await screen.findByText(/Couldn't load the word lists/)).toBeTruthy()
     fireEvent.click(screen.getByRole('link', { name: 'Back to Chapter 4' }))
     expect(location.pathname).toBe('/page/ch04')
