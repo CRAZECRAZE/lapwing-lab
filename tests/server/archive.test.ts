@@ -138,6 +138,65 @@ describe('archive', () => {
   })
 })
 
+describe('archive write validation', () => {
+  const finish = { endedAt: 2000, wpm: 10, accuracy: 0.9, meta: null }
+
+  it('rejects timestamps SQLite could not read back, and the store stays readable', () => {
+    const a = memory()
+    const testId = newTest(a)
+    a.addStroke(stroke(testId))
+    a.finishTest(testId, finish)
+    const sessionId = a.createSession(1)
+    for (const bad of [1e18, 2 ** 53, 1.5, -1, Number.NaN]) {
+      expect(() => a.createSession(bad), `createSession ${bad}`).toThrow(RangeError)
+      expect(
+        () => a.startTest({ sessionId, startedAt: bad, mode: 'm', chapter: null, section: null, itemCount: 1 }),
+        `startTest ${bad}`,
+      ).toThrow(RangeError)
+      expect(() => a.addStroke(stroke(testId, { tsMs: bad })), `addStroke ${bad}`).toThrow(RangeError)
+      expect(() => a.finishTest(testId, { ...finish, endedAt: bad }), `finishTest ${bad}`).toThrow(RangeError)
+    }
+    expect(a.listStrokes(testId)).toHaveLength(1)
+    expect(a.lastTest('stage0-test', 'pseudo')?.endedAt).toBe(2000)
+  })
+
+  it('accepts the largest safe integer timestamp and reads it back', () => {
+    const a = memory()
+    const testId = newTest(a)
+    a.addStroke(stroke(testId, { tsMs: Number.MAX_SAFE_INTEGER }))
+    a.finishTest(testId, { ...finish, endedAt: Number.MAX_SAFE_INTEGER })
+    expect(a.listStrokes(testId)[0]?.tsMs).toBe(Number.MAX_SAFE_INTEGER)
+    expect(a.lastTest('stage0-test', 'pseudo')?.endedAt).toBe(Number.MAX_SAFE_INTEGER)
+  })
+
+  it('rejects bad durations, attempt numbers, rates and counts', () => {
+    const a = memory()
+    const testId = newTest(a)
+    for (const latencyMs of [-1, Number.POSITIVE_INFINITY, Number.NaN, 2 ** 60]) {
+      expect(() => a.addStroke(stroke(testId, { latencyMs })), `latency ${latencyMs}`).toThrow(RangeError)
+    }
+    for (const attemptNo of [0, -1, 1.5, 2 ** 53]) {
+      expect(() => a.addStroke(stroke(testId, { attemptNo })), `attempt ${attemptNo}`).toThrow(RangeError)
+    }
+    for (const wpm of [-1, Number.POSITIVE_INFINITY, Number.NaN]) {
+      expect(() => a.finishTest(testId, { ...finish, wpm }), `wpm ${wpm}`).toThrow(RangeError)
+    }
+    for (const accuracy of [-0.1, 1.01, Number.NaN]) {
+      expect(() => a.finishTest(testId, { ...finish, accuracy }), `accuracy ${accuracy}`).toThrow(RangeError)
+    }
+    const sessionId = a.createSession(1)
+    for (const itemCount of [-1, 1.5, 2 ** 53]) {
+      expect(
+        () => a.startTest({ sessionId, startedAt: 1, mode: 'm', chapter: null, section: null, itemCount }),
+        `itemCount ${itemCount}`,
+      ).toThrow(RangeError)
+    }
+    expect(a.listStrokes(testId)).toEqual([])
+    a.addStroke(stroke(testId, { latencyMs: 12.5 }))
+    expect(a.listStrokes(testId)[0]?.latencyMs).toBe(12.5)
+  })
+})
+
 describe('settings', () => {
   let dir: string
   function file() {

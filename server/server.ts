@@ -138,14 +138,22 @@ function bad(name: string, what: string): never {
   throw new HttpError(400, `"${name}" must be ${what}`)
 }
 
-function num(o: Fields, name: string): number {
-  const v = o[name]
-  return typeof v === 'number' && Number.isFinite(v) ? v : bad(name, 'a finite number')
-}
-
 function int(o: Fields, name: string): number {
   const v = o[name]
   return typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : bad(name, 'a non-negative integer')
+}
+
+// A duration or rate: finite, non-negative, small enough to round-trip through SQLite.
+function measure(o: Fields, name: string, max = Number.MAX_SAFE_INTEGER): number {
+  const v = o[name]
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max
+    ? v
+    : bad(name, `a number between 0 and ${max}`)
+}
+
+function positiveInt(o: Fields, name: string): number {
+  const v = o[name]
+  return typeof v === 'number' && Number.isSafeInteger(v) && v >= 1 ? v : bad(name, 'an integer >= 1')
 }
 
 function str(o: Fields, name: string): string {
@@ -154,7 +162,7 @@ function str(o: Fields, name: string): string {
 }
 
 function nullable<T>(o: Fields, name: string, read: (o: Fields, name: string) => T): T | null {
-  return o[name] === null ? null : read(o, name)
+  return o[name] === null || o[name] === undefined ? null : read(o, name)
 }
 
 function bool(o: Fields, name: string): boolean {
@@ -194,6 +202,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, pathname: st
       res.destroy()
     } else if (err instanceof HttpError) {
       sendJson(res, err.status, { error: err.message })
+    } else if (err instanceof RangeError) {
+      sendJson(res, 400, { error: err.message })
     } else if (err instanceof MissingRowError) {
       sendJson(res, 404, { error: err.message })
     } else {
@@ -229,7 +239,7 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
   if (pathname === '/api/sessions') {
     if (method !== 'POST') allow(res, 'POST')
     const body = asObject(await readBody(req, res))
-    const startedAt = num(body, 'startedAt')
+    const startedAt = int(body, 'startedAt')
     sendJson(res, 200, { id: ctx.archive().createSession(startedAt) })
     return
   }
@@ -239,7 +249,7 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     const body = asObject(await readBody(req, res))
     const test = {
       sessionId: int(body, 'sessionId'),
-      startedAt: num(body, 'startedAt'),
+      startedAt: int(body, 'startedAt'),
       mode: str(body, 'mode'),
       chapter: nullable(body, 'chapter', int),
       section: nullable(body, 'section', str),
@@ -269,20 +279,20 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     if (match[2] === 'strokes') {
       ctx.archive().addStroke({
         testId,
-        tsMs: num(body, 'tsMs'),
+        tsMs: int(body, 'tsMs'),
         prompt: str(body, 'prompt'),
         expected: strings(body, 'expected'),
         pressedLevers: levers(body, 'pressedLevers'),
         pressedMask: int(body, 'pressedMask'),
         correct: bool(body, 'correct'),
-        latencyMs: num(body, 'latencyMs'),
-        attemptNo: int(body, 'attemptNo'),
+        latencyMs: measure(body, 'latencyMs'),
+        attemptNo: positiveInt(body, 'attemptNo'),
       })
     } else {
       ctx.archive().finishTest(testId, {
-        endedAt: num(body, 'endedAt'),
-        wpm: num(body, 'wpm'),
-        accuracy: num(body, 'accuracy'),
+        endedAt: int(body, 'endedAt'),
+        wpm: measure(body, 'wpm'),
+        accuracy: measure(body, 'accuracy', 1),
         meta: body.meta ?? null,
       })
     }

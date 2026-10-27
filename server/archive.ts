@@ -96,6 +96,23 @@ function missingOnForeignKey<T>(what: string, fn: () => T): T {
   }
 }
 
+// The read path cannot represent integers above 2^53, so a bad write would make
+// the row (and everything that reads it) throw forever. Reject on the way in.
+function timestamp(name: string, v: number): number {
+  if (!Number.isSafeInteger(v) || v < 0) throw new RangeError(`${name} must be a non-negative safe integer`)
+  return v
+}
+
+function count(name: string, v: number, min = 0): number {
+  if (!Number.isSafeInteger(v) || v < min) throw new RangeError(`${name} must be an integer >= ${min}`)
+  return v
+}
+
+function measure(name: string, v: number, max = Number.MAX_SAFE_INTEGER): number {
+  if (!Number.isFinite(v) || v < 0 || v > max) throw new RangeError(`${name} must be a finite number between 0 and ${max}`)
+  return v
+}
+
 export function openArchive(path: string): Archive {
   const db = new DatabaseSync(path)
   db.exec('PRAGMA foreign_keys = ON')
@@ -150,14 +167,21 @@ export function openArchive(path: string): Archive {
 
   return {
     createSession(startedAt) {
-      return Number(insertSession.run(startedAt).lastInsertRowid)
+      return Number(insertSession.run(timestamp('startedAt', startedAt)).lastInsertRowid)
     },
     startTest(t) {
+      timestamp('startedAt', t.startedAt)
+      count('itemCount', t.itemCount)
+      if (t.chapter !== null) count('chapter', t.chapter)
       return missingOnForeignKey('session', () =>
         Number(insertTest.run(t.sessionId, t.startedAt, t.mode, t.chapter, t.section, t.itemCount).lastInsertRowid),
       )
     },
     addStroke(s) {
+      timestamp('tsMs', s.tsMs)
+      measure('latencyMs', s.latencyMs)
+      count('attemptNo', s.attemptNo, 1)
+      count('pressedMask', s.pressedMask)
       missingOnForeignKey('test', () =>
         insertStroke.run(
           s.testId,
@@ -173,6 +197,9 @@ export function openArchive(path: string): Archive {
       )
     },
     finishTest(id, r) {
+      timestamp('endedAt', r.endedAt)
+      measure('wpm', r.wpm)
+      measure('accuracy', r.accuracy, 1)
       const res = updateTest.run(r.endedAt, r.wpm, r.accuracy, JSON.stringify(r.meta ?? null), id)
       if (res.changes === 0) throw new MissingRowError(`No test with id ${id}`)
     },

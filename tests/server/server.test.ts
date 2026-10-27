@@ -336,6 +336,21 @@ describe('archive API', () => {
       [`/api/tests/${testId}/strokes`, { ...strokeBody, latencyMs: 'fast' }],
       [`/api/tests/${testId}/strokes`, { ...strokeBody, pressedMask: -1 }],
       [`/api/tests/${testId}/finish`, { endedAt: 1, wpm: 'x', accuracy: 1, meta: null }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, tsMs: 1e18 }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, tsMs: 1.5 }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, latencyMs: -1 }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, latencyMs: 1e300 }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, attemptNo: 0 }],
+      [`/api/tests/${testId}/strokes`, { ...strokeBody, attemptNo: 1.5 }],
+      [`/api/tests/${testId}/finish`, { endedAt: 1e18, wpm: 1, accuracy: 1, meta: null }],
+      [`/api/tests/${testId}/finish`, { endedAt: 1.5, wpm: 1, accuracy: 1, meta: null }],
+      [`/api/tests/${testId}/finish`, { endedAt: 1, wpm: -1, accuracy: 1, meta: null }],
+      [`/api/tests/${testId}/finish`, { endedAt: 1, wpm: 1, accuracy: 1.5, meta: null }],
+      [`/api/tests/${testId}/finish`, { endedAt: 1, wpm: 1, accuracy: -0.5, meta: null }],
+      ['/api/sessions', { startedAt: 1e18 }],
+      ['/api/tests', { sessionId: 1, startedAt: 1e18, mode: 'm', chapter: null, section: null, itemCount: 1 }],
+      ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: null, section: null, itemCount: -1 }],
+      ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: null, section: 5, itemCount: 1 }],
       ['/api/settings', { boardVisibility: 'sideways' }],
       ['/api/settings', '[]'],
     ]
@@ -346,6 +361,25 @@ describe('archive API', () => {
       expect(typeof json.error).toBe('string')
       expect(json.error).not.toMatch(/\bat \S+\.ts|node:|stack/i)
     }
+  })
+
+  it('keeps the store readable after rejected oversized timestamps', async () => {
+    const testId = await newTest()
+    await call('POST', `/api/tests/${testId}/strokes`, { ...strokeBody, tsMs: 1e18 })
+    await call('POST', `/api/tests/${testId}/finish`, { endedAt: 1e18, wpm: 1, accuracy: 1, meta: null })
+    expect(await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()).toBeNull()
+    expect((await call('POST', `/api/tests/${testId}/finish`, { endedAt: 5, wpm: 1, accuracy: 1, meta: null })).status).toBe(200)
+    expect(await (await call('GET', '/api/tests/last?mode=stage0-test&section=pseudo')).json()).toMatchObject({ endedAt: 5 })
+  })
+
+  it('treats an omitted chapter or section as null', async () => {
+    const { id: sessionId } = (await (await call('POST', '/api/sessions', { startedAt: 1 })).json()) as { id: number }
+    const res = await call('POST', '/api/tests', { sessionId, startedAt: 2, mode: 'free', itemCount: 0 })
+    expect(res.status).toBe(200)
+    const { id } = (await res.json()) as { id: number }
+    await call('POST', `/api/tests/${id}/finish`, { endedAt: 3, wpm: 0, accuracy: 0, meta: null })
+    const only = await call('POST', '/api/tests', { sessionId, startedAt: 2, mode: 'm', chapter: 'x', itemCount: 0 })
+    expect(only.status).toBe(400)
   })
 
   it('rejects non-finite numbers', async () => {
