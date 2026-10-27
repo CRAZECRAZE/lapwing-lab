@@ -28,6 +28,12 @@ describe('constants', () => {
 })
 
 describe('layout', () => {
+  it('lists the 28 levers in chart order', () => {
+    expect(LEVERS.join(' ')).toBe(
+      'S1- T- K- P- W- H- R- A- O- *1 -E -U -F -R -P -B -L -G -T -S -D -Z #1 S2- *2 *3 *4 #2',
+    )
+  })
+
   it('has 28 levers in Plover chart order', () => {
     expect(LEVERS).toHaveLength(28)
     expect(LEVERS[0]).toBe('S1-')
@@ -86,6 +92,21 @@ describe('decodeUniReport', () => {
   it('reads a lever from a later byte', () => {
     expect(decodeUniReport(0x50, payload(0, 0, 0x04))).toEqual(['-Z'])
     expect(decodeUniReport(0x50, payload(0, 0, 0, 0x10))).toEqual(['#2'])
+  })
+
+  it('decodes every one of the 64 bits: chart entries 0-27 are levers, the rest are ignored', () => {
+    for (let i = 0; i < 64; i++) {
+      const bytes = new Uint8Array(8)
+      bytes[i >> 3] = 0x80 >> (i & 7)
+      const decoded = decodeUniReport(0x50, new DataView(bytes.buffer))
+      expect(decoded, `chart entry ${i}`).toEqual(i < LEVERS.length ? [LEVERS[i]] : [])
+    }
+  })
+
+  it('reads through the view\'s own byte offset, not the start of its buffer', () => {
+    const buffer = new Uint8Array(24).fill(0xff)
+    buffer.set([0x81, 0x02, 0, 0x10, 0, 0, 0, 0], 8)
+    expect(decodeUniReport(0x50, new DataView(buffer.buffer, 8, 8))).toEqual(['S1-', 'A-', '-P', '#2'])
   })
 
   it('decodes an all-zero report as no levers', () => {
