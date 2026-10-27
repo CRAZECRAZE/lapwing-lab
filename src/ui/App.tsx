@@ -1,6 +1,7 @@
 import type { JSX } from 'preact'
 import { localDate } from '../core/days.ts'
 import { tabOf, useRoute } from '../router.ts'
+import { ProgressProvider } from '../state/progress.tsx'
 import { UniProvider } from '../state/uni-context.tsx'
 import { Days } from './Days.tsx'
 import { FreeRoute } from './FreeRoute.tsx'
@@ -20,29 +21,31 @@ export function App(): JSX.Element {
   const tab = tabOf(route)
   return (
     <UniProvider>
-      <TopBar current={tab} />
-      <div class={tab === 'book' ? 'app' : 'app app--wide'}>
-        {tab === 'book' && <Nav currentId={route.name === 'page' ? route.id : null} />}
-        <main class="main">
-          {route.name === 'practice' && <Practice />}
-          {route.name === 'free' && (
-            <FreeRoute key={`${route.source}/${route.mode}`} source={route.source} mode={route.mode} />
-          )}
-          {route.name === 'history' && <History />}
-          {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
-          {route.name === 'days' && <Days key={route.date ?? 'month'} date={route.date} />}
-          {route.name === 'journal' && <Journal key={route.date ?? localDate(Date.now())} date={route.date} />}
-          {route.name === 'page' && <Reader id={route.id} />}
-          {route.name === 'drill' &&
-            (route.id.startsWith('stage0/') ? (
-              <Stage0Route key={route.id} id={route.id.slice('stage0/'.length)} />
-            ) : (
-              <p class="page__status">No such drill. Pick a chapter from the list.</p>
-            ))}
-          {route.name === 'notfound' && <p class="page__status">No such page. Pick a chapter from the list.</p>}
-        </main>
-        <StatusLine refreshKey={location.pathname} />
-      </div>
+      <ProgressProvider>
+        <TopBar current={tab} />
+        <div class={tab === 'book' ? 'app' : 'app app--wide'}>
+          {tab === 'book' && <Nav currentId={route.name === 'page' ? route.id : null} />}
+          <main class="main">
+            {route.name === 'practice' && <Practice />}
+            {route.name === 'free' && (
+              <FreeRoute key={`${route.source}/${route.mode}`} source={route.source} mode={route.mode} />
+            )}
+            {route.name === 'history' && <History />}
+            {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
+            {route.name === 'days' && <Days key={route.date ?? 'month'} date={route.date} />}
+            {route.name === 'journal' && <Journal key={route.date ?? localDate(Date.now())} date={route.date} />}
+            {route.name === 'page' && <Reader id={route.id} />}
+            {route.name === 'drill' &&
+              (route.id.startsWith('stage0/') ? (
+                <Stage0Route key={route.id} id={route.id.slice('stage0/'.length)} />
+              ) : (
+                <p class="page__status">No such drill. Pick a chapter from the list.</p>
+              ))}
+            {route.name === 'notfound' && <p class="page__status">No such page. Pick a chapter from the list.</p>}
+          </main>
+          <StatusLine refreshKey={location.pathname} />
+        </div>
+      </ProgressProvider>
     </UniProvider>
   )
 }

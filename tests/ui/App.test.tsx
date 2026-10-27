@@ -16,6 +16,9 @@ beforeEach(() => {
       if (url.startsWith('/api/tests/last')) return new Response('null', { status: 200 })
       if (url.startsWith('/api/tests/')) return new Response('{}', { status: 404 })
       if (url === '/api/settings') return new Response('{"boardVisibility":"always","hints":"miss"}', { status: 200 })
+      if (url === '/content/chapters.json') return new Response('[]', { status: 200 })
+      if (url.startsWith('/api/results')) return new Response('[]', { status: 200 })
+      if (url === '/api/progress') return new Response('[]', { status: 200 })
       if (url === '/content/practice-index.json') return new Response('[{"id":"8-x","chapter":8,"items":1}]', { status: 200 })
       if (url === '/content/practice/8-x.json') {
         return new Response('{"id":"8-x","items":[{"prompt":"sap","outlines":["SAP"]}]}', { status: 200 })
