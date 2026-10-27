@@ -11,7 +11,7 @@ export type BriefRow = {
 }
 export type SentenceRow = { chapter: number; text: string; outline: string }
 
-function plainText(tokens: Token[]): string {
+export function plainText(tokens: Token[]): string {
   let out = ''
   for (const token of tokens) {
     if (token.type === 'html' || token.type === 'br') continue
@@ -21,7 +21,7 @@ function plainText(tokens: Token[]): string {
   return out.replace(/\s+/g, ' ').trim()
 }
 
-function codeSpans(tokens: Token[]): string[] {
+export function codeSpans(tokens: Token[]): string[] {
   const spans: string[] = []
   for (const token of tokens) {
     if (token.type === 'codespan') spans.push((token as Tokens.Codespan).text)
@@ -30,12 +30,12 @@ function codeSpans(tokens: Token[]): string[] {
   return spans
 }
 
-function isOutline(text: string): boolean {
+export function isOutline(text: string): boolean {
   return text.split('/').every((stroke) => tryParseStroke(stroke) !== null)
 }
 
 // First token of `type` between the heading titled `title` and the next heading.
-function blockAfterHeading<T extends Token>(tokens: Token[], title: string, type: T['type']): T | undefined {
+export function blockAfterHeading<T extends Token>(tokens: Token[], title: string, type: T['type']): T | undefined {
   const start = tokens.findIndex((t) => t.type === 'heading' && plainText((t as Tokens.Heading).tokens) === title)
   if (start < 0) return undefined
   for (let i = start + 1; i < tokens.length && tokens[i].type !== 'heading'; i++) {

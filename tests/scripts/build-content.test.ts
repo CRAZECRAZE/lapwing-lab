@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -30,6 +30,7 @@ describe('buildContent on the vendored book', () => {
   it('reports the expected totals', () => {
     expect(stats.pages).toBe(33)
     expect(stats.practiceLists).toBe(57)
+    expect(stats.generatedLists).toBe(6)
     expect(stats.practiceLines).toBe(7299)
     expect(stats.outlineTags).toBe(154)
     expect(stats.briefRows).toBe(readJson('briefs.json').length)
@@ -83,18 +84,37 @@ describe('buildContent on the vendored book', () => {
 })
 
 describe('practice-index.json', () => {
-  it('lists every practice list with chapter 5 to 17, sorted by chapter then id', () => {
+  it('lists every practice list with chapter 5 to 21, sorted by chapter then id', () => {
     const index: PracticeIndexEntry[] = readJson('practice-index.json')
-    expect(index).toHaveLength(57)
+    expect(index).toHaveLength(63)
     for (const entry of index) {
       expect(Object.keys(entry).sort()).toEqual(['chapter', 'id', 'items'])
       expect(entry.chapter).toBeGreaterThanOrEqual(5)
-      expect(entry.chapter).toBeLessThanOrEqual(17)
+      expect(entry.chapter).toBeLessThanOrEqual(21)
     }
     const sorted = [...index].sort((a, b) => a.chapter - b.chapter || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     expect(index).toEqual(sorted)
     const chapters = index.map((e) => e.chapter)
     expect(chapters.indexOf(10)).toBeGreaterThan(chapters.lastIndexOf(9))
+  })
+
+  it('adds the generated lists after the book lists of their chapter', () => {
+    const index: PracticeIndexEntry[] = readJson('practice-index.json')
+    expect(index.filter((e) => e.chapter >= 18).map((e) => e.id)).toEqual([
+      '18-lowercase',
+      '18-numbers',
+      '18-uppercase',
+      '20-commands',
+      '20-punctuation',
+      '21-uk-spellings',
+    ])
+    for (const e of index.filter((x) => x.chapter >= 18)) {
+      expect(readJson('practice', `${e.id}.json`)).toMatchObject({ id: e.id })
+      expect(readJson('practice', `${e.id}.json`).items).toHaveLength(e.items)
+      expect(Object.keys(readJson('practice', `${e.id}.json`)).sort()).toEqual(['id', 'items'])
+    }
+    expect(readJson('practice', '18-lowercase.json').items[0]).toEqual({ prompt: 'a', outlines: ['A*'] })
+    expect(readdirSync(join(outDir, 'practice'))).toHaveLength(63)
   })
 
   it('counts the items of each list', () => {
@@ -160,8 +180,18 @@ describe('chapters.json', () => {
     }
   })
 
+  it('gates the generated-drill chapters as drills without a pass mark', () => {
+    expect(chapter(18)).toMatchObject({ gate: 'drills', listIds: ['18-lowercase', '18-numbers', '18-uppercase'] })
+    expect(chapter(20)).toMatchObject({ gate: 'drills', listIds: ['20-commands', '20-punctuation'] })
+    expect(chapter(21)).toMatchObject({ gate: 'drills', listIds: ['21-uk-spellings'] })
+    for (const n of [18, 20, 21]) {
+      expect(chapter(n)).not.toHaveProperty('passMark')
+      expect(chapter(n)).not.toHaveProperty('testListId')
+    }
+  })
+
   it('gates chapters without lists as read', () => {
-    for (const n of [1, 18, 20, 21, 26]) {
+    for (const n of [1, 2, 3, 19, 22, 23, 24, 25, 26]) {
       expect(chapter(n)).toMatchObject({ gate: 'read', listIds: [] })
       expect(chapter(n)).not.toHaveProperty('passMark')
       expect(chapter(n)).not.toHaveProperty('testListId')

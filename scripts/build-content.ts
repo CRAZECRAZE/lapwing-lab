@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parsePassMark } from './lib/passmark.ts'
 import type { PassMark } from './lib/passmark.ts'
+import { generatedLists } from './lib/generated.ts'
 import { parsePracticeFile } from './lib/practice.ts'
 import { renderPage } from './lib/render.ts'
 import type { Heading, PracticeLink } from './lib/render.ts'
@@ -35,6 +36,7 @@ export type BuildStats = {
   pages: number
   practiceLists: number
   practiceLines: number
+  generatedLists: number
   outlineTags: number
   briefRows: number
 }
@@ -130,6 +132,8 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   const practiceIds = new Set<string>()
   const practiceIndex: PracticeIndexEntry[] = []
   let practiceLines = 0
+  const markdowns = new Map<string, string>()
+  for (const entry of entries) markdowns.set(entry.file, await readFile(join(src, entry.file), 'utf8'))
   for (const file of practiceFiles) {
     const id = file.slice(0, -'.txt'.length)
     const text = await readFile(join(src, 'practice', file), 'utf8')
@@ -141,12 +145,26 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
     await writeJson(join(outDir, 'practice', `${id}.json`), list)
   }
 
+  // Drills generated from the table-only chapters sit next to the book's own lists.
+  let generatedCount = 0
+  for (const entry of entries) {
+    if (entry.kind !== 'chapter' || entry.number === undefined) continue
+    for (const list of generatedLists(entry.number, markdowns.get(entry.file)!)) {
+      if (practiceIds.has(list.id)) throw new Error(`generated practice list ${list.id} clashes with a book list`)
+      practiceIds.add(list.id)
+      practiceIndex.push({ id: list.id, chapter: list.chapter, items: list.items.length })
+      
+      generatedCount++
+      await writeJson(join(outDir, 'practice', `${list.id}.json`), { id: list.id, items: list.items })
+    }
+  }
+
   const briefs: BriefRow[] = []
   const passMarks = new Map<string, PassMark | undefined>()
   const sentences: SentenceRow[] = []
   let outlineTags = 0
   for (const entry of entries) {
-    const markdown = await readFile(join(src, entry.file), 'utf8')
+    const markdown = markdowns.get(entry.file)!
     const rendered = renderPage(markdown, pageIds)
     for (const link of rendered.practiceLinks) {
       if (!practiceIds.has(link.listId)) throw new Error(`${entry.file}: link to unknown practice list ${link.listId}`)
@@ -181,7 +199,14 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   await writeJson(join(outDir, 'briefs.json'), briefs)
   await writeJson(join(outDir, 'sentences.json'), sentences)
 
-  return { pages: entries.length, practiceLists: practiceIds.size, practiceLines, outlineTags, briefRows: briefs.length }
+  return {
+    pages: entries.length,
+    practiceLists: practiceFiles.length,
+    practiceLines,
+    generatedLists: generatedCount,
+    outlineTags,
+    briefRows: briefs.length,
+  }
 }
 
 if (import.meta.main) {
@@ -191,7 +216,8 @@ if (import.meta.main) {
     outDir: join(root, 'content', 'build'),
   })
   console.log(
-    `Built ${stats.pages} pages, ${stats.practiceLists} practice lists (${stats.practiceLines} lines), ` +
+    `Built ${stats.pages} pages, ${stats.practiceLists} practice lists (${stats.practiceLines} lines) ` +
+      `and ${stats.generatedLists} generated lists, ` +
       `${stats.outlineTags} outline tags, ${stats.briefRows} brief rows`,
   )
 }
