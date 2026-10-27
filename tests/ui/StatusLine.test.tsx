@@ -121,6 +121,26 @@ describe('StatusLine', () => {
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
   })
 
+  it('ignores a second click while a connect is pending, then re-enables the button', async () => {
+    const hid = new FakeHid()
+    let finish!: (devices: HidDeviceLike[]) => void
+    hid.requestDevice.mockImplementation(() => new Promise<HidDeviceLike[]>((resolve) => (finish = resolve)))
+    withUni(hid, <StatusLine />)
+    await settle()
+    const button = screen.getByRole('button', { name: 'Connect' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+    await settle()
+    expect(hid.requestDevice).toHaveBeenCalledTimes(1)
+    const pending = screen.getByRole('button', { name: 'Connecting…' }) as HTMLButtonElement
+    expect(pending.disabled).toBe(true)
+
+    finish([])
+    const again = (await screen.findByRole('button', { name: 'Connect' })) as HTMLButtonElement
+    expect(again.disabled).toBe(false)
+    expect(screen.queryByText(/user gesture/)).toBeNull()
+  })
+
   it('shows the reason after a failed attach and clears it on the next click', async () => {
     const hid = new FakeHid()
     hid.requestError = new Error('Permission denied')
@@ -128,11 +148,10 @@ describe('StatusLine', () => {
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     expect(await screen.findByText('Permission denied')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Connect' })).toBeTruthy()
 
     hid.requestError = null
     hid.requestResult = [new FakeDevice()]
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect' }))
     await waitFor(() => expect(screen.getByText(/Uni v4 connected/)).toBeTruthy())
     expect(screen.queryByText('Permission denied')).toBeNull()
   })
@@ -203,6 +222,35 @@ describe('UniProvider', () => {
     act(() => device.report([]))
     expect(first).toHaveLength(1)
     expect(second).toHaveLength(2)
+  })
+
+  it('keeps delivering to the other subscribers when one throws', async () => {
+    const hid = new FakeHid()
+    const device = new FakeDevice()
+    hid.known = [device]
+    const out: { latest: UniState | null } = { latest: null }
+    withUni(hid, <Probe out={out} />)
+    await waitFor(() => expect(out.latest?.connected).toBe(true))
+    const failure = new Error('subscriber bug')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const collected: RawStroke[] = []
+    out.latest!.onStroke(() => {
+      throw failure
+    })
+    out.latest!.onStroke((s) => collected.push(s))
+
+    expect(() => {
+      act(() => device.report([0x80]))
+      act(() => device.report([]))
+    }).not.toThrow()
+    expect(collected).toHaveLength(1)
+    act(() => device.report([0x40]))
+    act(() => device.report([]))
+    expect(collected).toHaveLength(2)
+    expect(collected[1]?.levers).toEqual(['T-'])
+    expect(logged).toHaveBeenCalledTimes(2)
+    expect(logged).toHaveBeenCalledWith(failure)
+    logged.mockRestore()
   })
 
   it('closes the link on unmount: listeners removed, device closed, no more strokes', async () => {

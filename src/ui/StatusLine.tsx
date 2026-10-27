@@ -2,7 +2,7 @@ import type { JSX } from 'preact'
 import { useUni } from '../state/uni-context.tsx'
 
 export function StatusLine(): JSX.Element {
-  const { available, connected, reason, connect } = useUni()
+  const { available, connected, connecting, reason, connect } = useUni()
   return (
     <footer class="status" aria-label="Device status">
       {!available && (
@@ -19,8 +19,8 @@ export function StatusLine(): JSX.Element {
       {available && !connected && (
         <p class="status__device">
           <span class="status__dot" aria-hidden="true">○</span> Not connected
-          <button type="button" class="status__connect" onClick={() => void connect()}>
-            Connect
+          <button type="button" class="status__connect" disabled={connecting} onClick={() => void connect()}>
+            {connecting ? 'Connecting…' : 'Connect'}
           </button>
           {reason && <span class="status__reason" role="status">{reason}</span>}
         </p>

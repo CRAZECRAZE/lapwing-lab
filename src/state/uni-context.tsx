@@ -9,6 +9,8 @@ export type UniState = {
   /** WebHID is present in this browser. */
   available: boolean
   connected: boolean
+  /** A connect() call is waiting on the device picker or the open. */
+  connecting: boolean
   /** Why the last attach failed; null when it has not, or after a clean (dis)connect. */
   reason: string | null
   /** Levers physically down right now. */
@@ -22,6 +24,7 @@ export type UniState = {
 const INERT: UniState = {
   available: false,
   connected: false,
+  connecting: false,
   reason: null,
   pressed: [],
   connect: async () => {},
@@ -41,17 +44,32 @@ const browserHid = (): HidLike | null =>
 export function UniProvider({ hid, children }: { hid?: HidLike | null; children: ComponentChildren }): JSX.Element {
   const device = hid === undefined ? browserHid() : hid
   const [connected, setConnected] = useState(false)
+  const [connecting, setConnecting] = useState(false)
   const [reason, setReason] = useState<string | null>(null)
   const [pressed, setPressed] = useState<readonly Lever[]>([])
   const link = useRef<UniLink | null>(null)
+  /** Set synchronously, so a double click cannot start a second attempt before `connecting` renders. */
+  const attempting = useRef(false)
   const subscribers = useRef(new Set<(stroke: RawStroke) => void>())
 
   useEffect(() => {
     if (!device) return
     let live = true
     const uni = new UniLink(device, {
-      onSnapshot: (levers) => live && setPressed(levers),
-      onStroke: (stroke) => live && [...subscribers.current].forEach((cb) => cb(stroke)),
+      onSnapshot: (levers) => {
+        if (live) setPressed(levers)
+      },
+      onStroke: (stroke) => {
+        if (!live) return
+        // One failing subscriber must not starve the others or break the HID report handler.
+        for (const cb of [...subscribers.current]) {
+          try {
+            cb(stroke)
+          } catch (error) {
+            console.error(error)
+          }
+        }
+      },
       onStatus: (status) => {
         if (!live) return
         setConnected(status.state === 'connected')
@@ -69,8 +87,16 @@ export function UniProvider({ hid, children }: { hid?: HidLike | null; children:
   }, [device])
 
   const connect = useCallback(async () => {
+    if (attempting.current) return
+    attempting.current = true
+    setConnecting(true)
     setReason(null)
-    await link.current?.request()
+    try {
+      await link.current?.request()
+    } finally {
+      attempting.current = false
+      setConnecting(false)
+    }
   }, [])
 
   const onStroke = useCallback((cb: (stroke: RawStroke) => void) => {
@@ -79,8 +105,8 @@ export function UniProvider({ hid, children }: { hid?: HidLike | null; children:
   }, [])
 
   const value = useMemo<UniState>(
-    () => ({ available: device !== null, connected, reason, pressed, connect, onStroke }),
-    [device, connected, reason, pressed, connect, onStroke],
+    () => ({ available: device !== null, connected, connecting, reason, pressed, connect, onStroke }),
+    [device, connected, connecting, reason, pressed, connect, onStroke],
   )
   return <UniContext.Provider value={value}>{children}</UniContext.Provider>
 }

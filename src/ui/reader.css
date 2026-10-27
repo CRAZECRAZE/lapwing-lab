@@ -429,8 +429,13 @@ body {
   cursor: pointer;
 }
 
-.status__connect:hover {
+.status__connect:hover:not(:disabled) {
   border-color: var(--muted);
+}
+
+.status__connect:disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 .status__reason {
