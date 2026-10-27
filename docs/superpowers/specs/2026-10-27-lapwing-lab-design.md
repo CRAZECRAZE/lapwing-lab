@@ -72,6 +72,15 @@ All one keypress, available from the reader and the drill screen. These five are
 4. **My notes `N`** — free-form notes per chapter, kept as plain markdown.
 5. **Today** — the session composer's plan and progress (M7).
 
+*Settled for M4 (2026-10-28):*
+- **How it opens.** A tool opens as a drawer over the right-hand side of the page; Esc closes it. In the reader the bare keys `/`, `K`, `B`, `N` open Lookup, Key chart, Briefs and Notes whenever the focus is not in a text field. On drill screens (Stage 0, section drills, chapter tests, free type) the drill swallows plain keys because the board's stray output would otherwise trigger panels, so there the keys are `Alt+/`, `Alt+K`, `Alt+B`, `Alt+N`. Four small buttons in the top bar open the same tools with the mouse on every tab.
+- **A drill pauses while a tool is open:** strokes are ignored and the clock stops, as when the board is unplugged; closing the tool returns the focus to the drill.
+- **"Taught so far"** means chapters up to the owner's current chapter (the first one not yet cleared, never earlier than Chapter 4). Lookup and Briefs show a checkbox `Include later chapters` (off by default) so nothing is hidden for good. Every hit says which chapter teaches it.
+- **Lookup data:** the words of every practice list, the example words in the chapter text (bullets of the form ``word `OUTLINE` ``), and every brief table. A query that looks like steno (letters from the steno order, `*`, `-`, `#`, `/`) also searches by outline, so it works in reverse.
+- **Key chart:** the board with, on each key, the sounds the book teaches for it (the consonant table in Chapter 5 and the vowel sections); no sound is invented.
+- **Notes:** one plain markdown file per chapter, `data/notes/chNN.md` (chapters 1–26), with the same never-lose-text behavior as the journal (it shares the save queue).
+- **Chapters 18, 20 and 21** get generated drills (fingerspelling lowercase and uppercase and numbers; punctuation and the commands; the UK spellings), built from the chapter text at build time and listed like any other practice list. Their gate becomes the section-drill gate (every drill once at 90% or better) instead of "marked read".
+
 ### 3.4 Look and feel
 Dark, calm, keyboard-first. Left-hand keys orange, vowel keys blue, right-hand keys purple; star keys follow the left hand. Typographic detail is left to the builder.
 
@@ -249,3 +258,10 @@ Added 2026-10-27 at the owner's request, after trying M3 (4.1, "Skipping ahead")
 22. "Open anyway" marks every uncleared chapter from 4 up to the one before as "moved on anyway", so the chapter opens in one step; each mark can be undone on its own.
 23. "Move on anyway" and "Open anyway" ask for confirmation in a dialog before writing; Cancel, Esc or a click outside writes nothing.
 24. Free type also takes a custom number of words (1–500) or seconds (5–600), typed in a Custom box (owner request 2026-10-28); the timed wpm definition is unchanged.
+
+Added 2026-10-28 with the M4 plan (3.3, "Settled for M4"):
+25. Tools open as a drawer; bare `/`, `K`, `B`, `N` in the reader, `Alt+` those keys on drill screens, plus four top-bar buttons.
+26. A drill pauses (strokes ignored, clock stopped) while a tool is open.
+27. "Taught so far" = chapters up to the current chapter, with an `Include later chapters` checkbox.
+28. Chapters 18, 20 and 21 get generated drills and clear by the section-drill gate.
+29. Notes live in `data/notes/chNN.md` and reuse the journal's save queue.
