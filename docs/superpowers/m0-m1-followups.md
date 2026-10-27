@@ -51,3 +51,17 @@ Deferred from the M2 reviews; M3 plans start from these and the items above.
 - `isJournalDate` refuses `0000-02-29`.
 - History rows show `0%` / `0 wpm` for a finished test with null numbers.
 - A POST to a `GET /api/tests/:id`-style path now answers 405 instead of 404.
+
+## Left open by M3
+
+Deferred from the M3 reviews; M4 plans start from these and the items above.
+
+- The progress provider throws away the chapters and the practice index that did load when only `/api/results` or `/api/progress` fails on first load, so the chapter test is unavailable and `drills`-gate list runs are ungraded until it recovers (nothing is locked in that case).
+- A chapter-test link's meta in the book text shows the list's word count (e.g. 396 words) while the test is 45 × 3, and the panel's chapter-test size uses the index count, which includes duplicates.
+- `currentChapter([])` throws on an empty list (the real list is never empty).
+- `requirementText` for a `test` gate ignores `maxMinutes` (no chapter has one).
+- `ChapterPanel`'s saving guard reads render-time state.
+- `setMark` / `clearMark` may resolve before a superseding reload has applied.
+- The post-run reload can read stale results if the archive is slower than the drill's finish timeout.
+- No test strikes a wrong stroke and then checks the hint in the new drills.
+- Result-card markup and test helpers are copied between `DrillRunner`, `FreeRoute` and `Stage0Route`.
