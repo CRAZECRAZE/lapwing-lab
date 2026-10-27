@@ -82,6 +82,8 @@ export function Drill(props: DrillProps): JSX.Element {
   /** A word item that has been missed keeps its hint for every remaining stroke until it completes. */
   const hinted = useRef(false)
   const done = useRef(false)
+  /** The test is created lazily, at the first judged stroke: opening a drill and leaving writes nothing. */
+  const started = useRef(false)
   const alive = useRef(true)
 
   const root = useRef<HTMLElement>(null)
@@ -119,11 +121,6 @@ export function Drill(props: DrillProps): JSX.Element {
         passed,
         meta: { kind, itemCount: 0, firstTryCorrect: 0, elapsedMs: 0, passed },
       })
-    } else {
-      // Never awaited: input works while (or even if) the archive is slow or down.
-      void logger
-        .start({ ...latest.current.logTest, itemCount: items.length })
-        .catch(() => {})
     }
 
     const finish = async (): Promise<void> => {
@@ -153,6 +150,11 @@ export function Drill(props: DrillProps): JSX.Element {
       // A stray lone star after a miss (the habitual "undo") must not take the hint away.
       if (result.kind === 'ignored') return
 
+      if (!started.current) {
+        started.current = true
+        // Never awaited: input works while (or even if) the archive is slow or down.
+        void logger.start({ ...latest.current.logTest, itemCount: items.length }).catch(() => {})
+      }
       logger.stroke({
         tsMs: Date.now(),
         prompt: item.prompt,
@@ -197,6 +199,21 @@ export function Drill(props: DrillProps): JSX.Element {
       alive.current = false
       unsubscribeStrokes()
       unsubscribeUnsaved()
+      if (started.current && !done.current) {
+        // Left mid-drill: close the test as abandoned, with the partial stats.
+        done.current = true
+        const stats = session.stats()
+        const meta = {
+          kind,
+          itemCount: items.length,
+          completed: stats.completed,
+          firstTryCorrect: stats.firstTryCorrect,
+          elapsedMs: stats.elapsedMs,
+          passed: null,
+          abandoned: true,
+        }
+        void logger.finish({ wpm: stats.wpm, accuracy: stats.accuracy, meta }).catch(() => {})
+      }
     }
   }, [])
 

@@ -211,6 +211,8 @@ describe('Stage 0 drill route', () => {
 
   it('logs the run as a stage0 test for chapter 4 and the drill id', async () => {
     const rig = await mountRoute('pseudo-test')
+    expect(rig.server.count('POST', '/api/tests')).toBe(0) // nothing is written until the first stroke
+    rig.stroke(SAP)
     await waitFor(() => expect(rig.server.count('POST', '/api/tests')).toBe(1))
     expect(rig.server.calls.find((c) => c.url === '/api/tests')!.body).toMatchObject({
       mode: 'stage0', chapter: 4, section: 'pseudo-test', itemCount: 1,
@@ -251,9 +253,10 @@ describe('Stage 0 drill route', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Again' }))
     expect(document.querySelector('.drill__prompt')!.textContent).toBe('SAP')
     expect(screen.getByText(/0 \/ 1 · acc —/)).toBeTruthy()
-    await waitFor(() => expect(rig.server.count('POST', '/api/tests')).toBe(2))
+    expect(rig.server.count('POST', '/api/tests')).toBe(1)
     rig.stroke(SAP)
     await screen.findByText('Passed')
+    await waitFor(() => expect(rig.server.count('POST', '/api/tests')).toBe(2))
     expect(rig.server.count('POST', '/api/tests')).toBe(2)
   })
 

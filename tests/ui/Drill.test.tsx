@@ -552,14 +552,86 @@ describe('Drill latency', () => {
 })
 
 describe('Drill logging', () => {
-  it('calls logger.start once with the test fields and accepts input while it is pending', async () => {
+  it('does not start the logger when mounted', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
+    expect(rig.logger.starts).toEqual([])
+  })
+
+  it('starts the logger on the first judged stroke, once, before logging it', async () => {
+    const order: string[] = []
+    const logger = fakeLogger()
+    const start = logger.start
+    const stroke = logger.stroke
+    logger.start = (t) => {
+      order.push('start')
+      return start(t)
+    }
+    logger.stroke = (s) => {
+      order.push('stroke')
+      stroke(s)
+    }
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] }, { logger })
+    rig.stroke(SAP)
+    expect(logger.starts).toEqual([{ mode: 'stage0', chapter: 4, section: 'rows', itemCount: 2 }])
+    expect(logger.strokes).toHaveLength(1)
+    expect(order).toEqual(['start', 'stroke'])
+    rig.stroke(KAT)
+    expect(logger.starts).toHaveLength(1)
+    expect(order).toEqual(['start', 'stroke', 'stroke'])
+  })
+
+  it('starts the logger on a first stroke that misses', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP')] })
+    rig.stroke(TAP)
+    expect(rig.logger.starts).toHaveLength(1)
+    expect(rig.logger.strokes).toHaveLength(1)
+  })
+
+  it('an ignored lone star does not start the test', async () => {
+    const rig = await mountDrill({ items: [item('KOPL/PHREU', 'KOPL/PHREU')] })
+    rig.stroke(LONE_STAR)
+    expect(rig.logger.starts).toEqual([])
+    expect(rig.logger.strokes).toEqual([])
+  })
+
+  it('accepts input while start is still pending, and has started once after the first stroke', async () => {
     const logger = fakeLogger({ startPending: true })
     const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] }, { logger })
-    expect(logger.starts).toEqual([{ mode: 'stage0', chapter: 4, section: 'rows', itemCount: 2 }])
     rig.stroke(SAP)
     expect(screen.getByText(/1 \/ 2/)).toBeTruthy()
     expect(logger.strokes).toHaveLength(1)
     expect(logger.starts).toHaveLength(1)
+  })
+
+  it('exiting before any stroke writes nothing', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    rig.unmount()
+    expect(rig.logger.starts).toEqual([])
+    expect(rig.logger.finishes).toEqual([])
+  })
+
+  it('exiting after strokes finishes the test as abandoned with its partial stats', async () => {
+    const rig = await mountDrill({ kind: 'word', items: [item('sap', 'SAP'), item('kat', 'KAT')] })
+    rig.stroke(SAP)
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    rig.unmount()
+    expect(rig.logger.finishes).toHaveLength(1)
+    const [finish] = rig.logger.finishes
+    expect(finish.meta).toMatchObject({ kind: 'word', abandoned: true, completed: 1, itemCount: 2, passed: null })
+    expect(typeof finish.wpm).toBe('number')
+    expect(finish.accuracy).toBeGreaterThanOrEqual(0)
+    expect(finish.accuracy).toBeLessThanOrEqual(1)
+    expect(rig.onDone).not.toHaveBeenCalled()
+  })
+
+  it('completing the drill finishes once and unmounting afterwards does not finish again', async () => {
+    const rig = await mountDrill()
+    rig.stroke(SAP)
+    await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+    rig.unmount()
+    expect(rig.logger.finishes).toHaveLength(1)
+    expect(rig.logger.finishes[0].meta).not.toHaveProperty('abandoned')
   })
 
   it('shows a quiet unsaved line while the logger reports failures', async () => {
