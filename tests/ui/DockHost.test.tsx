@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact'
 import type { JSX } from 'preact'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DockProvider, useDock } from '../../src/state/dock.tsx'
 import type { Dock } from '../../src/state/dock.tsx'
 import { ConfirmDialog } from '../../src/ui/ConfirmDialog.tsx'
 import { DockHost, TOOLS } from '../../src/ui/DockHost.tsx'
+
+// These tests are about the host, not the tools: the real Lookup needs the progress provider and a fetch (it has its own tests).
+vi.mock('../../src/ui/tools/Lookup.tsx', () => ({
+  Lookup: (): JSX.Element => <p class="dock-drawer__soon">Coming in this milestone.</p>,
+}))
 
 afterEach(() => {
   cleanup()
