@@ -221,6 +221,18 @@ body {
   font-size: 0.8rem;
 }
 
+/* Press-to-confirm: a soft green settles over the card for the length of the flash. */
+.inspector.confirmed {
+  border-color: #6fae7e;
+  box-shadow: 0 0 0 1px #6fae7e, 0 0 18px rgb(111 174 126 / 0.25);
+}
+
+.inspector__check {
+  margin-left: 0.8em;
+  color: #8fcf9c;
+  font-weight: 600;
+}
+
 .inspector__hint {
   margin: 0.9rem 0 0;
   color: var(--muted);
