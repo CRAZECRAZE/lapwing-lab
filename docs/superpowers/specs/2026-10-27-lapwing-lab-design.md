@@ -59,6 +59,7 @@ The main screen is a chapter page rendered from the book's own text, in order, w
 Prompt-first (chosen by the owner). A large word or stroke in the middle, a small board underneath, a thin stats line (progress, accuracy, wpm).
 - **Two prompt kinds:** *stroke prompts* (Stage 0 / Chapter 4: the prompt is raw steno such as `SAP` or `-RBGSZ`) and *word prompts* (Chapter 5 onward: the prompt is the English word and the owner must produce its stroke).
 - **Board visibility** setting: always on / on hover / hidden. Default always on early; the owner fades it out when ready. In word-prompt mode the board and the stroke are *hint on miss* (the book's own test setting "show hint on misstroke").
+- Word-prompt hints default to on-miss; a **Hint** setting (`on miss` / `always`) lets the learner see the needed keys, and the stroke text, from the start of every word (owner request 2026-10-27, after trying M2).
 - **Mistake diff.** On a miss, show the pressed keys against the required keys on the physical layout (missing and extra keys marked), plus the stroke in notation. Record exactly which keys were wrong.
 - **Chord scoring.** A stroke is complete when all keys are released (see 5.2). A lone `*` stroke undoes the previous attempt (as in Plover), except where the expected stroke itself is `*`.
 - **Book-faithful tests.** A chapter test uses the book's settings: a union of the chapter's drill lists, 45 words, 3 repetitions each (the owner or builder should confirm the exact meaning of "repetitions" against Typey Type), random order.
@@ -227,3 +228,4 @@ Added 2026-10-27 with the lab shell (3.5):
 14. The journal's auto-summary is shown live and never stored in the file.
 15. "Time practiced" is first-to-last stroke per test (3.6); weeks start on Monday.
 16. Opening a drill without a stroke writes nothing; leaving early closes the test marked abandoned.
+17. Word-prompt hints default to on-miss; a Hint setting (`on miss` / `always`) lets the learner see needed keys from the start (owner request 2026-10-27, after trying M2).

@@ -47,6 +47,8 @@ The top bar has five tabs: **Book · Practice · History · Days · Journal**.
 
 Free type draws only on words the book has taught: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter you pick (each chapter that has practice lists in the built content is offered as a source).
 
+For the chapter word lists, the **Hint** setting chooses when the keys a word needs light up on the board and its stroke is written out: `on miss` (the default, after your first miss on a word) or `always` (from the start of every word). It is stored with the board setting in `data/settings.json` and is only shown for chapter word lists; the pseudo-words always show their target.
+
 "Time practiced" is approximate: for each test it is the time from the first stroke to the last, so pauses inside a test count and time before the first stroke does not.
 
 The order of the remaining work (Chapter 5+ section drills, chapter tests and gates, briefs memory, reverse lookup, reports and routines) is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.

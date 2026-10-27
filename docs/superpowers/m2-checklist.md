@@ -12,3 +12,4 @@ Only the owner can do these, on the real Uni v4. Layout was only checked in head
 8. **Streak.** After practicing on consecutive days, the streak shows in the status line and in Days, and goes up the next day.
 9. **Plover Output on.** With Plover's Output ON, run free type: stray typed text is swallowed and nothing breaks.
 10. **Comfort.** The flow line and the result card read comfortably: size, spacing and contrast at your normal distance.
+11. **Hint setting.** Free type with a chapter source: set Hint to `always` and confirm the needed keys light on the board, and the notation line shows, from the start of every word. With `on miss` they appear only after a miss. Hint is not offered for the Chapter 4 pseudo-words, and with Board hidden `always` shows only the notation line.
