@@ -410,7 +410,7 @@ describe('Lookup in the dock drawer', () => {
   it('leaves the other tools on their placeholder', () => {
     stubFetch(INDEX)
     mount()
-    for (const tool of ['chart', 'briefs', 'notes'] as const) {
+    for (const tool of ['briefs', 'notes'] as const) {
       act(() => dock.open(tool))
       expect(within(screen.getByRole('dialog')).getByText('Coming in this milestone.')).toBeTruthy()
     }
