@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, currentStreak, dayLabel, formatDuration, localDate, monthWeeks } from '../../src/core/days.ts'
+import { addDays, currentStreak, dayLabel, formatDuration, localDate, longestStreak, monthWeeks } from '../../src/core/days.ts'
 
 describe('localDate', () => {
   it('gives the local calendar day at the start and end of the day', () => {
@@ -47,6 +47,57 @@ describe('currentStreak', () => {
 
   it('is 0 for an empty set', () => {
     expect(currentStreak(new Set(), '2026-10-27')).toBe(0)
+  })
+})
+
+describe('longestStreak', () => {
+  it('is 0 for an empty set and 1 for a single day', () => {
+    expect(longestStreak(new Set())).toBe(0)
+    expect(longestStreak(new Set(['2026-10-27']))).toBe(1)
+  })
+
+  it('picks the longest run when gaps split the days', () => {
+    const days = ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-09']
+    expect(longestStreak(new Set(days))).toBe(3)
+  })
+
+  it('does not bridge a one day gap', () => {
+    expect(longestStreak(new Set(['2026-10-01', '2026-10-03']))).toBe(1)
+  })
+
+  it('gives the shared length when two runs tie', () => {
+    expect(longestStreak(new Set(['2026-10-01', '2026-10-02', '2026-10-10', '2026-10-11']))).toBe(2)
+  })
+
+  it('counts a run in the past even when a later run is shorter', () => {
+    expect(longestStreak(new Set(['2026-01-01', '2026-01-02', '2026-01-03', '2026-10-27']))).toBe(3)
+  })
+
+  it('counts days across a month end and a year end', () => {
+    expect(longestStreak(new Set(['2026-10-31', '2026-11-01', '2026-11-02']))).toBe(3)
+    expect(longestStreak(new Set(['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']))).toBe(4)
+  })
+
+  it('counts a leap day and not a missing 29 February', () => {
+    expect(longestStreak(new Set(['2028-02-28', '2028-02-29', '2028-03-01']))).toBe(3)
+    expect(longestStreak(new Set(['2027-02-28', '2027-03-01']))).toBe(2)
+    expect(longestStreak(new Set(['2027-02-28', '2027-03-02']))).toBe(1)
+  })
+
+  it('does not depend on the order the days were added', () => {
+    expect(longestStreak(new Set(['2026-10-03', '2026-10-01', '2026-10-02']))).toBe(3)
+  })
+
+  it('handles a long run of days quickly', () => {
+    const days = new Set<string>()
+    let day = '2024-01-01'
+    for (let i = 0; i < 20000; i++) {
+      days.add(day)
+      day = addDays(day, 1)
+    }
+    const started = performance.now()
+    expect(longestStreak(days)).toBe(20000)
+    expect(performance.now() - started).toBeLessThan(2000)
   })
 })
 

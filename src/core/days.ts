@@ -40,6 +40,22 @@ export function currentStreak(activeDates: ReadonlySet<string>, today: string): 
   return streak
 }
 
+/** The longest run of consecutive active days; 0 for an empty set. Linear: each run is walked once, from its first day. */
+export function longestStreak(activeDates: ReadonlySet<string>): number {
+  let best = 0
+  for (const date of activeDates) {
+    if (activeDates.has(addDays(date, -1))) continue
+    let length = 1
+    let day = addDays(date, 1)
+    while (activeDates.has(day)) {
+      length++
+      day = addDays(day, 1)
+    }
+    if (length > best) best = length
+  }
+  return best
+}
+
 /** Rows of 7 (Monday first) covering a month; days outside the month are null. `month` is 1-12. */
 export function monthWeeks(year: number, month: number): (string | null)[][] {
   const lead = (new Date(year, month - 1, 1, 12).getDay() + 6) % 7
