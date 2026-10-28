@@ -11,7 +11,7 @@ import type { Progress } from '../../src/state/progress.tsx'
 import { DockHost } from '../../src/ui/DockHost.tsx'
 import { __resetBriefsCacheForTests } from '../../src/ui/tools/Briefs.tsx'
 import { __resetKeyChartCacheForTests } from '../../src/ui/tools/KeyChart.tsx'
-import { __resetLookupCacheForTests } from '../../src/ui/tools/Lookup.tsx'
+import { __resetDictionaryCacheForTests } from '../../src/ui/tools/Lookup.tsx'
 import { __resetNotesForTests } from '../../src/ui/tools/Notes.tsx'
 import { __resetPendingSavesForTests } from '../../src/ui/useAutosave.ts'
 
@@ -47,12 +47,16 @@ function readyProgress(): Progress {
   }
 }
 
-/** Every request gets an empty, valid answer: the tools' lists are empty, the notes are blank. */
+/** Every request gets an empty, valid answer: the tools' lists are empty, the dictionary has no cards, the notes are blank. */
 function stubFetch(): void {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      const body = url.startsWith('/api/notes/') ? { chapter: 4, text: '' } : []
+      const body = url.startsWith('/api/notes/')
+        ? { chapter: 4, text: '' }
+        : url === '/content/dictionary.json'
+          ? { commit: 'test', cards: [], letters: {} }
+          : []
       return { ok: true, status: 200, json: async () => body }
     }),
   )
@@ -70,7 +74,7 @@ afterEach(() => {
   fake.value = null
   __resetBriefsCacheForTests()
   __resetKeyChartCacheForTests()
-  __resetLookupCacheForTests()
+  __resetDictionaryCacheForTests()
   __resetNotesForTests()
   __resetPendingSavesForTests()
 })

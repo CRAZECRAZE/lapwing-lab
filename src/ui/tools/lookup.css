@@ -1,4 +1,4 @@
-/* The Lookup tool: a search box, the chapter limit, and the words found with their outlines. */
+/* The Lookup tool: a search box and the dictionary cards found, each with its outlines. */
 
 .lookup {
   display: flex;
@@ -30,14 +30,6 @@
 .lookup__input:focus-visible {
   outline: 2px solid var(--link);
   outline-offset: 1px;
-}
-
-.lookup__later-box {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  color: var(--muted);
-  font-size: 0.85rem;
 }
 
 .lookup__note,
@@ -108,19 +100,45 @@
   border-top: 1px solid var(--line);
 }
 
-.lookup__word {
+.lookup__word-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
   margin: 0 0 0.25rem;
-  color: var(--heading);
-  font-weight: 600;
 }
 
-.lookup__hit {
+.lookup__word {
+  color: var(--heading);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Plover syntax and odd characters are shown exactly as stored, so they get the code face. */
+.lookup__word--code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+/* Marks a card the book names that the dictionary has no translation of that text for. */
+.lookup__named {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.lookup__row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.2rem 0.75rem;
-  padding: 0.1rem 0;
+  padding: 0.1rem 0 0.1rem 0.5rem;
+  border-left: 2px solid transparent;
   font-size: 0.85rem;
+}
+
+/* A row whose outline matched the search: a bar at its edge, not only a colour. */
+.lookup__row--hit {
+  border-left-color: var(--link);
 }
 
 .lookup__outline {
@@ -135,21 +153,58 @@
   font-family: var(--mono);
 }
 
+.lookup__label-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+}
+
 .lookup__where,
 .lookup__sources {
   color: var(--muted);
 }
 
-.lookup__later {
-  margin-left: 0.5rem;
+.lookup__hit-note {
+  color: var(--text);
+}
+
+.lookup__tag,
+.lookup__book-only {
   padding: 0 0.4em;
   border: 1px solid var(--line);
   border-radius: 4px;
-  color: var(--left);
+  color: var(--muted);
   font-size: 0.8em;
 }
 
-.lookup__hit-note {
+.lookup__book-only {
+  color: var(--left);
+}
+
+.lookup__written {
   flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.lookup__w {
   color: var(--text);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.lookup__fingerspell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+}
+
+.lookup__more {
+  margin-top: 0.75rem;
 }
