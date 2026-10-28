@@ -175,6 +175,31 @@ describe('buildDictionary', () => {
     ])
   })
 
+  it('orders chapters numerically, not as text, and lets the chapter outrank the source', () => {
+    const files = empty()
+    files.main = { KAT: 'cat', KOT: 'cot' }
+    const out = buildDictionary(input({
+      files,
+      // Arrival order 9, 10, 2 is wrong for numeric order (2, 9, 10) and for text order (10, 2, 9).
+      lists: [
+        list('nine', 9, [['cat', ['KAT']]]),
+        list('ten', 10, [['cat', ['KAT']], ['cot', ['KOT']]]),
+        list('two', 2, [['cat', ['KAT']]]),
+      ],
+      examples: [{ chapter: 9, word: 'cot', outlines: ['KOT'] }],
+    }))
+    expect(cardOf(out, 'cat')!.r[0].b).toEqual([
+      { chapter: 2, source: 'practice' },
+      { chapter: 9, source: 'practice' },
+      { chapter: 10, source: 'practice' },
+    ])
+    // Chapter 9's example comes before chapter 10's practice although practice outranks example within a chapter.
+    expect(cardOf(out, 'cot')!.r[0].b).toEqual([
+      { chapter: 9, source: 'example' },
+      { chapter: 10, source: 'practice' },
+    ])
+  })
+
   it('repeats a (chapter, source) once', () => {
     const files = empty()
     files.main = { KAT: 'cat' }
