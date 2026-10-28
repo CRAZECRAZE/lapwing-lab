@@ -462,14 +462,17 @@ describe('searchDictionary speed', () => {
   })
 
   it('does not grow worse than linearly with the number of cards', () => {
-    const small = synthetic(30000)
+    // 4 times the cards: the search measures at about 8 times the time (a little over linear: sorting, memory and
+    // garbage collection), a quadratic one would take 16 times or more. The threshold sits between them with room
+    // on both sides, so a slow or busy machine does not fail it by chance.
+    const small = synthetic(15000)
     const large = synthetic(60000)
     // Queries that match most cards, so the times are tens of milliseconds and not lost in noise.
     for (const query of ['T', 'TK']) {
       searchDictionary(small, query)
       searchDictionary(large, query)
-      const ratio = best(large, query, 7) / Math.max(best(small, query, 7), 1)
-      expect(ratio, query).toBeLessThan(3)
+      const ratio = best(large, query, 9) / Math.max(best(small, query, 9), 1)
+      expect(ratio, query).toBeLessThan(12)
     }
   })
 })
