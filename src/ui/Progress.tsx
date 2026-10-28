@@ -4,9 +4,12 @@ import type { StatsMode } from '../../server/stats.ts'
 import { localDate } from '../core/days.ts'
 import { RANGES } from '../core/progressview.ts'
 import type { RangeId } from '../core/progressview.ts'
+import { AccuracyConsistency } from './progress/AccuracyConsistency.tsx'
 import { Tiles } from './progress/Tiles.tsx'
 import type { ReadyData } from './progress/Tiles.tsx'
 import { useProgressData } from './progress/useProgressData.ts'
+import { WeeklyBars } from './progress/WeeklyBars.tsx'
+import { WpmByDay } from './progress/WpmByDay.tsx'
 import './progress.css'
 
 const MODES: readonly { id: StatsMode; label: string }[] = [
@@ -82,7 +85,10 @@ function Panels({ data }: { data: ReadyData }): JSX.Element {
   return (
     <>
       <Tiles data={data} />
-      {/* The trend, heatmap, key and mix-up panels are added here, each a child taking `data`. */}
+      <WpmByDay data={data} />
+      <AccuracyConsistency data={data} />
+      <WeeklyBars data={data} />
+      {/* The heatmap, key and mix-up panels are added here, each a child taking `data`. */}
     </>
   )
 }

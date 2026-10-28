@@ -116,3 +116,239 @@
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+/* The chart panels: a titled section with a line of words, the drawing and the numbers behind it */
+
+.panel {
+  margin: 1.5rem 0 0;
+  padding: 0.85rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+}
+
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.6rem;
+}
+
+.panel__title {
+  margin: 0;
+  color: var(--heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.panel__scope {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.panel__line,
+.panel__note,
+.panel__best {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.panel__best {
+  color: var(--text);
+}
+
+.panel__value {
+  margin: 0.75rem 0 0;
+  color: var(--heading);
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  max-width: 40rem; /* keeps the text near its drawn size on a wide screen */
+  margin-inline: auto;
+  height: auto;
+  margin-top: 0.5rem;
+  overflow: visible;
+}
+
+.chart__grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart__grid[data-value='0'] {
+  stroke: var(--muted);
+}
+
+.chart__tick,
+.chart__strokes,
+.chart__sofar {
+  fill: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__tick-y2 {
+  fill: var(--muted);
+}
+
+.chart__sofar {
+  fill: var(--link);
+}
+
+.chart__line,
+.chart__trend {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart__line {
+  stroke: var(--link);
+}
+
+.chart__line--ok {
+  stroke: var(--ok);
+}
+
+.chart__trend {
+  stroke: var(--left);
+  stroke-width: 1.5;
+}
+
+.chart__dot {
+  fill: var(--link);
+}
+
+.chart__dot--ok {
+  fill: var(--ok);
+}
+
+.chart__bar {
+  fill: var(--vowel);
+}
+
+.chart__bar--grey {
+  fill: var(--muted);
+  fill-opacity: 0.45;
+}
+
+.chart__bar--now {
+  fill-opacity: 0.45;
+  stroke: var(--vowel);
+  stroke-dasharray: 4 3;
+}
+
+.chart__band {
+  fill: var(--muted);
+  fill-opacity: 0.18;
+}
+
+/* Dots and bars you can reach: a ring or an outline on hover and keyboard focus */
+
+.chart__hit {
+  outline: none;
+  cursor: default;
+}
+
+.chart__ring,
+.chart__column,
+.chart__slot {
+  fill: transparent;
+  stroke: transparent;
+}
+
+.chart__slot {
+  fill: var(--raised);
+  fill-opacity: 0.5;
+}
+
+.chart__hit:hover .chart__ring,
+.chart__hit:focus .chart__ring {
+  fill: var(--link);
+  fill-opacity: 0.2;
+}
+
+.chart__hit:focus-visible .chart__ring {
+  stroke: var(--link);
+  stroke-width: 2;
+}
+
+.chart__hit:hover .chart__column,
+.chart__hit:hover .chart__slot {
+  stroke: var(--muted);
+}
+
+.chart__hit:focus-visible .chart__column,
+.chart__hit:focus-visible .chart__slot {
+  stroke: var(--link);
+  stroke-width: 2;
+}
+
+.chart__tip {
+  pointer-events: none;
+}
+
+.chart__tip rect {
+  fill: var(--raised);
+  stroke: var(--muted);
+}
+
+.chart__tip text {
+  fill: var(--heading);
+  font-size: 13px;
+}
+
+/* The numbers behind a chart */
+
+.chart__numbers {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.chart__numbers summary {
+  cursor: pointer;
+  width: max-content;
+  max-width: 100%;
+}
+
+.chart__numbers summary:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.chart__table {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__table caption {
+  padding-bottom: 0.4rem;
+  text-align: left;
+}
+
+.chart__table th,
+.chart__table td {
+  padding: 0.2rem 0.6rem 0.2rem 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  font-weight: 400;
+}
+
+.chart__table thead th {
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.chart__table tbody th {
+  color: var(--text);
+}

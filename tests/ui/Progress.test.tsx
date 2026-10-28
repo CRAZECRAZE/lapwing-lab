@@ -519,3 +519,44 @@ describe('Progress stale responses', () => {
     expect(screen.getByText('15.4 wpm')).toBeTruthy()
   })
 })
+
+describe('Progress chart panels', () => {
+  const titles = (): string[] =>
+    screen
+      .getAllByRole('heading', { level: 2 })
+      .map((h) => h.textContent ?? '')
+
+  it('shows wpm by day, accuracy and consistency and practice time per week, in that order, after the tiles', async () => {
+    stub()
+    await mount()
+    expect(titles()).toEqual(['Free-type wpm by day', 'Accuracy and consistency', 'Practice time per week'])
+    const tiles = screen.getByRole('list', { name: 'Headline figures' })
+    const wpm = screen.getByRole('heading', { name: 'Free-type wpm by day' })
+    expect(tiles.compareDocumentPosition(wpm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('draws the dots of the days practiced and the weeks of the range from the fetched data', async () => {
+    stub()
+    await mount()
+    expect(screen.getByRole('img', { name: 'Oct 27: 15.8 wpm over 2 runs' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Week of Oct 19: 3 h 11 min, 10,080 strokes' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Week of Oct 26: 4 h 36 min, 11,284 strokes, so far' })).toBeTruthy()
+  })
+
+  it('follows the mode in the wpm title', async () => {
+    stub()
+    await mount()
+    click('Drills and tests')
+    await flush()
+    expect(titles()[0]).toBe('Drills and tests wpm by day')
+    click('Everything')
+    await flush()
+    expect(titles()[0]).toBe('Wpm by day')
+  })
+
+  it('shows no panels for an empty archive', async () => {
+    stub({ stats: () => statsOf([], { allTimeStrokes: 0 }), days: () => [] })
+    await mount()
+    expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0)
+  })
+})
