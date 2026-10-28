@@ -6,6 +6,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ['tests/**/*.test.{ts,tsx}'],
+      setupFiles: ['./tests/setup/preact-flush.ts'],
       execArgv: ['--import', './tests/setup/raf-shim.ts'],
     },
   }),

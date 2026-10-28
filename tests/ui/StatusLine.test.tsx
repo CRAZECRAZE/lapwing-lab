@@ -328,11 +328,14 @@ describe('UniProvider', () => {
     out.latest!.onStroke((s) => strokes.push(s))
 
     unmount()
-    await settle()
-    expect(device.listeners.size).toBe(0)
-    expect(hid.listeners.connect.size).toBe(0)
-    expect(hid.listeners.disconnect.size).toBe(0)
-    expect(device.closeCalls).toBe(1)
+    // unmount() is a plain render(null), so Preact runs the cleanup after the next frame (rAF ~16 ms, then a timeout):
+    // marginally past a fixed 20 ms sleep and later under load. Poll for the end state instead.
+    await waitFor(() => {
+      expect(device.listeners.size).toBe(0)
+      expect(hid.listeners.connect.size).toBe(0)
+      expect(hid.listeners.disconnect.size).toBe(0)
+      expect(device.closeCalls).toBe(1)
+    })
     device.report([0x80])
     device.report([])
     expect(strokes).toEqual([])
