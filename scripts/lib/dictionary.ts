@@ -1,3 +1,8 @@
+import { compareOutlines } from '../../src/core/outline.ts'
+import type { ExampleRow } from './examples.ts'
+import type { LookupList } from './lookup.ts'
+import type { BriefRow } from './tables.ts'
+
 /** The six upstream dictionary files, in the order they are merged and displayed. */
 export const DICT_FILES = ['main', 'uk', 'names', 'numbers', 'commands', 'movement'] as const
 export type DictFile = typeof DICT_FILES[number]
@@ -79,4 +84,166 @@ export function mergeDictionaries(
     }
   }
   return merged
+}
+
+const SOURCE_ORDER: Record<BookSource, number> = { practice: 0, brief: 1, example: 2 }
+
+/** One place the book uses an outline for a text. */
+type BookEntry = { text: string; outline: string; chapter: number; source: BookSource; note: string }
+
+type RowState = { o: string; f: DictFile[]; labels: Map<string, BookLabel>; x: boolean; named: boolean }
+type CardState = { t: string; named: boolean; rows: Map<string, RowState> }
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+function addLabel(row: RowState, entry: BookEntry): void {
+  const key = `${entry.chapter}|${entry.source}`
+  const known = row.labels.get(key)
+  if (!known) {
+    const label: BookLabel = { chapter: entry.chapter, source: entry.source }
+    if (entry.note !== '') label.note = entry.note
+    row.labels.set(key, label)
+  } else if (known.note === undefined && entry.note !== '') {
+    known.note = entry.note
+  }
+}
+
+function newRow(o: string): RowState {
+  return { o, f: [], labels: new Map(), x: false, named: false }
+}
+
+function finishRow(row: RowState, words: Map<string, string[]>): DictRow {
+  const out: DictRow = { o: row.o }
+  if (row.f.length > 0) out.f = row.f
+  if (row.labels.size > 0) {
+    out.b = [...row.labels.values()].sort((a, b) => a.chapter - b.chapter || SOURCE_ORDER[a.source] - SOURCE_ORDER[b.source])
+  }
+  if (row.x) out.x = true
+  if (row.named) out.w = [...(words.get(row.o) ?? [])].sort(compareText)
+  return out
+}
+
+/**
+ * The dictionary file the client loads: one card per exact translation, every outline of it, and the
+ * book's chapter labels joined on (text ignoring case and outline equal), never on outline alone.
+ * Pure and deterministic. Book entries: every list item (practice), brief outline and example outline;
+ * a text no card matches gets a named card, an outline its card lacks gets an `x` row.
+ */
+export function buildDictionary(input: {
+  files: Record<DictFile, Record<string, string>>
+  lists: LookupList[]
+  briefs: BriefRow[]
+  examples: ExampleRow[]
+  commit: string
+}): DictionaryFile {
+  const merged = mergeDictionaries(input.files)
+
+  // The dictionary's own cards, in card order, indexed by lower-cased and by exact text.
+  const cards: CardState[] = []
+  const words = new Map<string, string[]>()
+  for (const [t, outlines] of merged) {
+    const rows = new Map<string, RowState>()
+    for (const [o, files] of outlines) {
+      const row = newRow(o)
+      row.f = files.filter((f) => f !== 'main')
+      rows.set(o, row)
+      const list = words.get(o)
+      if (list) list.push(t)
+      else words.set(o, [t])
+    }
+    cards.push({ t, named: false, rows })
+  }
+  cards.sort((a, b) => compareText(a.t.toLowerCase(), b.t.toLowerCase()) || compareText(a.t, b.t))
+  const byLower = new Map<string, CardState[]>()
+  const byExact = new Map<string, CardState>()
+  for (const card of cards) {
+    const key = card.t.toLowerCase()
+    const same = byLower.get(key)
+    if (same) same.push(card)
+    else byLower.set(key, [card])
+    byExact.set(card.t, card)
+  }
+
+  // Every place the book uses an outline, in processing order: lists, then briefs, then examples.
+  const entries: BookEntry[] = []
+  for (const list of input.lists) {
+    for (const item of list.items) {
+      for (const outline of item.outlines) {
+        entries.push({ text: item.prompt, outline, chapter: list.chapter, source: 'practice', note: '' })
+      }
+    }
+  }
+  for (const row of input.briefs) {
+    for (const outline of row.outlines) {
+      entries.push({ text: row.translation, outline, chapter: row.chapter, source: 'brief', note: row.explanation })
+    }
+  }
+  for (const row of input.examples) {
+    for (const outline of row.outlines) {
+      entries.push({ text: row.word, outline, chapter: row.chapter, source: 'example', note: '' })
+    }
+  }
+
+  // First the labels that land on a row the dictionary has; the rest wait for the second pass.
+  const unmatched: BookEntry[] = []
+  const named = new Map<string, CardState>()
+  const namedCards: CardState[] = []
+  for (const entry of entries) {
+    const text = entry.text.trim()
+    if (text === '' || entry.outline === '') continue
+    const matching = byLower.get(text.toLowerCase())
+    if (!matching) {
+      const key = text.toLowerCase()
+      let card = named.get(key)
+      if (!card) {
+        card = { t: text, named: true, rows: new Map() }
+        named.set(key, card)
+        namedCards.push(card)
+      }
+      let row = card.rows.get(entry.outline)
+      if (!row) {
+        row = newRow(entry.outline)
+        row.named = true
+        card.rows.set(entry.outline, row)
+      }
+      addLabel(row, entry)
+      continue
+    }
+    let attached = false
+    for (const card of matching) {
+      const row = card.rows.get(entry.outline)
+      if (row && !row.x) {
+        addLabel(row, entry)
+        attached = true
+      }
+    }
+    if (!attached) unmatched.push({ ...entry, text })
+  }
+  for (const entry of unmatched) {
+    const card = byExact.get(entry.text) ?? byLower.get(entry.text.toLowerCase())![0]
+    let row = card.rows.get(entry.outline)
+    if (!row) {
+      row = newRow(entry.outline)
+      row.x = true
+      card.rows.set(entry.outline, row)
+    }
+    addLabel(row, entry)
+  }
+
+  const all = [...cards, ...namedCards]
+  all.sort((a, b) => compareText(a.t.toLowerCase(), b.t.toLowerCase()) || compareText(a.t, b.t))
+  const out: DictCard[] = all.map((card) => {
+    const rows = [...card.rows.values()].sort((a, b) => compareOutlines(a.o, b.o)).map((row) => finishRow(row, words))
+    return card.named ? { t: card.t, n: true, r: rows } : { t: card.t, r: rows }
+  })
+
+  const letters: Record<string, string> = {}
+  const lowercase = input.lists.find((list) => list.id === '18-lowercase')
+  for (const item of lowercase?.items ?? []) {
+    if (item.outlines.length > 0) letters[item.prompt] = item.outlines[0]
+  }
+
+  return { commit: input.commit, cards: out, letters }
 }
