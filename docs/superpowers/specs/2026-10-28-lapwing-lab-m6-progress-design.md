@@ -87,6 +87,18 @@ Offline, local, private repo; `data/` is touched only by the new `data/reports/`
 - **C8.** Delivered in two steps so the owner can use the page early: **M6a** (the stats route, the Progress tab with panels 1 to 9 and Rhythm in both places) and **M6b** (the plateau notice and the month-end report with notes). Each has its own plan and review.
 - **C9.** Mix-ups are derived from missing and extra keys within one stroke (the earlier spec §10 leaves the derivation to the builder).
 
+## 8a. Rulings from the builder check (also my calls)
+
+- **C10. What the Mode switch means.** The archive has four modes: `free`, `section` (section drills), `stage0` (Chapter 4) and `chapter-test`. The switch has three values: **Free type** (`free`), **Drills and tests** (`stage0`, `section`, `chapter-test`), **Everything**. It changes only the panels about speed and quality: the wpm and accuracy tiles, panels 2, 3 and 4 (Rhythm) and the plateau notice. The habit and key panels always use everything and say so in their titles ("all modes"): time and strokes in the tiles, panels 5, 6, 7 and 9. The chapter ladder (panel 8) ignores the switch and always shows chapter tests (Chapter 4's Stage 0 test counts as its test).
+- **C11. Words and weights.** A word is completed at its correct stroke (the last stroke of its prompt). A run's weight in a day's average is its number of completed words, never the stored `item_count` (timed free-type runs store a placeholder count). A timed run that ran out the clock (`meta.timedOut`) is a finished run, not an abandoned one.
+- **C12. First-try accuracy** is the stored `tests.accuracy` of each run (so the page agrees with History and the pass marks), averaged by completed words. The share of strokes that were right first time is a separate figure shown only beside the stroke counts, labeled as such.
+- **C13. Quarters.** The run is cut into four equal slices of active time, where active time leaves out breaks (gaps over 10 seconds, C4). A quarter's wpm is the words completed in that slice divided by the slice's minutes. These numbers need not equal the run's stored wpm (which is the run's headline everywhere else); the Rhythm panel shows both, labeled.
+- **C14. Gaps.** A gap is the time between consecutive strokes of the run, every attempt counted, so a miss followed by a retry is two gaps. The first stroke's gap is its own `latency_ms` (time since its prompt appeared); the builder checks that field's exact meaning against the drill code and says so in the plan.
+- **C15. Chapter ladder.** One row per chapter that has a test, built from the same results `sectionResults` gives (best result by passed first, then accuracy, then wpm), with the pass mark from the book data (the same source as the chapter gates); chapters without a test are left out.
+- **C16. Totals match the Days tab.** Time practiced and strokes count every run that has strokes, including a run whose `ended_at` was never written (the tab was closed), plus left-early runs; the Progress page and Days therefore always agree on time and strokes. Wpm, accuracy, steadiness, the ladder and the plateau rule use finished runs only (C2).
+- **C17. Month report comparisons.** "Start of the month" is the average over the first 7 days practiced in the month and "end" the average over the last 7 days practiced (all of them if fewer than 14 days were practiced, and then no change is shown); accuracy and steadiness change are computed the same way. "Chapters cleared in the month" lists passed chapter tests, chapters marked read and chapters moved on anyway, each kind named.
+- **C18. Plateau baseline.** A = mean daily free-type wpm over the last 7 days; B = mean daily free-type wpm over the 14 days before those. The notice appears when at least 5 of the last 14 days were practiced, there are days in both windows, and A is less than B times 1.03. Weeks and days follow the Days tab's local-date convention (the local date of the run's start).
+
 ## 9. Left to the builder
 
 The SQL and the aggregation structure, the steadiness formula within §5's properties, chart geometry and styling within the app's look, the exact shading steps, the route shapes beyond §6, fixtures and test design, naming.
@@ -95,4 +107,4 @@ The SQL and the aggregation structure, the steadiness formula within §5's prope
 
 - §4.4: the M6 views are the Progress tab and the month-end report described here.
 - §9: M6 is delivered as M6a and M6b (C8). M5b (briefs memory) and M7 are unchanged.
-- §11: add C1 to C9 above.
+- §11: add C1 to C18 above.
