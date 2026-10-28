@@ -563,8 +563,8 @@ describe('Progress chart panels', () => {
       'Free-type wpm by day',
       'Accuracy and consistency',
       'Practice time per week',
-      'Weakest keys, all modes',
-      'Mix-ups, all modes',
+      'Weakest keys',
+      'Mix-ups',
       'Practice, all modes', // the chapter ladder has no panel without chapter tests
     ])
     const tiles = screen.getByRole('list', { name: 'Headline figures' })
@@ -634,8 +634,8 @@ describe('Progress key, mix-up, ladder and year panels', () => {
       'Free-type wpm by day',
       'Accuracy and consistency',
       'Practice time per week',
-      'Weakest keys, all modes',
-      'Mix-ups, all modes',
+      'Weakest keys',
+      'Mix-ups',
       'Chapter tests (ignores the mode switch)',
       'Practice, all modes',
     ])
@@ -643,6 +643,20 @@ describe('Progress key, mix-up, ladder and year panels', () => {
     expect(screen.getByText(/9 times/)).toBeTruthy()
     expect(screen.getByText('9.9 wpm · 95%')).toBeTruthy()
     expect(document.querySelector('.ladder__verdict')!.textContent).toBe('not yet')
+  })
+
+  it('says in the scope of the key and mix-up panels which period the range switch is on', async () => {
+    stub({ stats: () => statsOf(QUALITY, { keys, mixups }) })
+    await mount()
+    const scope = (title: string): string =>
+      screen.getByRole('heading', { name: title }).closest('section')!.querySelector('.panel__scope')!.textContent!
+    expect([scope('Weakest keys'), scope('Mix-ups')]).toEqual(['all modes, last 4 weeks', 'all modes, last 4 weeks'])
+    click('3 months')
+    await flush()
+    expect([scope('Weakest keys'), scope('Mix-ups')]).toEqual(['all modes, last 3 months', 'all modes, last 3 months'])
+    click('All time')
+    await flush()
+    expect([scope('Weakest keys'), scope('Mix-ups')]).toEqual(['all modes, all time', 'all modes, all time'])
   })
 
   it('asks for the year once, ending today, whatever the range, and does not ask again on a switch', async () => {

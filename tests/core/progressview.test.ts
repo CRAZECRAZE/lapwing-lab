@@ -390,3 +390,12 @@ describe('purity', () => {
     expect(source).not.toMatch(/new Date\(\)/)
   })
 })
+
+describe('periodText', () => {
+  it('names the period a range stands for, from its label', async () => {
+    const { periodText } = await import('../../src/core/progressview.ts')
+    expect(periodText('4w')).toBe('last 4 weeks')
+    expect(periodText('3m')).toBe('last 3 months')
+    expect(periodText('all')).toBe('all time')
+  })
+})

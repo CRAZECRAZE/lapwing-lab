@@ -57,6 +57,15 @@ function markText(mark: Mark | undefined): string {
   return text
 }
 
+/** What a not-yet result falls short of, by its raw numbers: the mark's accuracy and/or its wpm. */
+function shortfalls(best: Row['best'], mark: Mark | undefined, verdict: Verdict): string[] {
+  if (verdict !== 'not-yet' || !best || !mark) return []
+  const out: string[] = []
+  if (!(best.accuracy >= mark.accuracy)) out.push(`needs ${Math.round(mark.accuracy * 100)}% accuracy`)
+  if (mark.minWpm !== undefined && !(best.wpm >= mark.minWpm)) out.push(`needs ${mark.minWpm} wpm`)
+  return out
+}
+
 const wpmText = (best: Row['best'], mark: Mark | undefined): string =>
   best && finite(best.wpm) ? formatWpm(best.wpm, mark?.minWpm) : '—'
 const accuracyText = (best: Row['best'], mark: Mark | undefined): string =>
@@ -135,10 +144,21 @@ export function Ladder(): JSX.Element | null {
                     <span class="ladder__nobar" aria-hidden="true" />
                   )}
                   <span class="ladder__score">{`${wpmText(best, mark)} · ${accuracyText(best, mark)}`}</span>
-                  <span class={`ladder__verdict ladder__verdict--${verdict}`}>{VERDICT_WORD[verdict]}</span>
+                  <span class="ladder__result">
+                    <span class={`ladder__verdict ladder__verdict--${verdict}`}>{VERDICT_WORD[verdict]}</span>
+                    {other && <span class="ladder__other">passed on another run</span>}
+                  </span>
                 </>
               )}
-              <span class="ladder__need">{`needs ${markText(mark)}${other ? ' · met on another run' : ''}`}</span>
+              <span class="ladder__need">
+                {shortfalls(best, mark, verdict).map((text) => (
+                  <span key={text} class="ladder__short">
+                    {text}
+                  </span>
+                ))}
+                {shortfalls(best, mark, verdict).length === 0 && `needs ${markText(mark)}`}
+                {other && ' · the most accurate run is below the mark, but another run passed'}
+              </span>
             </li>
           )
         })}

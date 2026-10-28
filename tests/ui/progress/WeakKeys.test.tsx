@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/preact'
 import { afterEach, describe, expect, it } from 'vitest'
+import { HEAT_FULL_RATE } from '../../../src/ui/progress/WeakKeys.tsx'
 import { MIN_KEY_PRESSES } from '../../../src/core/keystats.ts'
 import type { KeyStat } from '../../../src/core/keystats.ts'
 import type { Slot } from '../../../src/core/steno.ts'
@@ -19,10 +20,18 @@ const heated = (c: Element): string[] => [...c.querySelectorAll('.key--heat')].m
 const items = (c: Element): string[] => [...c.querySelectorAll('.weak__list li')].map((li) => li.textContent!.replace(/\s+/g, ' ').trim())
 
 describe('WeakKeys: threshold and ranking', () => {
-  it('has the title naming all modes and the board', () => {
+  it('has the title and the board', () => {
     const { container } = show([k('-F', 66, 14)])
-    expect(screen.getByRole('heading', { level: 2, name: 'Weakest keys, all modes' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Weakest keys' })).toBeTruthy()
     expect(container.querySelectorAll('.board')).toHaveLength(1)
+  })
+
+  it('names all modes and the period of the range in its scope', () => {
+    for (const [range, text] of [['4w', 'all modes, last 4 weeks'], ['3m', 'all modes, last 3 months'], ['all', 'all modes, all time']] as const) {
+      const view = render(<WeakKeys data={ready({ keys: [k('-F', 66, 14)], range })} />)
+      expect(view.container.querySelector('.panel__scope')!.textContent).toBe(text)
+      cleanup()
+    }
   })
 
   it('does not rank a key with 29 required presses and ranks one with 30', () => {
@@ -73,14 +82,32 @@ describe('WeakKeys: threshold and ranking', () => {
     expect(items(container)).toEqual(['-F <1% missed (2 of 1,000)'])
   })
 
-  it('shades each ranked key by its rate against the worst: the worst is 1, the rest scaled, 0% not shaded', () => {
-    const { container } = show([k('-F', 100, 40), k('-P', 100, 20), k('-B', 100, 10), k('-R', 100, 0), k('T-', 29, 29)])
-    expect(heat(container, '-F')).toBe(1)
-    expect(heat(container, '-P')).toBe(0.5)
-    expect(heat(container, '-B')).toBe(0.25)
+  it('shades by an absolute scale: 25% missed or more is 1, a key at 12.5% is 0.5, 1% is 0.04, 0% is not shaded', () => {
+    expect(HEAT_FULL_RATE).toBe(0.25)
+    const { container } = show([k('-F', 100, 40), k('-P', 200, 25), k('-B', 100, 25), k('-L', 100, 1), k('-R', 100, 0), k('T-', 29, 29)])
+    expect(heat(container, '-F')).toBe(1) // 40%: capped
+    expect(heat(container, '-B')).toBe(1) // exactly 25%
+    expect(heat(container, '-P')).toBe(0.5) // 12.5%
+    expect(heat(container, '-L')).toBe(0.04)
     expect(heat(container, '-R')).toBeNull()
     expect(heat(container, 'T-')).toBeNull() // too few presses
     expect(heat(container, '-D')).toBeNull() // no data
+  })
+
+  it('does not paint the worst key red when every rate is low: nothing reaches 0.1 under 2%', () => {
+    const { container } = show([k('-G', 1190, 10), k('-R', 1316, 10), k('-F', 500, 4), k('S-', 300, 1)])
+    const values = [...container.querySelectorAll('.key--heat')].map((el) => Number((el as HTMLElement).style.getPropertyValue('--heat')))
+    expect(values.length).toBeGreaterThan(0)
+    expect(Math.max(...values)).toBeLessThan(0.1)
+    expect(heat(container, '-G')).toBe(0.03) // 0.84% / 25%
+  })
+
+  it('gives the same key the same heat whatever the other keys are (the scale is not relative)', () => {
+    const alone = heat(show([k('-F', 100, 10)]).container, '-F')
+    cleanup()
+    const among = heat(show([k('-F', 100, 10), k('-P', 100, 60), k('-B', 100, 90)]).container, '-F')
+    expect(among).toBe(alone)
+    expect(alone).toBe(0.4)
   })
 
   it('keeps every heat within 0 and 1', () => {
@@ -93,11 +120,16 @@ describe('WeakKeys: threshold and ranking', () => {
     expect(heat(container, '-F')).toBe(1)
   })
 
+  it('explains the colour under the board, built from the full-heat rate', () => {
+    const { container } = show([k('-F', 66, 14)])
+    expect(container.querySelector('.weak__board')!.textContent).toContain('Colour: share of presses missed, from none to 25% or more.')
+  })
+
   it('heats by slot: S- lights both S levers and * all four star levers', () => {
     const { container } = show([k('S-', 100, 30), k('*', 100, 15)])
     expect(heated(container)).toEqual(['*1', '*2', '*3', '*4', 'S1-', 'S2-'])
-    expect(heat(container, 'S2-')).toBe(1)
-    expect(heat(container, '*4')).toBe(0.5)
+    expect(heat(container, 'S2-')).toBe(1) // 30%
+    expect(heat(container, '*4')).toBe(0.6) // 15%
   })
 
   it('does not shade a key whose counts make no rate (missed above nothing, odd numbers)', () => {

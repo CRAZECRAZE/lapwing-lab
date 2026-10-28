@@ -421,7 +421,7 @@
 
 .ladder__row {
   display: grid;
-  grid-template-columns: 3rem minmax(6rem, 1fr) 10rem 6rem;
+  grid-template-columns: 3rem minmax(6rem, 1fr) 10rem auto;
   align-items: center;
   gap: 0.25rem 0.75rem;
   font-variant-numeric: tabular-nums;
@@ -475,6 +475,27 @@
   font-weight: 600;
 }
 
+.ladder__result {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+}
+
+.ladder__other {
+  color: var(--ok);
+  font-size: 0.85rem;
+}
+
+.ladder__short {
+  color: var(--left);
+}
+
+.ladder__short + .ladder__short::before {
+  content: ' · ';
+  color: var(--muted);
+}
+
 .ladder__verdict--met {
   color: var(--ok);
 }
@@ -519,7 +540,7 @@
     grid-column: 2;
   }
 
-  .ladder__verdict {
+  .ladder__result {
     grid-column: 3;
   }
 }
@@ -551,7 +572,12 @@
 }
 
 .heat__col--labels {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   width: var(--labels);
+  background: var(--panel);
+  box-shadow: var(--gap) 0 0 var(--panel); /* the cells scroll under it, not up against the labels */
 }
 
 .heat__monthslot {
@@ -627,7 +653,7 @@
 /* the note over the focused or hovered day: placed from its column and row, like the chart notes */
 .heat__tip {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   left: calc(var(--labels) + var(--gap) + var(--col) * (var(--cell) + var(--gap)) + var(--cell) / 2);
   top: calc(var(--head) + var(--row) * (var(--cell) + var(--gap)));
   padding: 0.2rem 0.5rem;
@@ -687,4 +713,12 @@
 
 .heat__streak + .heat__streak {
   margin-top: 0.15rem;
+}
+
+.weak__board {
+  max-width: 100%;
+}
+
+.weak__board .panel__note {
+  max-width: 22rem;
 }

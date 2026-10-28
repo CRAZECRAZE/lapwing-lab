@@ -127,13 +127,60 @@ describe('Ladder: met and not yet', () => {
   it('says met when a run passed even though the best-ranked run does not show it (the app clears the chapter then)', () => {
     const { container } = show({ results: { 'chapter-test': [result('5-test', true, [0.99, 9])] } })
     expect(row(container, 5).getAttribute('data-state')).toBe('met')
-    expect(text(row(container, 5))).toContain('met on another run')
+    const other = row(container, 5).querySelector('.ladder__other')!
+    expect(other.textContent).toBe('passed on another run')
+    expect(other.parentElement!.querySelector('.ladder__verdict')!.textContent).toBe('met') // next to the word met
+    expect(row(container, 5).querySelector('.ladder__need')!.textContent).toContain('another run passed')
     expect(text(row(container, 5))).toContain('9 wpm')
   })
 
   it('does not say another run when the best result itself is at the mark', () => {
     const { container } = show({ results: { 'chapter-test': [result('5-test', true, [0.94, 12])] } })
     expect(text(row(container, 5))).not.toContain('another run')
+    expect(row(container, 5).querySelector('.ladder__other')).toBeNull()
+  })
+
+  describe('says what a not-yet result falls short of, in the requirement line', () => {
+    const shorts = (c: Element, n: number): string[] => [...row(c, n).querySelectorAll('.ladder__short')].map((e) => e.textContent!)
+
+    it('accuracy short, speed fine: needs 90% accuracy', () => {
+      const { container } = show({ results: { 'chapter-test': [result('5-test', false, [0.82, 30])] } })
+      expect(shorts(container, 5)).toEqual(['needs 90% accuracy'])
+      expect(row(container, 5).querySelector('.ladder__need')!.textContent).toBe('needs 90% accuracy')
+    })
+
+    it('speed short, accuracy fine: needs 10 wpm, with the mark of the chapter', () => {
+      const { container } = show({ results: { 'chapter-test': [result('5-test', false, [0.95, 8]), result('7-test', false, [0.95, 15])] } })
+      expect(shorts(container, 5)).toEqual(['needs 10 wpm'])
+      expect(shorts(container, 7)).toEqual(['needs 20 wpm'])
+    })
+
+    it('both short: both are said', () => {
+      const { container } = show({ results: { 'chapter-test': [result('5-test', false, [0.82, 8])] } })
+      expect(shorts(container, 5)).toEqual(['needs 90% accuracy', 'needs 10 wpm'])
+    })
+
+    it('uses the raw numbers: 9.96 wpm is still short of 10, and 89.6% of 90%', () => {
+      const { container } = show({ results: { 'chapter-test': [result('5-test', false, [0.95, 9.96]), result('7-test', false, [0.896, 25])] } })
+      expect(shorts(container, 5)).toEqual(['needs 10 wpm'])
+      expect(shorts(container, 7)).toEqual(['needs 90% accuracy'])
+    })
+
+    it('is amber through its class, and absent for met, untried and when nothing is short', () => {
+      const { container } = show({ results: { 'chapter-test': [result('5-test', true, [0.94, 12])] } })
+      expect(shorts(container, 5)).toEqual([])
+      expect(shorts(container, 7)).toEqual([])
+      expect(text(row(container, 5).querySelector('.ladder__need')!)).toBe('needs 90% and 10 wpm')
+    })
+
+    it('says the accuracy for Chapter 4 when that is short, and nothing extra when only its time limit failed', () => {
+      const low = show({ results: { stage0: [result('pseudo-test', false, [0.8, 12])] } })
+      expect(shorts(low.container, 4)).toEqual(['needs 90% accuracy'])
+      cleanup()
+      const slow = show({ results: { stage0: [result('pseudo-test', false, [0.97, 12])] } })
+      expect(shorts(slow.container, 4)).toEqual([])
+      expect(text(row(slow.container, 4).querySelector('.ladder__need')!)).toBe('needs 90% within 10 minutes')
+    })
   })
 
   it('judges Chapter 4 by its stored pass (accuracy within the time limit), not by a wpm', () => {

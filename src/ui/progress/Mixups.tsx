@@ -1,5 +1,6 @@
 import type { JSX } from 'preact'
 import { MIN_MIXUP_COUNT } from '../../core/keystats.ts'
+import { periodText } from '../../core/progressview.ts'
 import { DataTable, Panel } from './Chart.tsx'
 import type { ReadyData } from './Tiles.tsx'
 import { thousands } from './Tiles.tsx'
@@ -15,7 +16,7 @@ const times = (n: number): string => `${thousands(n)} ${n === 1 ? 'time' : 'time
 export function Mixups({ data }: { data: ReadyData }): JSX.Element {
   const seen = data.stats.mixups.filter((m) => Number.isFinite(m.count) && m.count >= MIN_MIXUP_COUNT)
   return (
-    <Panel id="progress-mixups" title="Mix-ups, all modes" line={LINE}>
+    <Panel id="progress-mixups" title="Mix-ups" scope={`all modes, ${periodText(data.range)}`} line={LINE}>
       {seen.length === 0 ? (
         <p class="panel__note">no repeated mix-ups yet</p>
       ) : (

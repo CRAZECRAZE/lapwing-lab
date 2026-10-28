@@ -1,12 +1,16 @@
 import type { JSX } from 'preact'
 import { MIN_KEY_PRESSES } from '../../core/keystats.ts'
 import type { KeyStat } from '../../core/keystats.ts'
+import { periodText } from '../../core/progressview.ts'
 import { SLOTS } from '../../core/steno.ts'
 import type { Slot } from '../../core/steno.ts'
 import { Board } from '../Board.tsx'
 import { DataTable, Panel } from './Chart.tsx'
 import type { ReadyData } from './Tiles.tsx'
 import { thousands } from './Tiles.tsx'
+
+/** A key missed this share of its presses or more is drawn fully red; the scale is fixed, so a low rate stays pale. */
+export const HEAT_FULL_RATE = 0.25
 
 /** How many keys the list names. */
 const LISTED = 5
@@ -38,10 +42,9 @@ export function WeakKeys({ data }: { data: ReadyData }): JSX.Element {
     const rate = rateOf(key)
     if (rate !== null) ranked.push({ ...key, rate })
   }
-  // Each key is shaded against the worst one, so the worst is fully hot; a key that is never missed is not shaded.
-  const worst = Math.max(0, ...ranked.map((k) => k.rate))
+  // An absolute scale: none missed is not shaded, HEAT_FULL_RATE or more is fully red.
   const heat: Partial<Record<Slot, number>> = {}
-  for (const key of ranked) if (key.rate > 0 && worst > 0) heat[key.slot] = key.rate / worst
+  for (const key of ranked) if (key.rate > 0) heat[key.slot] = Math.min(1, key.rate / HEAT_FULL_RATE)
 
   const order = (slot: Slot): number => SLOTS.indexOf(slot)
   const listed = ranked
@@ -65,9 +68,12 @@ export function WeakKeys({ data }: { data: ReadyData }): JSX.Element {
     })
 
   return (
-    <Panel id="progress-weak" title="Weakest keys, all modes" line={LINE}>
+    <Panel id="progress-weak" title="Weakest keys" scope={`all modes, ${periodText(data.range)}`} line={LINE}>
       <div class="weak">
-        <Board size={22} heat={heat} />
+        <div class="weak__board">
+          <Board size={22} heat={heat} />
+          <p class="panel__note">{`Colour: share of presses missed, from none to ${Math.round(HEAT_FULL_RATE * 100)}% or more.`}</p>
+        </div>
         <div class="weak__side">
           {ranked.length === 0 ? (
             <p class="panel__note">not enough data yet</p>

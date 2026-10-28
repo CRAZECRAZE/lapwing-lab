@@ -183,9 +183,9 @@ function Year({ today, days }: { today: string; days: DayStat[] }): JSX.Element 
                   const t = totals.get(date)
                   const level = practiced(t) ? Math.max(1, dayLevel(t.activeMs)) : 0
                   return (
-                    <button
+                    <span
                       key={r}
-                      type="button"
+                      role="img"
                       class="heat__cell"
                       data-date={date}
                       data-level={level}

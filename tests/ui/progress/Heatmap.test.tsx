@@ -326,6 +326,19 @@ describe('Heatmap: one tab stop and the keys', () => {
     expect(container.querySelector('.heat__tip')).toBeNull()
   })
 
+  it('draws the days as images, not buttons, and keeps the label, level, tab stop and focus on them', async () => {
+    const { container } = await mount(FIXTURE)
+    expect(container.querySelectorAll('[data-date]')).toHaveLength(365)
+    for (const el of cells(container)) {
+      expect(el.getAttribute('role')).toBe('img')
+      expect(el.tagName).not.toBe('BUTTON')
+      expect(el.getAttribute('aria-label')).toBeTruthy()
+    }
+    expect(screen.getAllByRole('img', { name: /: (no practice|\d)/ }).length).toBe(365)
+    // the only button of the panel is none while loaded: nothing announces as a button
+    expect(container.querySelectorAll('button')).toHaveLength(0)
+  })
+
   it('has the grid in a scrolling container that is a labelled group', async () => {
     const { container } = await mount()
     const group = screen.getByRole('group', { name: 'Practice in the last year' })

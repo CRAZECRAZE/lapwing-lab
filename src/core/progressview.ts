@@ -12,6 +12,12 @@ export const RANGES: readonly { id: RangeId; label: string; days: number | null 
   { id: 'all', label: 'All time', days: null },
 ]
 
+/** `last 4 weeks`, `last 3 months`, `all time`: the period a range stands for, from its own label. */
+export function periodText(range: RangeId): string {
+  const label = (RANGES.find((r) => r.id === range)?.label ?? '').toLowerCase()
+  return range === 'all' ? label : `last ${label}`
+}
+
 /** How far back "all time" reaches. The server caps a span (to minus from) at 1,100 days. */
 const ALL_TIME_DAYS = 1100
 

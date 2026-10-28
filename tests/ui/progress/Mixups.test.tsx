@@ -14,10 +14,18 @@ const show = (mixups: Mixup[]): ReturnType<typeof render> => render(<Mixups data
 const items = (c: Element): string[] => [...c.querySelectorAll('.mixups__list li')].map((li) => li.textContent!.replace(/\s+/g, ' ').trim())
 
 describe('Mixups', () => {
-  it('has the title naming all modes and the plain-words line', () => {
+  it('has the title and the plain-words line', () => {
     const { container } = show([m('-P', '-B', 9)])
-    expect(screen.getByRole('heading', { level: 2, name: 'Mix-ups, all modes' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Mix-ups' })).toBeTruthy()
     expect(container.textContent).toContain('A mix-up is a miss where you pressed one wrong key in place of the one you needed.')
+  })
+
+  it('names all modes and the period of the range in its scope', () => {
+    for (const [range, text] of [['4w', 'all modes, last 4 weeks'], ['3m', 'all modes, last 3 months'], ['all', 'all modes, all time']] as const) {
+      const view = render(<Mixups data={ready({ mixups: [m('-P', '-B', 9)], range })} />)
+      expect(view.container.querySelector('.panel__scope')!.textContent).toBe(text)
+      cleanup()
+    }
   })
 
   it('writes `-P instead of -B · 9 times` with the keys in code', () => {
