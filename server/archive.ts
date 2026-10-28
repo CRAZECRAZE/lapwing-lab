@@ -40,6 +40,25 @@ export type SectionResult = {
   last: { accuracy: number; wpm: number; endedAt: number; passed: boolean | null } | null
 }
 
+export type RunRow = {
+  id: number
+  date: string
+  mode: string
+  chapter: number | null
+  endedAt: number | null
+  accuracy: number | null
+  wpm: number | null
+  words: number
+  abandoned: boolean
+  timedOut: boolean
+  strokes: number
+  activeMs: number
+}
+
+export type StrokeTiming = { testId: number; tsMs: number; correct: boolean; latencyMs: number }
+
+export type KeyRow = { expected: string[]; pressedMask: number; correct: boolean; n: number }
+
 export type ProgressMark = { chapter: number; kind: 'read' | 'override'; at: number }
 
 export interface Archive {
@@ -60,6 +79,10 @@ export interface Archive {
   getTest(id: number): { test: TestRow; strokes: StrokeRecord[] } | undefined
   dayStats(from: string, to: string): DayStat[]
   sectionResults(mode: string): SectionResult[]
+  runsInRange(from: string, to: string): RunRow[]
+  timingsInRange(from: string, to: string): StrokeTiming[]
+  keyRowsInRange(from: string, to: string): KeyRow[]
+  allTimeStrokes(): number
   listMarks(): ProgressMark[]
   setMark(chapter: number, kind: 'read' | 'override', at: number): void
   clearMark(chapter: number): void
@@ -135,6 +158,41 @@ function localDate(name: string, v: string): string {
   return v
 }
 
+// A YYYY-MM-DD range for the stats reads: both ends valid and from not after to.
+function dateRange(from: string, to: string): [string, string] {
+  localDate('from', from)
+  localDate('to', to)
+  if (from > to) throw new RangeError('from must not be after to')
+  return [from, to]
+}
+
+function parseJson(text: unknown): unknown {
+  if (typeof text !== 'string') return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+function metaObject(text: unknown): Record<string, unknown> {
+  const v = parseJson(text)
+  return v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
+}
+
+// Completed words of a finished run (plan ruling R1); 0 when no source is usable.
+function completedWords(wpm: number | null, accuracy: number | null, meta: Record<string, unknown>): number {
+  const elapsed = meta.elapsedMs
+  if (typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed > 0 && wpm !== null && Number.isFinite(wpm)) {
+    return Math.round((wpm * elapsed) / 60000)
+  }
+  const firstTry = meta.firstTryCorrect
+  if (accuracy !== null && accuracy > 0 && typeof firstTry === 'number' && Number.isFinite(firstTry) && firstTry >= 0) {
+    return Math.round(firstTry / accuracy)
+  }
+  return 0
+}
+
 function measure(name: string, v: number, max = Number.MAX_SAFE_INTEGER): number {
   if (!Number.isFinite(v) || v < 0 || v > max) throw new RangeError(`${name} must be a finite number between 0 and ${max}`)
   return v
@@ -196,6 +254,34 @@ export function openArchive(path: string): Archive {
        AND json_extract(t.meta_json, '$.abandoned') IS NOT 1
      ORDER BY t.section, t.id`,
   )
+
+  // Stats reads. In range means the run's first stroke falls on a local date within from..to.
+  // json_valid guards json_extract, which throws on malformed text.
+  const selectRunsInRange = db.prepare(
+    `SELECT t.id, ${LOCAL_DAY} AS date, t.mode, t.chapter, t.ended_at, t.accuracy, t.wpm, t.meta_json,
+            s.n, s.first_ts, s.last_ts
+     ${WITH_STROKES}
+     WHERE ${LOCAL_DAY} BETWEEN ? AND ?
+     ORDER BY t.id`,
+  )
+  const selectTimings = db.prepare(
+    `SELECT st.test_id, st.ts_ms, st.correct, st.latency_ms
+     ${WITH_STROKES}
+     JOIN strokes st ON st.test_id = t.id
+     WHERE ${LOCAL_DAY} BETWEEN ? AND ?
+       AND t.ended_at IS NOT NULL
+       AND CASE WHEN json_valid(t.meta_json) THEN json_extract(t.meta_json, '$.abandoned') END IS NOT 1
+     ORDER BY st.test_id, st.id`,
+  )
+  const selectKeyRows = db.prepare(
+    `SELECT st.expected_json, st.pressed_slots_mask, st.correct, COUNT(*) AS n
+     ${WITH_STROKES}
+     JOIN strokes st ON st.test_id = t.id
+     WHERE ${LOCAL_DAY} BETWEEN ? AND ?
+     GROUP BY st.expected_json, st.pressed_slots_mask, st.correct
+     ORDER BY st.expected_json, st.pressed_slots_mask, st.correct`,
+  )
+  const countStrokes = db.prepare('SELECT COUNT(*) AS n FROM strokes')
   const selectMarks = db.prepare('SELECT chapter, kind, at FROM progress_marks ORDER BY chapter')
   const upsertMark = db.prepare(
     `INSERT INTO progress_marks (chapter, kind, at) VALUES (?, ?, ?)
@@ -331,6 +417,56 @@ export function openArchive(path: string): Archive {
         if (!res.last || endedAt >= res.last.endedAt) res.last = { accuracy, wpm, endedAt, passed }
       }
       return [...out.values()].map((e) => e.result)
+    },
+    runsInRange(from, to) {
+      const [lo, hi] = dateRange(from, to)
+      return selectRunsInRange.all(lo, hi).map((r) => {
+        const meta = metaObject(r.meta_json)
+        const finished = r.ended_at !== null
+        const wpm = finished ? (r.wpm as number | null) : null
+        const accuracy = finished ? (r.accuracy as number | null) : null
+        return {
+          id: r.id as number,
+          date: r.date as string,
+          mode: r.mode as string,
+          chapter: r.chapter as number | null,
+          endedAt: r.ended_at as number | null,
+          accuracy,
+          wpm,
+          words: finished ? completedWords(wpm, accuracy, meta) : 0,
+          abandoned: meta.abandoned === true,
+          timedOut: meta.timedOut === true,
+          strokes: r.n as number,
+          activeMs: (r.last_ts as number) - (r.first_ts as number),
+        }
+      })
+    },
+    timingsInRange(from, to) {
+      const [lo, hi] = dateRange(from, to)
+      return selectTimings.all(lo, hi).map((r) => ({
+        testId: r.test_id as number,
+        tsMs: r.ts_ms as number,
+        correct: r.correct === 1,
+        latencyMs: r.latency_ms as number,
+      }))
+    },
+    keyRowsInRange(from, to) {
+      const [lo, hi] = dateRange(from, to)
+      const out: KeyRow[] = []
+      for (const r of selectKeyRows.all(lo, hi)) {
+        const expected = parseJson(r.expected_json)
+        if (!Array.isArray(expected)) continue
+        out.push({
+          expected: expected as string[],
+          pressedMask: r.pressed_slots_mask as number,
+          correct: r.correct === 1,
+          n: r.n as number,
+        })
+      }
+      return out
+    },
+    allTimeStrokes() {
+      return countStrokes.get()?.n as number
     },
     listMarks() {
       return selectMarks.all().map((r) => ({

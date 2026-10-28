@@ -338,6 +338,420 @@ describe('archive reads', () => {
   })
 })
 
+describe('archive stats reads', () => {
+  const at = (day: number, h: number, m = 0, sec = 0) => new Date(2026, 9, day, h, m, sec).getTime()
+
+  type Spec = {
+    stamps?: number[]
+    mode?: string
+    chapter?: number | null
+    finish?: { wpm: number; accuracy: number; meta: unknown } | null
+    endedAt?: number
+    stroke?: Partial<StrokeRecord>
+  }
+
+  // One run: strokes at the given times; finish null leaves it unfinished.
+  function run(a: Archive, spec: Spec = {}): number {
+    const stamps = spec.stamps ?? [at(27, 10)]
+    const sessionId = a.createSession(1000)
+    const id = a.startTest({
+      sessionId,
+      startedAt: stamps[0] ?? 1001,
+      mode: spec.mode ?? 'free',
+      chapter: spec.chapter === undefined ? null : spec.chapter,
+      section: null,
+      itemCount: stamps.length,
+    })
+    for (const tsMs of stamps) a.addStroke(stroke(id, { tsMs, ...spec.stroke }))
+    const fin = spec.finish === undefined ? { wpm: 10, accuracy: 0.9, meta: null } : spec.finish
+    if (fin) a.finishTest(id, { endedAt: spec.endedAt ?? stamps[stamps.length - 1] ?? 2000, ...fin })
+    return id
+  }
+
+  describe('runsInRange', () => {
+    it('is empty for an empty database', () => {
+      expect(memory().runsInRange('2026-10-01', '2026-10-31')).toEqual([])
+    })
+
+    it('returns the exact row shape for a finished run', () => {
+      const a = memory()
+      const id = run(a, {
+        stamps: [at(27, 10, 0), at(27, 10, 0, 3), at(27, 10, 1)],
+        mode: 'section',
+        chapter: 5,
+        endedAt: at(27, 10, 2),
+        finish: { wpm: 30, accuracy: 0.8, meta: { elapsedMs: 120000, firstTryCorrect: 48 } },
+      })
+      expect(a.runsInRange('2026-10-27', '2026-10-27')).toEqual([
+        {
+          id,
+          date: '2026-10-27',
+          mode: 'section',
+          chapter: 5,
+          endedAt: at(27, 10, 2),
+          accuracy: 0.8,
+          wpm: 30,
+          words: 60,
+          abandoned: false,
+          timedOut: false,
+          strokes: 3,
+          activeMs: 60000,
+        },
+      ])
+    })
+
+    it('includes runs inside the range, excludes those outside, both edges inclusive, ordered by id', () => {
+      const a = memory()
+      const before = run(a, { stamps: [at(24, 23, 59, 59)] })
+      const first = run(a, { stamps: [at(25, 0, 0, 0)] })
+      const mid = run(a, { stamps: [at(26, 12)] })
+      const last = run(a, { stamps: [at(28, 23, 59, 59)] })
+      const after = run(a, { stamps: [at(29, 0, 0, 0)] })
+      const ids = a.runsInRange('2026-10-25', '2026-10-28').map((r) => r.id)
+      expect(ids).toEqual([first, mid, last])
+      expect(ids).not.toContain(before)
+      expect(ids).not.toContain(after)
+      expect(a.runsInRange('2026-10-26', '2026-10-26').map((r) => r.id)).toEqual([mid])
+    })
+
+    it('orders by test id even when later runs have earlier strokes', () => {
+      const a = memory()
+      const x = run(a, { stamps: [at(27, 12)] })
+      const y = run(a, { stamps: [at(26, 12)] })
+      expect(a.runsInRange('2026-10-26', '2026-10-27').map((r) => r.id)).toEqual([x, y])
+    })
+
+    it('puts a run that crosses midnight on the local date of its first stroke', () => {
+      const a = memory()
+      const id = run(a, { stamps: [at(26, 23, 59), at(27, 0, 1)] })
+      expect(a.runsInRange('2026-10-27', '2026-10-27')).toEqual([])
+      const [r] = a.runsInRange('2026-10-26', '2026-10-26')
+      expect(r).toMatchObject({ id, date: '2026-10-26', strokes: 2, activeMs: 120000 })
+    })
+
+    it('includes an unfinished run with null endedAt, wpm and accuracy and 0 words', () => {
+      const a = memory()
+      const id = run(a, { stamps: [at(27, 10, 0), at(27, 10, 1)], finish: null })
+      expect(a.runsInRange('2026-10-27', '2026-10-27')).toEqual([
+        {
+          id,
+          date: '2026-10-27',
+          mode: 'free',
+          chapter: null,
+          endedAt: null,
+          accuracy: null,
+          wpm: null,
+          words: 0,
+          abandoned: false,
+          timedOut: false,
+          strokes: 2,
+          activeMs: 60000,
+        },
+      ])
+    })
+
+    it('reports null wpm and accuracy and 0 words for a never-finished run even with stray stored values', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lapwing-stats-'))
+      try {
+        const file = join(dir, 'steno.db')
+        const a = openArchive(file)
+        open.push(a)
+        const id = run(a, { finish: null })
+        const raw = new DatabaseSync(file)
+        raw
+          .prepare('UPDATE tests SET wpm = 30, accuracy = 0.8, meta_json = ? WHERE id = ?')
+          .run('{"elapsedMs":120000,"firstTryCorrect":40}', id)
+        raw.close()
+        expect(a.runsInRange('2026-10-27', '2026-10-27')[0]).toMatchObject({
+          endedAt: null,
+          wpm: null,
+          accuracy: null,
+          words: 0,
+        })
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('leaves out a run with no strokes', () => {
+      const a = memory()
+      newTest(a)
+      expect(a.runsInRange('2000-01-01', '2100-01-01')).toEqual([])
+    })
+
+    it('flags a left-early run and a timed-out run, and only for a true flag', () => {
+      const a = memory()
+      const left = run(a, { finish: { wpm: 5, accuracy: 1, meta: { abandoned: true } } })
+      const out = run(a, { finish: { wpm: 20, accuracy: 0.9, meta: { timedOut: true } } })
+      const odd = run(a, { finish: { wpm: 5, accuracy: 1, meta: { abandoned: 'true', timedOut: 1 } } })
+      const by = Object.fromEntries(a.runsInRange('2026-10-27', '2026-10-27').map((r) => [r.id, r]))
+      expect(by[left]).toMatchObject({ abandoned: true, timedOut: false })
+      expect(by[out]).toMatchObject({ abandoned: false, timedOut: true })
+      expect(by[odd]).toMatchObject({ abandoned: false, timedOut: false })
+    })
+
+    it('words from wpm and elapsedMs, rounded', () => {
+      const a = memory()
+      run(a, { finish: { wpm: 30, accuracy: 0.5, meta: { elapsedMs: 120000, firstTryCorrect: 1 } } })
+      run(a, { finish: { wpm: 25, accuracy: 1, meta: { elapsedMs: 70000 } } }) // 29.17
+      const words = a.runsInRange('2026-10-27', '2026-10-27').map((r) => r.words)
+      expect(words).toEqual([60, 29])
+    })
+
+    it('falls back to firstTryCorrect / accuracy without a usable elapsedMs', () => {
+      const a = memory()
+      run(a, { finish: { wpm: 30, accuracy: 0.8, meta: { firstTryCorrect: 40 } } }) // 50
+      run(a, { finish: { wpm: 30, accuracy: 0.8, meta: { elapsedMs: 0, firstTryCorrect: 40 } } })
+      run(a, { finish: { wpm: 30, accuracy: 0.8, meta: { elapsedMs: -5, firstTryCorrect: 40 } } })
+      run(a, { finish: { wpm: 30, accuracy: 0.8, meta: { elapsedMs: 'soon', firstTryCorrect: 40 } } })
+      run(a, { finish: { wpm: 30, accuracy: 0.6, meta: { firstTryCorrect: 10 } } }) // 16.67 -> 17
+      expect(a.runsInRange('2026-10-27', '2026-10-27').map((r) => r.words)).toEqual([50, 50, 50, 50, 17])
+    })
+
+    it('has 0 words when neither source is usable', () => {
+      const a = memory()
+      run(a, { finish: { wpm: 30, accuracy: 0.9, meta: null } })
+      run(a, { finish: { wpm: 30, accuracy: 0.9, meta: { kind: 'word' } } })
+      run(a, { finish: { wpm: 30, accuracy: 0, meta: { firstTryCorrect: 10 } } })
+      run(a, { finish: { wpm: 30, accuracy: 0.9, meta: { firstTryCorrect: 'ten' } } })
+      run(a, { finish: { wpm: 30, accuracy: 0.9, meta: { firstTryCorrect: -4 } } })
+      run(a, { finish: { wpm: 30, accuracy: 0.9, meta: [1, 2] } })
+      run(a, { finish: { wpm: 30, accuracy: 0.9, meta: 'text' } })
+      expect(a.runsInRange('2026-10-27', '2026-10-27').map((r) => r.words)).toEqual([0, 0, 0, 0, 0, 0, 0])
+    })
+
+    it('has 0 words with zero wpm even when elapsedMs is set, and never returns NaN', () => {
+      const a = memory()
+      run(a, { finish: { wpm: 0, accuracy: 0, meta: { elapsedMs: 60000, firstTryCorrect: 3 } } })
+      const [r] = a.runsInRange('2026-10-27', '2026-10-27')
+      expect(r?.words).toBe(0)
+      expect(r?.wpm).toBe(0)
+    })
+
+    it('keeps words for a left-early run, from its own meta', () => {
+      const a = memory()
+      run(a, { finish: { wpm: 12, accuracy: 1, meta: { abandoned: true, elapsedMs: 300000 } } })
+      expect(a.runsInRange('2026-10-27', '2026-10-27')[0]?.words).toBe(60)
+    })
+
+    it('treats malformed meta_json as no meta and does not throw', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lapwing-stats-'))
+      try {
+        const file = join(dir, 'steno.db')
+        const a = openArchive(file)
+        open.push(a)
+        const bad = run(a, { finish: { wpm: 30, accuracy: 0.8, meta: { elapsedMs: 60000 } } })
+        const good = run(a, { finish: { wpm: 30, accuracy: 0.8, meta: { elapsedMs: 60000 } } })
+        const raw = new DatabaseSync(file)
+        raw.prepare('UPDATE tests SET meta_json = ? WHERE id = ?').run('{nope', bad)
+        raw.close()
+        const rows = a.runsInRange('2026-10-27', '2026-10-27')
+        expect(rows.map((r) => [r.id, r.words, r.abandoned, r.timedOut])).toEqual([
+          [bad, 0, false, false],
+          [good, 30, false, false],
+        ])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('activeMs is last minus first stroke by time, 0 for one stroke', () => {
+      const a = memory()
+      run(a, { stamps: [at(27, 10, 0), at(27, 10, 0, 1), at(27, 10, 0, 4)] })
+      run(a, { stamps: [at(27, 11)] })
+      expect(a.runsInRange('2026-10-27', '2026-10-27').map((r) => [r.strokes, r.activeMs])).toEqual([
+        [3, 4000],
+        [1, 0],
+      ])
+    })
+  })
+
+  describe('timingsInRange', () => {
+    it('is empty for an empty database', () => {
+      expect(memory().timingsInRange('2026-10-01', '2026-10-31')).toEqual([])
+    })
+
+    it('returns only the four timing fields, ordered by test then stroke', () => {
+      const a = memory()
+      const x = run(a, {
+        stamps: [at(27, 10, 0, 5), at(27, 10, 0, 1), at(27, 10, 0, 9)],
+        finish: { wpm: 10, accuracy: 0.9, meta: null },
+      })
+      const y = run(a, { stamps: [at(26, 9)], stroke: { correct: false, latencyMs: 77 } })
+      const rows = a.timingsInRange('2026-10-26', '2026-10-27')
+      expect(rows).toEqual([
+        { testId: x, tsMs: at(27, 10, 0, 5), correct: true, latencyMs: 420 },
+        { testId: x, tsMs: at(27, 10, 0, 1), correct: true, latencyMs: 420 },
+        { testId: x, tsMs: at(27, 10, 0, 9), correct: true, latencyMs: 420 },
+        { testId: y, tsMs: at(26, 9), correct: false, latencyMs: 77 },
+      ])
+      expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['correct', 'latencyMs', 'testId', 'tsMs'])
+    })
+
+    it('leaves out unfinished and left-early runs but keeps timed-out and no-meta runs', () => {
+      const a = memory()
+      run(a, { finish: null })
+      run(a, { finish: { wpm: 5, accuracy: 1, meta: { abandoned: true } } })
+      const out = run(a, { finish: { wpm: 20, accuracy: 0.9, meta: { timedOut: true } } })
+      const plain = run(a, { finish: { wpm: 20, accuracy: 0.9, meta: null } })
+      const odd = run(a, { finish: { wpm: 20, accuracy: 0.9, meta: { abandoned: false } } })
+      const str = run(a, { finish: { wpm: 20, accuracy: 0.9, meta: { abandoned: 'true' } } })
+      expect(a.timingsInRange('2026-10-27', '2026-10-27').map((r) => r.testId)).toEqual([out, plain, odd, str])
+    })
+
+    it('respects the date range by first-stroke date, both edges inclusive', () => {
+      const a = memory()
+      run(a, { stamps: [at(24, 23, 59, 59)] })
+      const first = run(a, { stamps: [at(25, 0, 0, 0)] })
+      const crossing = run(a, { stamps: [at(28, 23, 59), at(29, 0, 1)] })
+      run(a, { stamps: [at(29, 0, 0, 0)] })
+      const rows = a.timingsInRange('2026-10-25', '2026-10-28')
+      expect(rows.map((r) => r.testId)).toEqual([first, crossing, crossing])
+    })
+
+    it('does not throw on a malformed meta_json and treats it as not abandoned', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lapwing-stats-'))
+      try {
+        const file = join(dir, 'steno.db')
+        const a = openArchive(file)
+        open.push(a)
+        const bad = run(a)
+        const raw = new DatabaseSync(file)
+        raw.prepare('UPDATE tests SET meta_json = ? WHERE id = ?').run('{nope', bad)
+        raw.close()
+        expect(a.timingsInRange('2026-10-27', '2026-10-27').map((r) => r.testId)).toEqual([bad])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  describe('keyRowsInRange', () => {
+    it('is empty for an empty database', () => {
+      expect(memory().keyRowsInRange('2026-10-01', '2026-10-31')).toEqual([])
+    })
+
+    it('groups identical strokes: three identical misses give one row with n 3', () => {
+      const a = memory()
+      const miss = { correct: false, pressedMask: 11, expected: ['SAP'] }
+      run(a, { stamps: [at(27, 10, 0), at(27, 10, 1)], stroke: miss })
+      run(a, { stamps: [at(27, 11, 0)], stroke: miss })
+      run(a, { stamps: [at(27, 12, 0)] }) // a right stroke with the same expected: a separate row
+      expect(a.keyRowsInRange('2026-10-27', '2026-10-27')).toEqual([
+        { expected: ['SAP'], pressedMask: 7, correct: true, n: 1 },
+        { expected: ['SAP'], pressedMask: 11, correct: false, n: 3 },
+      ])
+    })
+
+    it('separates by expected, pressed mask and correctness, ordered deterministically', () => {
+      const a = memory()
+      const id = run(a, { stamps: [at(27, 10)], stroke: { expected: ['TAP'], pressedMask: 5, correct: true } })
+      const add = (over: Partial<StrokeRecord>) => a.addStroke(stroke(id, { tsMs: at(27, 10, 1), ...over }))
+      add({ expected: ['TAP'], pressedMask: 5, correct: false })
+      add({ expected: ['TAP'], pressedMask: 3, correct: true })
+      add({ expected: ['SAP', 'SAPS'], pressedMask: 5, correct: true })
+      add({ expected: ['SAP', 'SAPS'], pressedMask: 5, correct: true })
+      const rows = a.keyRowsInRange('2026-10-27', '2026-10-27')
+      expect(rows).toEqual([
+        { expected: ['SAP', 'SAPS'], pressedMask: 5, correct: true, n: 2 },
+        { expected: ['TAP'], pressedMask: 3, correct: true, n: 1 },
+        { expected: ['TAP'], pressedMask: 5, correct: false, n: 1 },
+        { expected: ['TAP'], pressedMask: 5, correct: true, n: 1 },
+      ])
+    })
+
+    it('includes every mode, left-early and unfinished runs, and excludes strokes out of range', () => {
+      const a = memory()
+      run(a, { mode: 'section', finish: { wpm: 1, accuracy: 1, meta: { abandoned: true } } })
+      run(a, { mode: 'stage0', finish: null })
+      run(a, { mode: 'chapter-test' })
+      run(a, { mode: 'free', finish: { wpm: 1, accuracy: 1, meta: { timedOut: true } } })
+      run(a, { stamps: [at(26, 23, 59, 59)] })
+      run(a, { stamps: [at(28, 0, 0, 0)] })
+      expect(a.keyRowsInRange('2026-10-27', '2026-10-27')).toEqual([
+        { expected: ['SAP'], pressedMask: 7, correct: true, n: 4 },
+      ])
+    })
+
+    it('puts every stroke of a run on the run first-stroke date', () => {
+      const a = memory()
+      run(a, { stamps: [at(26, 23, 59), at(27, 0, 1)] })
+      expect(a.keyRowsInRange('2026-10-27', '2026-10-27')).toEqual([])
+      expect(a.keyRowsInRange('2026-10-26', '2026-10-26')).toEqual([
+        { expected: ['SAP'], pressedMask: 7, correct: true, n: 2 },
+      ])
+    })
+
+    it('skips a row whose expected_json is malformed or not a list, and does not throw', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lapwing-stats-'))
+      try {
+        const file = join(dir, 'steno.db')
+        const a = openArchive(file)
+        open.push(a)
+        run(a, { stamps: [at(27, 10), at(27, 10, 1), at(27, 10, 2)] })
+        const raw = new DatabaseSync(file)
+        raw.prepare('UPDATE strokes SET expected_json = ? WHERE id = 1').run('[oops')
+        raw.prepare('UPDATE strokes SET expected_json = ? WHERE id = 2').run('{"a":1}')
+        raw.close()
+        expect(a.keyRowsInRange('2026-10-27', '2026-10-27')).toEqual([
+          { expected: ['SAP'], pressedMask: 7, correct: true, n: 1 },
+        ])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  describe('allTimeStrokes', () => {
+    it('is 0 for an empty database', () => {
+      expect(memory().allTimeStrokes()).toBe(0)
+    })
+
+    it('counts every stroke of every run, whatever its state or date', () => {
+      const a = memory()
+      run(a, { stamps: [at(27, 10), at(27, 10, 1)] })
+      run(a, { stamps: [at(1, 10)], finish: null })
+      run(a, { stamps: [at(2, 10), at(2, 10, 1), at(2, 10, 2)], finish: { wpm: 1, accuracy: 1, meta: { abandoned: true } } })
+      expect(a.allTimeStrokes()).toBe(6)
+    })
+  })
+
+  describe('range validation', () => {
+    it('throws RangeError for malformed dates in every ranged method', () => {
+      const a = memory()
+      const calls = [
+        (f: string, t: string) => a.runsInRange(f, t),
+        (f: string, t: string) => a.timingsInRange(f, t),
+        (f: string, t: string) => a.keyRowsInRange(f, t),
+      ]
+      for (const call of calls) {
+        expect(() => call('27/10/2026', '2026-10-28')).toThrow(RangeError)
+        expect(() => call('2026-10-27', 'tomorrow')).toThrow(RangeError)
+        expect(() => call('2026-10-27', '2026-10-27 ')).toThrow(RangeError)
+        expect(() => call('', '')).toThrow(RangeError)
+      }
+    })
+
+    it('throws RangeError when from is after to, and accepts from equal to to', () => {
+      const a = memory()
+      expect(() => a.runsInRange('2026-10-28', '2026-10-27')).toThrow(RangeError)
+      expect(() => a.timingsInRange('2026-10-28', '2026-10-27')).toThrow(RangeError)
+      expect(() => a.keyRowsInRange('2026-10-28', '2026-10-27')).toThrow(RangeError)
+      expect(a.runsInRange('2026-10-27', '2026-10-27')).toEqual([])
+    })
+
+    it('reads create no rows', () => {
+      const a = memory()
+      a.runsInRange('2026-10-01', '2026-10-31')
+      a.timingsInRange('2026-10-01', '2026-10-31')
+      a.keyRowsInRange('2026-10-01', '2026-10-31')
+      a.allTimeStrokes()
+      expect(a.listTests({ limit: 10 })).toEqual([])
+      expect(a.allTimeStrokes()).toBe(0)
+    })
+  })
+})
+
 describe('archive section results', () => {
   type Run = {
     mode?: string
