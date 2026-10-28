@@ -1,6 +1,6 @@
 import { compareOutlines } from '../../src/core/outline.ts'
 import type { ExampleRow } from './examples.ts'
-import type { LookupList } from './lookup.ts'
+import type { PracticeItem } from './practice.ts'
 import type { BriefRow } from './tables.ts'
 
 /** The six upstream dictionary files, in the order they are merged and displayed. */
@@ -22,6 +22,12 @@ export const DICT_FILE_NAMES: Record<DictFile, string> = {
  * named cards, even when a name equals a dictionary word (the book's `Enter` is the key, not the word `enter`).
  */
 export const NAMED_LIST_IDS = ['18-lowercase', '18-numbers', '18-uppercase', '20-commands', '20-punctuation'] as const
+
+/**
+ * A practice list as the dictionary build reads it. `named` marks a list of names (of keys, symbols, commands) that
+ * the build never joins to word cards.
+ */
+export type LookupList = { id: string; chapter: number; items: PracticeItem[]; named?: true }
 
 /** Where in the book an outline appears: a practice list, a brief form, or an example. */
 export type BookSource = 'practice' | 'brief' | 'example'

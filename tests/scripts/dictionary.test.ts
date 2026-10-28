@@ -2,8 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DICT_FILES, DICT_FILE_NAMES, NAMED_LIST_IDS, buildDictionary, mergeDictionaries } from '../../scripts/lib/dictionary.ts'
-import type { DictFile } from '../../scripts/lib/dictionary.ts'
-import type { LookupList } from '../../scripts/lib/lookup.ts'
+import type { DictFile, LookupList } from '../../scripts/lib/dictionary.ts'
 
 const empty = (): Record<DictFile, Record<string, string>> => ({
   main: {}, uk: {}, names: {}, numbers: {}, commands: {}, movement: {},

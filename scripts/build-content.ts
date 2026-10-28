@@ -5,11 +5,9 @@ import type { PassMark } from './lib/passmark.ts'
 import { parseExampleItems } from './lib/examples.ts'
 import type { ExampleRow } from './lib/examples.ts'
 import { buildDictionary, DICT_FILE_NAMES, DICT_FILES, NAMED_LIST_IDS } from './lib/dictionary.ts'
-import type { DictFile } from './lib/dictionary.ts'
+import type { DictFile, LookupList } from './lib/dictionary.ts'
 import { generatedLists } from './lib/generated.ts'
 import { parseKeyChart } from './lib/keychart.ts'
-import { buildLookup } from './lib/lookup.ts'
-import type { LookupList } from './lib/lookup.ts'
 import { parsePracticeFile } from './lib/practice.ts'
 import { renderPage } from './lib/render.ts'
 import type { Heading, PracticeLink } from './lib/render.ts'
@@ -46,15 +44,12 @@ export type BuildStats = {
   generatedLists: number
   outlineTags: number
   briefRows: number
-  lookupEntries: number
-  lookupBytes: number
   dictionaryCards: number
   dictionaryBytes: number
 }
 
 const SUMMARY_LINE = /^-\s*\[([^\]]+)\]\(([^)]+\.md)\)\s*$/
 const BRIEF_CHAPTERS = { first: 5, last: 12 }
-const LOOKUP_MAX_BYTES = 5 * 1024 * 1024
 export const DICTIONARY_MAX_BYTES = 8 * 1024 * 1024
 
 function pageEntry(title: string, file: string): PageEntry {
@@ -270,13 +265,6 @@ export async function buildContent(opts: {
     const [ch4, ch5, ch18] = chartMarkdown as string[]
     await writeJson(join(outDir, 'keychart.json'), parseKeyChart({ ch4, ch5, ch18 }))
   }
-  const lookup = buildLookup({ lists: bookLists, briefs, examples })
-  const lookupJson = JSON.stringify(lookup)
-  const lookupBytes = Buffer.byteLength(lookupJson)
-  if (lookupBytes > LOOKUP_MAX_BYTES) {
-    throw new Error(`lookup.json is ${lookupBytes} bytes, over the ${LOOKUP_MAX_BYTES} byte limit`)
-  }
-  await writeFile(join(outDir, 'lookup.json'), lookupJson)
 
   let dictionaryCards = 0
   let dictionaryBytes = 0
@@ -306,8 +294,6 @@ export async function buildContent(opts: {
     generatedLists: generatedCount,
     outlineTags,
     briefRows: briefs.length,
-    lookupEntries: lookup.length,
-    lookupBytes,
     dictionaryCards,
     dictionaryBytes,
   }
@@ -324,7 +310,6 @@ if (import.meta.main) {
     `Built ${stats.pages} pages, ${stats.practiceLists} practice lists (${stats.practiceLines} lines) ` +
       `and ${stats.generatedLists} generated lists, ` +
       `${stats.outlineTags} outline tags, ${stats.briefRows} brief rows, ` +
-      `lookup ${stats.lookupEntries} entries (${Math.round(stats.lookupBytes / 1024)} KB), ` +
       `dictionary ${stats.dictionaryCards} cards (${Math.round(stats.dictionaryBytes / 1024)} KB)`,
   )
 }

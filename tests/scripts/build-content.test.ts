@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildContent, gateFor, practiceChapter } from '../../scripts/build-content.ts'
 import { parseOutline, SLOTS } from '../../src/core/steno.ts'
-import type { LookupEntry } from '../../scripts/lib/lookup.ts'
 import { DICT_FILE_NAMES, DICT_FILES } from '../../scripts/lib/dictionary.ts'
 import type { DictCard, DictionaryFile } from '../../scripts/lib/dictionary.ts'
 import type { BuildStats, ChapterInfo, PracticeIndexEntry } from '../../scripts/build-content.ts'
@@ -96,84 +95,6 @@ describe('keychart.json', () => {
   })
 })
 
-describe('lookup.json', () => {
-  const lookup = (): LookupEntry[] => readJson('lookup.json')
-  const entry = (word: string): LookupEntry => {
-    const found = lookup().find((e) => e.word === word)
-    expect(found, `entry ${word}`).toBeDefined()
-    return found!
-  }
-
-  it('exists and matches the stats', () => {
-    expect(existsSync(join(outDir, 'lookup.json'))).toBe(true)
-    expect(lookup().length).toBeGreaterThan(1000)
-    expect(stats.lookupEntries).toBe(lookup().length)
-  })
-
-  it('stays under 5 MB', () => {
-    expect(statSync(join(outDir, 'lookup.json')).size).toBeLessThan(5 * 1024 * 1024)
-  })
-
-  it('has a practice hit for cat in chapter 5', () => {
-    expect(entry('cat').hits).toContainEqual({ outline: 'KAT', chapter: 5, source: 'practice' })
-  })
-
-  it('has brief hits for are with the explanation as note', () => {
-    const briefs = readJson('briefs.json')
-    const explanation = briefs.find((b: { translation: string }) => b.translation === 'are').explanation
-    expect(explanation).not.toBe('')
-    const hits = entry('are').hits.filter((h) => h.source === 'brief' && h.chapter === 5)
-    expect(hits.map((h) => h.outline).sort()).toEqual(['-R', 'R'])
-    for (const hit of hits) expect(hit.note).toBe(explanation)
-  })
-
-  it('has example hits for dad and centre', () => {
-    expect(entry('dad').hits).toContainEqual({ outline: 'TKAD', chapter: expect.any(Number), source: 'example' })
-    expect(entry('centre').hits).toContainEqual({ outline: 'SEPB/TER/#TPH', chapter: 21, source: 'example' })
-  })
-
-  it('has chapter 13 example hits for the prefix words, such as around, mistake and subway', () => {
-    expect(entry('around').hits).toContainEqual({ outline: 'A/ROUPBD', chapter: 13, source: 'example' })
-    expect(entry('mistake').hits).toContainEqual({ outline: 'PHEUS/TAEUBG', chapter: 13, source: 'example' })
-    expect(entry('subway').hits).toContainEqual({ outline: 'SUB/WAEU', chapter: 13, source: 'example' })
-  })
-
-  it('has hits from both practice lists and brief tables for a word in both, such as do', () => {
-    const sources = new Set(entry('do').hits.map((h) => h.source))
-    expect(sources.has('practice')).toBe(true)
-    expect(sources.has('brief')).toBe(true)
-  })
-
-  it('has parseable outlines, no empty words, and sorted entries with hits', () => {
-    const entries = lookup()
-    for (const e of entries) {
-      expect(e.word.trim()).not.toBe('')
-      expect(e.word).not.toMatch(/[\r\n]/)
-      expect(e.hits.length).toBeGreaterThan(0)
-      for (const hit of e.hits) {
-        expect(() => parseOutline(hit.outline), `${e.word} ${hit.outline}`).not.toThrow()
-        expect(hit.chapter).toBeGreaterThanOrEqual(1)
-        expect(hit.chapter).toBeLessThanOrEqual(26)
-      }
-    }
-    const keys = entries.map((e) => e.word.toLowerCase())
-    expect(new Set(keys).size).toBe(keys.length)
-    expect(keys).toEqual([...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
-  })
-
-  it('has no chapter 12 example hit for also', () => {
-    const also = lookup().find((e) => e.word === 'also')
-    expect(also?.hits ?? []).not.toContainEqual(expect.objectContaining({ chapter: 12, source: 'example' }))
-    expect(entry('list').hits).toContainEqual({ outline: 'HREUS/*T', chapter: 12, source: 'example' })
-  })
-
-  it('leaves the generated drills out of the practice hits', () => {
-    // The book's own lists cover chapters 5 to 17; the drills generated for chapters 18, 20 and 21 are not practice hits.
-    const practice = lookup().flatMap((e) => e.hits.filter((h) => h.source === 'practice'))
-    expect(practice.every((h) => h.chapter <= 17)).toBe(true)
-  })
-})
-
 describe('dictionary.json on the vendored book', () => {
   const dictionary = (): DictionaryFile => readJson('dictionary.json')
   const card = (text: string): DictCard => {
@@ -218,6 +139,38 @@ describe('dictionary.json on the vendored book', () => {
     const word = dictionary().cards.find((c) => c.t === 'a' && !c.n)!
     expect(word.r.find((r) => r.o === 'A*')).toBeUndefined()
     expect(word.r.some((r) => r.x)).toBe(false)
+  })
+
+  it('labels cat, are, dad, centre and do with the book places that the M4 index held', () => {
+    expect(row('cat', 'KAT').b).toContainEqual({ chapter: 5, source: 'practice' })
+    const explanation = readJson('briefs.json').find((b: { translation: string }) => b.translation === 'are').explanation
+    expect(explanation).not.toBe('')
+    for (const outline of ['-R', 'R']) {
+      expect(row('are', outline).b).toContainEqual({ chapter: 5, source: 'brief', note: explanation })
+    }
+    expect(row('dad', 'TKAD').b).toContainEqual({ chapter: 5, source: 'example' })
+    expect(row('centre', 'SEPB/TER/#TPH').b).toContainEqual({ chapter: 21, source: 'example' })
+    const sources = new Set(row('do', 'TKO').b!.map((l) => l.source))
+    expect(sources.has('practice')).toBe(true)
+    expect(sources.has('brief')).toBe(true)
+  })
+
+  it('has parseable labelled outlines, no empty card texts, and one card per text and kind', () => {
+    const seen = new Set<string>()
+    for (const c of dictionary().cards) {
+      expect(c.t.trim(), 'card text').not.toBe('')
+      const key = `${c.n === true ? 'n' : 'w'}:${c.t}`
+      expect(seen.has(key), key).toBe(false)
+      seen.add(key)
+      for (const r of c.r) {
+        if (r.b === undefined) continue
+        expect(() => parseOutline(r.o), `${c.t} ${r.o}`).not.toThrow()
+        for (const label of r.b) {
+          expect(label.chapter).toBeGreaterThanOrEqual(1)
+          expect(label.chapter).toBeLessThanOrEqual(26)
+        }
+      }
+    }
   })
 
   it('has no chapter 12 example row on the also card (the "Also" sub-bullets describe list and thirst)', () => {
