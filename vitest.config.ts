@@ -6,6 +6,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ['tests/**/*.test.{ts,tsx}'],
+      execArgv: ['--import', './tests/setup/raf-shim.ts'],
     },
   }),
 );
