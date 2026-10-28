@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StrokeRecord } from '../../server/archive.ts'
-import { describeTest, misses, slowest } from '../../src/core/review.ts'
+import { describeTest, misses, nearestStroke, slowest } from '../../src/core/review.ts'
 import { parseStroke } from '../../src/core/steno.ts'
 
 function stroke(over: Partial<StrokeRecord> & { pressed?: string }): StrokeRecord {
@@ -18,6 +18,14 @@ function stroke(over: Partial<StrokeRecord> & { pressed?: string }): StrokeRecor
     ...rest,
   }
 }
+
+describe('nearestStroke', () => {
+  it('returns the accepted stroke closest to the pressed keys, or null when none parse', () => {
+    expect(nearestStroke(['TKAP', 'SAP'], parseStroke('SA'))).toBe(parseStroke('SAP'))
+    expect(nearestStroke(['???'], parseStroke('SA'))).toBeNull()
+    expect(nearestStroke([], parseStroke('SA'))).toBeNull()
+  })
+})
 
 describe('misses', () => {
   it('reports an extra key', () => {

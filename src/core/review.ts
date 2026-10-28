@@ -14,7 +14,7 @@ function popcount(mask: number): number {
 }
 
 /** The stroke of any accepted outline that differs from the pressed keys in the fewest keys, or null if none parse. */
-function nearestStroke(expected: readonly string[], pressed: SlotMask): SlotMask | null {
+export function nearestStroke(expected: readonly string[], pressed: SlotMask): SlotMask | null {
   let best: SlotMask | null = null
   let bestDistance = Infinity
   for (const outline of expected) {
