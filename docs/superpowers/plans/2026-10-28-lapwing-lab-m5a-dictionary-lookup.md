@@ -53,22 +53,21 @@
 ### Task 2: Merge the dictionary files and order the outlines
 
 **Files:**
-- Create: `scripts/lib/dictionary.ts`, `tests/scripts/dictionary.test.ts`
+- Create: `src/core/outline.ts`, `tests/core/outline.test.ts`, `scripts/lib/dictionary.ts`, `tests/scripts/dictionary.test.ts`
 
 **Interfaces:**
-- Consumes: `tryParseStroke`, `parseOutline` and `maskToSlots` from `../../src/core/steno.ts`.
+- Consumes: `tryParseStroke` and `maskToSlots` from `./steno.ts` (inside `src/core/outline.ts`).
 - Produces (all exported from `scripts/lib/dictionary.ts`):
   - `DICT_FILES = ['main', 'uk', 'names', 'numbers', 'commands', 'movement'] as const`, `type DictFile`, `DICT_FILE_NAMES: Record<DictFile, string>` (the six upstream file names above).
   - `type BookSource = 'practice' | 'brief' | 'example'`.
   - Wire types (short keys keep the file small; the doc comments say what each means): `type BookLabel = { chapter: number; source: BookSource; note?: string }`; `type DictRow = { o: string; f?: DictFile[]; b?: BookLabel[]; x?: true; w?: string[] }` (`o` outline, `f` non-main files that also hold this exact pair, `b` book labels, `x` book-only row, `w` for named cards the dictionary's translations of this outline, an empty array meaning none); `type DictCard = { t: string; r: DictRow[]; n?: true }` (`t` exact translation or the book's text, `r` rows already in display order, `n` a card named by the book with no dictionary translation of that text); `type DictionaryFile = { commit: string; cards: DictCard[]; letters: Record<string, string> }`.
   - `mergeDictionaries(files: Record<DictFile, Record<string, string>>): Map<string, Map<string, DictFile[]>>`: translation (exact string) → outline → the files that hold that exact pair, in `DICT_FILES` order. Duplicate pairs across files collapse into one outline with several files.
-  - `outlineStrokes(outline: string): number` (number of `/`-separated strokes) and `outlineKeys(outline: string): number` (total keys pressed: the popcount of each stroke that `tryParseStroke` accepts; for a stroke it rejects, the count of its characters other than `-`).
-  - `compareOutlines(a: string, b: string): number`: strokes ascending, then keys ascending, then plain string order.
+  - Exported from the client-safe pure module `src/core/outline.ts` (no Node, no `scripts/` imports) and imported by `scripts/lib/dictionary.ts` and by Task 5: `outlineStrokes(outline: string): number` (number of `/`-separated strokes), `outlineKeys(outline: string): number` (total keys pressed: the popcount of each stroke that `tryParseStroke` accepts; for a stroke it rejects, the count of its characters other than `-`) and `compareOutlines(a: string, b: string): number` (strokes ascending, then keys ascending, then plain string order). Their tests live in `tests/core/outline.test.ts`; `scripts/lib/dictionary.ts` re-exports nothing of them.
 
 - [ ] **Step 1: Write failing tests** in `tests/scripts/dictionary.test.ts`:
   - `mergeDictionaries` with tiny inline files: a pair in `main` and `uk` yields files `['main', 'uk']`; the same outline with two translations stays two cards' worth of data (`defense` in main and `defence` in uk both on `TKEFS`); a translation with several outlines collects them all.
-  - `outlineStrokes('ES/PERB/HREU') === 3`, `outlineKeys('KAT') === 3`, `outlineKeys('-T') === 1`, `outlineKeys('TKAD') === 4`, an unparseable stroke does not throw.
-  - `compareOutlines` orders `EPS` (1 stroke) before `ES/PERB/HREU` (3 strokes) before `ES/PERBL/KWREU`; two one-stroke outlines order by key count, then alphabetically; it is a total, deterministic order (sorting a shuffled list gives one result).
+  - (in `tests/core/outline.test.ts`) `outlineStrokes('ES/PERB/HREU') === 3`, `outlineKeys('KAT') === 3`, `outlineKeys('-T') === 1`, `outlineKeys('TKAD') === 4`, an unparseable stroke does not throw.
+  - (same file) `compareOutlines` orders `EPS` (1 stroke) before `ES/PERB/HREU` (3 strokes) before `ES/PERBL/KWREU`; two one-stroke outlines order by key count, then alphabetically; it is a total, deterministic order (sorting a shuffled list gives one result).
   - A guard on the real vendored files (read from `content/lapwing-dictionary/`): the merged map has between 55,000 and 62,000 translations, `the` has exactly `-T`, `cat` has `KAT`, `especially` has the three outlines above, `mistake` has both outlines, and `defense`/`defence` each exist.
 - [ ] **Step 2: Run and see them fail.**
 - [ ] **Step 3: Implement the functions in `scripts/lib/dictionary.ts`** (the wire types are declared here and used by Task 3; `merge` iterates `DICT_FILES` in order so the result is deterministic).
@@ -125,7 +124,7 @@ Rules (spec §4, C10–C13, C17; the implementer writes the algorithm):
 - Create: `src/core/dictsearch.ts`, `tests/core/dictsearch.test.ts`
 
 **Interfaces:**
-- Consumes: type-only `DictCard`, `DictRow` from `../../scripts/lib/dictionary.ts`.
+- Consumes: type-only `DictCard`, `DictRow` from `../../scripts/lib/dictionary.ts`; `compareOutlines` from `./outline.ts`.
 - Produces (exports of `src/core/dictsearch.ts`, pure: no DOM, no fetch, no Node):
   - `looksLikeSteno(query: string): boolean` (the same rule as today: `/^[#STKPWHRAO*EUFRPBLGTSDZ\-/]+$/` on the trimmed query).
   - `type DictMatch = 'exact' | 'prefix' | 'contains' | 'outline-exact' | 'outline-prefix' | 'outline-contains'`.
@@ -137,7 +136,7 @@ Rules (spec §4, C10–C13, C17; the implementer writes the algorithm):
 Search rules (spec §4, C14, C15):
 - Empty or whitespace-only query: `[]`.
 - Word search (every query): compare lower-cased trimmed query with each card's lower-cased text. Groups: exact (equal), then prefix, then contains. Inside a group: cards whose text equals the query exactly (same case) first, then shorter text first, then alphabetical by lower-cased text, then exact text.
-- Outline search (only when `looksLikeSteno`): runs first. A card matches when any row's outline equals the query (group `outline-exact`), else starts with it (`outline-prefix`), else has a `/` boundary after which the remainder starts with it (`outline-contains`; a match inside a stroke that is not at a stroke start does not count). `hit` is every row of the card that satisfies the card's group criterion (equal for exact, starts-with for prefix, boundary-start for contains). Inside a group: by the best matching row (`compareOutlines` semantics: fewest strokes, then keys, then alphabetical; implement the comparison locally, importing the helper type-only is not possible for a function, so keep a small local copy that the tests check against the build-time order), then by card text. Word results follow, skipping cards already listed.
+- Outline search (only when `looksLikeSteno`): runs first. A card matches when any row's outline equals the query (group `outline-exact`), else starts with it (`outline-prefix`), else has a `/` boundary after which the remainder starts with it (`outline-contains`; a match inside a stroke that is not at a stroke start does not count). `hit` is every row of the card that satisfies the card's group criterion (equal for exact, starts-with for prefix, boundary-start for contains). Inside a group: by the best matching row (`compareOutlines` from `./outline.ts`: fewest strokes, then keys, then alphabetical), then by card text. Word results follow, skipping cards already listed.
 - A named card (`n`) takes part in word search by its text and in outline search by its rows.
 
 - [ ] **Step 1: Failing tests** on a fixture of ~15 cards: word groups and order (`cat` before `catch` before `scat`, `Cat` vs `cat` with an exact-case query, shorter before longer); lower-case `tkad` does not search outlines; `TKAD` finds `dad`; `TK` matches `TKAT` and `-T/TKAT` and not `-T/KAT`; exact, prefix and contains groups in that order and `hit` contents; a stroke query lists outline results before word results and no card twice; `/` alone, `//`, a leading `/` and a 5,000-character query do not throw and return a sensible (possibly empty) list; case-insensitive word matches; a named card is found by its text; `visibleText('{^\n^}')` shows `{^\n^}` with a visible backslash-n; `fingerspell('cat', …)` gives three outlines, `fingerspell('Cat', …)`, `'ca t'`, `'c4'`, `''` give `null`; a measured ceiling: build 60,000 synthetic cards (three rows each) and assert the worst query (`a`) finishes in under 150 ms and `searchDictionary` is not quadratic (2× cards is under 3× the time; use generous margins and a warm-up call so the test is stable).
