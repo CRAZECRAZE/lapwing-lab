@@ -7,6 +7,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sync:book": "node scripts/sync-book.ts",
+    "sync:dictionary": "node scripts/sync-dictionary.ts",
     "build:content": "node scripts/build-content.ts",
     "build": "npm run build:content && vite build",
     "dev": "node scripts/dev.ts",
