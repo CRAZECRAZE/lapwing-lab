@@ -17,6 +17,12 @@ export const DICT_FILE_NAMES: Record<DictFile, string> = {
   movement: 'lapwing-semi-modal-movement.json',
 }
 
+/**
+ * The generated lists whose items name keys, symbols and commands rather than words. Their items always become
+ * named cards, even when a name equals a dictionary word (the book's `Enter` is the key, not the word `enter`).
+ */
+export const NAMED_LIST_IDS = ['18-lowercase', '18-numbers', '18-uppercase', '20-commands', '20-punctuation'] as const
+
 /** Where in the book an outline appears: a practice list, a brief form, or an example. */
 export type BookSource = 'practice' | 'brief' | 'example'
 
@@ -89,7 +95,7 @@ export function mergeDictionaries(
 const SOURCE_ORDER: Record<BookSource, number> = { practice: 0, brief: 1, example: 2 }
 
 /** One place the book uses an outline for a text. */
-type BookEntry = { text: string; outline: string; chapter: number; source: BookSource; note: string }
+type BookEntry = { text: string; outline: string; chapter: number; source: BookSource; note: string; named: boolean }
 
 type RowState = { o: string; f: DictFile[]; labels: Map<string, BookLabel>; x: boolean; named: boolean }
 type CardState = { t: string; named: boolean; rows: Map<string, RowState> }
@@ -129,7 +135,8 @@ function finishRow(row: RowState, words: Map<string, string[]>): DictRow {
  * The dictionary file the client loads: one card per exact translation, every outline of it, and the
  * book's chapter labels joined on (text ignoring case and outline equal), never on outline alone.
  * Pure and deterministic. Book entries: every list item (practice), brief outline and example outline;
- * a text no card matches gets a named card, an outline its card lacks gets an `x` row.
+ * a text no card matches gets a named card (merged by exact trimmed text), as does every item of a `named` list
+ * (NAMED_LIST_IDS); an outline its card lacks gets an `x` row.
  */
 export function buildDictionary(input: {
   files: Record<DictFile, Record<string, string>>
@@ -171,18 +178,18 @@ export function buildDictionary(input: {
   for (const list of input.lists) {
     for (const item of list.items) {
       for (const outline of item.outlines) {
-        entries.push({ text: item.prompt, outline, chapter: list.chapter, source: 'practice', note: '' })
+        entries.push({ text: item.prompt, outline, chapter: list.chapter, source: 'practice', note: '', named: list.named === true })
       }
     }
   }
   for (const row of input.briefs) {
     for (const outline of row.outlines) {
-      entries.push({ text: row.translation, outline, chapter: row.chapter, source: 'brief', note: row.explanation })
+      entries.push({ text: row.translation, outline, chapter: row.chapter, source: 'brief', note: row.explanation, named: false })
     }
   }
   for (const row of input.examples) {
     for (const outline of row.outlines) {
-      entries.push({ text: row.word, outline, chapter: row.chapter, source: 'example', note: '' })
+      entries.push({ text: row.word, outline, chapter: row.chapter, source: 'example', note: '', named: false })
     }
   }
 
@@ -193,13 +200,13 @@ export function buildDictionary(input: {
   for (const entry of entries) {
     const text = entry.text.trim()
     if (text === '' || entry.outline === '') continue
-    const matching = byLower.get(text.toLowerCase())
+    // A name from a list of names never joins a word card; any other text no card matches gets a named card too.
+    const matching = entry.named ? undefined : byLower.get(text.toLowerCase())
     if (!matching) {
-      const key = text.toLowerCase()
-      let card = named.get(key)
+      let card = named.get(text)
       if (!card) {
         card = { t: text, named: true, rows: new Map() }
-        named.set(key, card)
+        named.set(text, card)
         namedCards.push(card)
       }
       let row = card.rows.get(entry.outline)
@@ -233,7 +240,10 @@ export function buildDictionary(input: {
   }
 
   const all = [...cards, ...namedCards]
-  all.sort((a, b) => compareText(a.t.toLowerCase(), b.t.toLowerCase()) || compareText(a.t, b.t))
+  all.sort(
+    (a, b) =>
+      compareText(a.t.toLowerCase(), b.t.toLowerCase()) || compareText(a.t, b.t) || Number(a.named) - Number(b.named),
+  )
   const out: DictCard[] = all.map((card) => {
     const rows = [...card.rows.values()].sort((a, b) => compareOutlines(a.o, b.o)).map((row) => finishRow(row, words))
     return card.named ? { t: card.t, n: true, r: rows } : { t: card.t, r: rows }

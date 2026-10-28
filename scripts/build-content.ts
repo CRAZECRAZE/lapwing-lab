@@ -4,7 +4,7 @@ import { parsePassMark } from './lib/passmark.ts'
 import type { PassMark } from './lib/passmark.ts'
 import { parseExampleItems } from './lib/examples.ts'
 import type { ExampleRow } from './lib/examples.ts'
-import { buildDictionary, DICT_FILE_NAMES, DICT_FILES } from './lib/dictionary.ts'
+import { buildDictionary, DICT_FILE_NAMES, DICT_FILES, NAMED_LIST_IDS } from './lib/dictionary.ts'
 import type { DictFile } from './lib/dictionary.ts'
 import { generatedLists } from './lib/generated.ts'
 import { parseKeyChart } from './lib/keychart.ts'
@@ -212,7 +212,9 @@ export async function buildContent(opts: {
       if (practiceIds.has(list.id)) throw new Error(`generated practice list ${list.id} clashes with a book list`)
       practiceIds.add(list.id)
       practiceIndex.push({ id: list.id, chapter: list.chapter, items: list.items.length })
-      generated.push({ id: list.id, chapter: list.chapter, items: list.items })
+      const forDictionary: LookupList = { id: list.id, chapter: list.chapter, items: list.items }
+      if ((NAMED_LIST_IDS as readonly string[]).includes(list.id)) forDictionary.named = true
+      generated.push(forDictionary)
       generatedCount++
       await writeJson(join(outDir, 'practice', `${list.id}.json`), { id: list.id, items: list.items })
     }

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DICT_FILES, DICT_FILE_NAMES, buildDictionary, mergeDictionaries } from '../../scripts/lib/dictionary.ts'
+import { DICT_FILES, DICT_FILE_NAMES, NAMED_LIST_IDS, buildDictionary, mergeDictionaries } from '../../scripts/lib/dictionary.ts'
 import type { DictFile } from '../../scripts/lib/dictionary.ts'
 import type { LookupList } from '../../scripts/lib/lookup.ts'
 
@@ -298,10 +298,10 @@ describe('buildDictionary', () => {
     })
   })
 
-  it('merges named texts by trimmed lower case, keeps the first display form and orders its rows', () => {
+  it('merges named texts by the exact trimmed text, keeps the first display form and orders its rows', () => {
     const out = buildDictionary(input({
-      lists: [list('l', 20, [['Enter or Return', ['R-R/R-R']], [' enter or return ', ['R-R']]])],
-      briefs: [{ chapter: 21, kind: 'extra', translation: 'ENTER OR RETURN', outlines: ['R-R'], explanation: '' }],
+      lists: [list('l', 20, [['Enter or Return', ['R-R/R-R']], [' Enter or Return ', ['R-R']]])],
+      briefs: [{ chapter: 21, kind: 'extra', translation: 'Enter or Return', outlines: ['R-R'], explanation: '' }],
     }))
     expect(out.cards).toHaveLength(1)
     expect(out.cards[0].t).toBe('Enter or Return')
@@ -309,6 +309,15 @@ describe('buildDictionary', () => {
       { o: 'R-R', b: [{ chapter: 20, source: 'practice' }, { chapter: 21, source: 'brief' }], w: [] },
       { o: 'R-R/R-R', b: [{ chapter: 20, source: 'practice' }], w: [] },
     ])
+  })
+
+  it('keeps named texts that differ only by case as separate named cards', () => {
+    const out = buildDictionary(input({
+      lists: [list('l', 20, [['Enter or Return', ['R-R']], ['enter or return', ['R*R']]])],
+      briefs: [{ chapter: 21, kind: 'extra', translation: 'ENTER OR RETURN', outlines: ['R-R'], explanation: '' }],
+    }))
+    expect(out.cards.map((c) => c.t)).toEqual(['ENTER OR RETURN', 'Enter or Return', 'enter or return'])
+    expect(out.cards.map((c) => c.r.map((r) => r.o))).toEqual([['R-R'], ['R-R'], ['R*R']])
   })
 
   it('skips book entries with empty text or an empty outline', () => {
@@ -426,5 +435,86 @@ describe('buildDictionary on the vendored files', () => {
       expect(la < lb || (la === lb && a.t < b.t)).toBe(true)
     }
     expect(out.cards.every((c) => c.r.length > 0)).toBe(true)
+  })
+})
+
+describe('buildDictionary, the names of keys and commands (C19)', () => {
+  const named = (id: string, chapter: number, items: [string, string[]][]): LookupList => ({ ...list(id, chapter, items), named: true })
+
+  it('lists exactly the five generated lists of names', () => {
+    expect([...NAMED_LIST_IDS]).toEqual(['18-lowercase', '18-numbers', '18-uppercase', '20-commands', '20-punctuation'])
+  })
+
+  it('makes a named card of a named list item even when the dictionary has that word, and leaves the word card alone', () => {
+    const files = empty()
+    files.main = { EPB: 'enter', SPWER: 'enter' }
+    files.commands = { 'R-R': '{^~|\n^}' }
+    const plain = buildDictionary(input({ files }))
+    const out = buildDictionary(input({ files, lists: [named('20-commands', 20, [['Enter', ['R-R']]])] }))
+    expect(cardOf(out, 'enter')).toEqual(cardOf(plain, 'enter'))
+    expect(cardOf(out, 'Enter')).toEqual({
+      t: 'Enter',
+      n: true,
+      r: [{ o: 'R-R', b: [{ chapter: 20, source: 'practice' }], w: ['{^~|\n^}'] }],
+    })
+    expect(out.cards.map((c) => c.t)).toEqual(['Enter', 'enter', '{^~|\n^}'])
+  })
+
+  it('still joins the word card for the same text from an ordinary list (the rule is by list id)', () => {
+    const files = empty()
+    files.main = { EPB: 'enter' }
+    const out = buildDictionary(input({ files, lists: [list('5-words', 5, [['Enter', ['R-R']]])] }))
+    expect(out.cards.map((c) => c.t)).toEqual(['enter'])
+    expect(cardOf(out, 'enter')!.r).toEqual([
+      { o: 'R-R', x: true, b: [{ chapter: 5, source: 'practice' }] },
+      { o: 'EPB' },
+    ])
+  })
+
+  it('does not attach a label to a dictionary row that has the very outline of a named item', () => {
+    const files = empty()
+    files.main = { 'A*': 'a' }
+    const out = buildDictionary(input({ files, lists: [named('18-lowercase', 18, [['a', ['A*']]])] }))
+    expect(cardOf(out, 'a')).toEqual({ t: 'a', r: [{ o: 'A*' }] })
+    expect(out.cards.map((c) => [c.t, c.n === true])).toEqual([['a', false], ['a', true]])
+    expect(out.cards[1].r).toEqual([{ o: 'A*', b: [{ chapter: 18, source: 'practice' }], w: ['a'] }])
+  })
+
+  it('keeps the letters a and A from the two lists as two named cards with their own rows', () => {
+    const files = empty()
+    files.main = { 'A*': 'a', 'A*P': 'A' }
+    const out = buildDictionary(input({
+      files,
+      lists: [named('18-lowercase', 18, [['a', ['A*']]]), named('18-uppercase', 18, [['A', ['A*P']]])],
+    }))
+    const names = out.cards.filter((c) => c.n)
+    expect(names).toEqual([
+      { t: 'A', n: true, r: [{ o: 'A*P', b: [{ chapter: 18, source: 'practice' }], w: ['A'] }] },
+      { t: 'a', n: true, r: [{ o: 'A*', b: [{ chapter: 18, source: 'practice' }], w: ['a'] }] },
+    ])
+  })
+
+  it('lets a named card and a dictionary card of the same text sort dictionary first, whatever the input order', () => {
+    const files = empty()
+    files.main = { A1: 'a', A2: 'b' }
+    const one = buildDictionary(input({ files, lists: [named('18-lowercase', 18, [['a', ['Q']]])] }))
+    expect(one.cards.map((c) => [c.t, c.n === true])).toEqual([['a', false], ['a', true], ['b', false]])
+  })
+
+  it('joins a word of an unnamed list (like 21-uk-spellings) to its word card', () => {
+    const files = empty()
+    files.uk = { SEPB: 'centre' }
+    const out = buildDictionary(input({ files, lists: [list('21-uk-spellings', 21, [['centre', ['SEPB']]])] }))
+    expect(cardOf(out, 'centre')).toEqual({ t: 'centre', r: [{ o: 'SEPB', f: ['uk'], b: [{ chapter: 21, source: 'practice' }] }] })
+  })
+
+  it('merges the same name from a named list and a brief into one named card, exact text', () => {
+    const out = buildDictionary(input({
+      lists: [named('20-commands', 20, [['Enter', ['R-R']]])],
+      briefs: [{ chapter: 21, kind: 'extra', translation: 'Enter', outlines: ['R-R'], explanation: '' }],
+    }))
+    expect(out.cards).toEqual([
+      { t: 'Enter', n: true, r: [{ o: 'R-R', b: [{ chapter: 20, source: 'practice' }, { chapter: 21, source: 'brief' }], w: [] }] },
+    ])
   })
 })

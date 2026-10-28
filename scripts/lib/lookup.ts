@@ -5,7 +5,8 @@ import type { BriefRow } from './tables.ts'
 export type LookupSource = 'practice' | 'brief' | 'example'
 export type LookupHit = { outline: string; chapter: number; source: LookupSource; note?: string }
 export type LookupEntry = { word: string; hits: LookupHit[] }
-export type LookupList = { id: string; chapter: number; items: PracticeItem[] }
+// `named` marks a list of names (of keys, symbols, commands) that the dictionary build never joins to word cards.
+export type LookupList = { id: string; chapter: number; items: PracticeItem[]; named?: true }
 
 const SOURCE_ORDER: Record<LookupSource, number> = { practice: 0, brief: 1, example: 2 }
 

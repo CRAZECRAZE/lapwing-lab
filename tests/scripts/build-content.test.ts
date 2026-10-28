@@ -205,21 +205,43 @@ describe('dictionary.json on the vendored book', () => {
     expect(row('subway', 'SUB/WA*EU').b).toBeUndefined()
   })
 
-  it('labels the lowercase a of Chapter 18 as a practice item', () => {
-    expect(row('a', 'A*').b).toContainEqual({ chapter: 18, source: 'practice' })
+  it('holds the lowercase a of Chapter 18 as a named card and leaves the dictionary card a alone', () => {
+    const named = dictionary().cards.find((c) => c.t === 'a' && c.n)
+    expect(named).toEqual({ t: 'a', n: true, r: [{ o: 'A*', b: [{ chapter: 18, source: 'practice' }], w: ['{>}{&a}'] }] })
+    expect(card('A')).toMatchObject({ n: true, r: [{ o: 'A*P', b: [{ chapter: 18, source: 'practice' }] }] })
+    const word = dictionary().cards.find((c) => c.t === 'a' && !c.n)!
+    expect(word.r.find((r) => r.o === 'A*')).toBeUndefined()
+    expect(word.r.some((r) => r.x)).toBe(false)
   })
 
-  it('keeps the Chapter 20 Enter command as a book-only row on the enter card', () => {
-    // The book calls the command "Enter", which is a word the dictionary has, so R-R (the dictionary writes it as
-    // "{^~|\n^}") lands as an x row on the `enter` card instead of a card of its own.
-    const enter = card('enter')
+  it('holds every item of the five lists of names as a named card with its outline row, and none as an x row on a word', () => {
+    const cards = dictionary().cards
+    for (const id of ['18-lowercase', '18-numbers', '18-uppercase', '20-commands', '20-punctuation']) {
+      for (const item of readJson('practice', `${id}.json`).items as { prompt: string; outlines: string[] }[]) {
+        const named = cards.find((c) => c.n && c.t === item.prompt.trim())
+        expect(named, `${id} ${item.prompt}`).toBeDefined()
+        for (const outline of item.outlines) {
+          expect(named!.r.find((r) => r.o === outline)?.b, `${id} ${item.prompt} ${outline}`).toBeDefined()
+        }
+      }
+    }
+  })
+
+  it('holds the Chapter 20 Enter command as a named card and adds nothing to the enter card', () => {
+    // The dictionary writes R-R as "{^~|\n^}": the named card lists that as the translation of the outline.
+    expect(dictionary().cards.find((c) => c.t === 'Enter')).toEqual({
+      t: 'Enter',
+      n: true,
+      r: [{ o: 'R-R', b: [{ chapter: 20, source: 'practice' }], w: ['{^~|\n^}'] }],
+    })
+    const enter = dictionary().cards.find((c) => c.t === 'enter')!
     expect(enter.n).toBeUndefined()
-    expect(row('enter', 'R-R')).toEqual({ o: 'R-R', b: [{ chapter: 20, source: 'practice' }], x: true })
-    expect(dictionary().cards.some((c) => c.t === 'Enter')).toBe(false)
+    expect(enter.r.map((r) => r.o)).toEqual(['SPWER', 'EPB/TER'])
+    expect(enter.r.some((r) => r.x)).toBe(false)
+    expect(enter.r.find((r) => r.o === 'SPWER')?.b).toEqual([{ chapter: 17, source: 'practice' }])
   })
 
-  it('holds a command the dictionary has no word for as a named card whose rows carry the dictionary words', () => {
-    // "Enter (capitalize next word)" is the book's own heading text; R*R is written "{^\n}{^}{-|}" in lapwing-commands.json.
+  it('holds Enter (capitalize next word) as a named card with the dictionary words of R*R', () => {
     expect(card('Enter (capitalize next word)')).toEqual({
       t: 'Enter (capitalize next word)',
       n: true,
