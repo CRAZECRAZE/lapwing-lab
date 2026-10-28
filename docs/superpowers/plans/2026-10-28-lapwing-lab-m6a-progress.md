@@ -26,6 +26,7 @@
 - **R2 (refines C13).** A quarter's wpm shares the run's completed words across the four active-time slices in proportion to the correct strokes in each slice, divided by the slice's active minutes. It is an estimate that agrees with the run's stored wpm overall; the panel labels it "estimated".
 - **R3 (refines C18, C16).** Days and weeks use the local date of a run's first stroke, exactly as `/api/days` does, so the pages agree.
 - **R4.** Mix-ups count a stroke only when exactly one key was pressed that was not needed and exactly one needed key was missing (a clean one-for-one substitution); the needed stroke of a miss is the nearest accepted stroke, as `src/core/review.ts` already does for the Misses table.
+- **R6.** The all-time range needs 1,100 days back, but `/api/days` caps a span at 800 days (`MAX_DAYS_SPAN` in `server/server.ts`): Task 4 raises that constant to 1,100 so `/api/days` and `/api/stats` share one cap, and updates the existing `/api/days` span tests.
 - **R5.** Practice time, strokes, the heatmap, streaks and per-week bars come from `/api/days` (no new SQL); the chapter ladder comes from the progress provider; only per-day quality, key statistics, mix-ups and the all-time stroke count come from the new `/api/stats`.
 
 ## Review Focus
