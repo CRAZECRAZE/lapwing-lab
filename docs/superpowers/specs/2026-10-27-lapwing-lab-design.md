@@ -128,6 +128,8 @@ Searches a merged Lapwing dictionary (the owner's real Plover stack, in Plover's
 ### 4.4 Training archive
 All practice is recorded from the first session: sessions, tests, and every stroke. See §6. Basic history and per-day views arrive in M2 (3.5). The rest comes later (M6): a heatmap, trend lines per mode and chapter, confusion pairs (which wrong key was hit instead of the right one), plateau detection and an end-of-month report (wpm and accuracy deltas, weakest keys, top confusion pairs, practice time, suggested focus, owner-annotatable).
 
+*Amended by M6 (2026-10-28):* the M6 views are the Progress tab (panels, rhythm, the stats route) and, later, the plateau notice and the month-end report, as described in `specs/2026-10-28-lapwing-lab-m6-progress-design.md`; M6a (the Progress tab) is built, M6b (plateau notice and month report) is not.
+
 ### 4.5 Training journal
 At the end of a session the app opens a plain-text note for the owner's own words (what they think, how it went). One markdown file per day (`data/journal/YYYY-MM-DD.md`) holding only the owner's words. *My call, M2:* the auto-generated summary of the day's tests is shown live beneath the note and is never written into the file, so the file stays the owner's text and the summary cannot go stale.
 
@@ -223,7 +225,7 @@ The pipeline's output: chapters with sections, rendered prose, media references,
 - **M3 — Core practice.** Section drills and chapter tests inline in the reader (Chapters 5 onward as lists exist), prompt-first drill screen, hint on miss, mistake diff, gates with override. They also appear on the Practice tab.
 - **M4 — The dock.** Lookup over book data, key chart, briefs so far, notes; generated drills for table-only chapters.
 - **M5 — Memory and lookup.** SRS; dictionary merge; full lookup with classification. *Amended by M5a (2026-10-28):* M5 is split. **M5a** (done): the dictionary lookup, per the M5a spec. **M5b:** briefs memory (SRS), designed later.
-- **M6 — The record.** Heatmap, trend lines, month-end report, confusion pairs, plateau detection (the basic views are M2).
+- **M6 — The record.** Heatmap, trend lines, month-end report, confusion pairs, plateau detection (the basic views are M2). *Amended by M6 (2026-10-28):* M6 is delivered in two steps. **M6a** (done): the Progress tab with its panels and the Rhythm view in Progress and in History. **M6b:** the plateau notice and the month-end report with the owner's notes. M5b (briefs memory) and M7 are unchanged.
 - **M7 — The architecture around it.** Routine planner, session composer, ghosts, real-text practice.
 
 ## 10. Left to the builder
@@ -270,3 +272,6 @@ Added 2026-10-28 with the M4 plan (3.3, "Settled for M4"):
 
 Added 2026-10-28 with the M5a spec:
 30. Calls C1 to C22 (vendored official dictionary, `Show more` by 30, file tags, raw Plover syntax, fingerspelling hint, sort order, the join rules between book labels and dictionary cards, named cards, `book only` rows) are listed in `specs/2026-10-28-lapwing-lab-m5a-dictionary-lookup-design.md`, §7 and §7a.
+
+Added 2026-10-28 with the M6 spec:
+31. Calls C1 to C18 (default mode and range, left-early runs, Monday weeks, rhythm definitions, small-data thresholds, plateau rule, the mode switch, words and weights, quarters, gaps, the chapter ladder, the Days-tab agreement) are listed in `specs/2026-10-28-lapwing-lab-m6-progress-design.md`, §8 and §8a; the rulings made while planning and building M6a are in its §8b. *Amended by M6 (2026-10-28):* M6 is delivered as M6a (the Progress tab) and M6b (plateau notice and month report).

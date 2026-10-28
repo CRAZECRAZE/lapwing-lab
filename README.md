@@ -1,6 +1,6 @@
 # Lapwing Lab
 
-A private, offline, interactive version of the book *Lapwing for Beginners*, driven by your Uni v4. The whole book is readable in the app, its strokes light up on an on-screen board, and the Chapter 4 "Stage 0" drills, the section drills and chapter tests of the chapters after it, and free type run on your real keyboard and archive every stroke. Chapters ask to be cleared in order, and you can always override that. A history, a day calendar and a daily journal sit on top of that archive, and four quick-pull tools (lookup, key chart, briefs, notes) open beside whatever page you are on. It is not a replacement for Plover: it never sends strokes to Plover, never types text, and never touches Plover's config.
+A private, offline, interactive version of the book *Lapwing for Beginners*, driven by your Uni v4. The whole book is readable in the app, its strokes light up on an on-screen board, and the Chapter 4 "Stage 0" drills, the section drills and chapter tests of the chapters after it, and free type run on your real keyboard and archive every stroke. Chapters ask to be cleared in order, and you can always override that. A history, a day calendar, a Progress page and a daily journal sit on top of that archive, and four quick-pull tools (lookup, key chart, briefs, notes) open beside whatever page you are on. It is not a replacement for Plover: it never sends strokes to Plover, never types text, and never touches Plover's config.
 
 ## Requirements
 
@@ -37,12 +37,13 @@ Plover should be able to stay connected at the same time: on Linux, hidraw norma
 
 ## What is inside today
 
-The top bar has five tabs: **Book · Practice · History · Days · Journal**, and four tool buttons: **Lookup · Key chart · Briefs · Notes** (see "The dock" below).
+The top bar has six tabs: **Book · Practice · History · Days · Progress · Journal**, and four tool buttons: **Lookup · Key chart · Briefs · Notes** (see "The dock" below).
 
 - **Book** is the reader for all 33 pages of the book (Home, chapters, appendices, Glossary, Changes), with the book's images and videos served locally. Strokes in the text light up the keys on a board when you hover, focus or click them. While a stroke is shown in the board panel, pressing it on the Uni shows a ✓; for a multi-stroke outline, press the strokes in order starting from the first.
 - **Practice** has a **Where you are** panel (the chapter you are on, see below), **free type** and the Chapter 4 **Stage 0 drills**. Free type is a flowing line of words: 25 or 50 words, or 30 or 60 seconds, or choose **Custom** and type your own number of words (1 to 500) or seconds (5 to 600); Start stays off until the number is in range. A timed run starts counting on your first stroke. Stage 0 is six key-row drills (left bottom, right bottom, left top, right top, vowels, star), the 100-word layout test with the book's pass mark (90% accuracy within 10 minutes), and two extra practice lists. The board can be always visible, shown on hover, or hidden.
-- **History** lists every test with accuracy and speed; open one to see its misses (what was required, what you pressed, which keys were missing or extra) and its slowest words.
+- **History** lists every test with accuracy and speed; open one to see its rhythm (see "Progress" below), its misses (what was required, what you pressed, which keys were missing or extra) and its slowest words.
 - **Days** is a month calendar shaded by how long you practiced each day, with totals; pick a day to see its tests and its journal note. Your current streak of consecutive days is shown in the status line as well.
+- **Progress** is the page that shows whether practice is working: speed and accuracy by day, how steady your typing is, how much you practice, which keys and mix-ups hold you back and how you stand against the book's chapter marks (see "Progress" below).
 - **Journal** is one markdown note per day, saved automatically as you type. A result card also has **Add a note**, which appends to today's note under a stamped heading.
 
 Free type draws only on words the book has taught: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter you pick (each chapter that has practice lists in the built content is offered as a source).
@@ -51,7 +52,7 @@ For the chapter word lists, the **Hint** setting chooses when the keys a word ne
 
 "Time practiced" is approximate: for each test it is the time from the first stroke to the last, so pauses inside a test count and time before the first stroke does not.
 
-The full dictionary lookup is done (see "The dictionary" below). The order of the remaining work (briefs memory, reports, routines) is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
+The full dictionary lookup and the Progress page (M6a) are done (see "The dictionary" and "Progress" below). What remains is the plateau notice and the month report (M6b), briefs memory (M5b) and the routine planner (M7); the order is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
 
 ## Chapter practice and gates
 
@@ -111,6 +112,51 @@ Lookup reads one generated file, `content/build/dictionary.json`: about 58,000 c
 - **What it does not do.** It never reads your own Plover dictionaries, on purpose, so your habits are not echoed back. It never writes anything (nothing in `data/`). It uses no network at run time: the only fetch is of `/content/dictionary.json` from the local server. It does not label outlines as brief or write-out.
 - **Known limits.** The Briefs tool still shows only the chapters taught so far (its own **Include later chapters** box); `thirst`'s outline `TH*EURS`, which the book gives as an "Also" sub-bullet, has no chapter label. Both are listed in `docs/superpowers/m0-m1-followups.md`. The design is in `docs/superpowers/specs/2026-10-28-lapwing-lab-m5a-dictionary-lookup-design.md`.
 
+## Progress
+
+The **Progress** tab (the fifth in the top bar, or `/progress`) draws your existing history as panels. It needs no setup and nothing new is recorded: it works from the tests and strokes already in `data/steno.db`, the same ones History and Days read, and it writes nothing (it creates no file in `data/`, and on a fresh install it shows `No practice recorded yet.`). Reloading gives the same numbers.
+
+**The two switches** sit at the top.
+
+- **Range**: `4 weeks` (the default), `3 months` or `All time` (up to 1,100 days back). It changes the day charts (wpm by day, accuracy and consistency), the weekly bars, and the weakest keys and mix-ups, which say which period they cover.
+- **Mode**: `Free type` (the default), `Drills and tests` (Stage 0, section drills and chapter tests) or `Everything`. It changes only the panels about speed and quality: the two speed and accuracy tiles, wpm by day, accuracy and consistency, and the Rhythm panel. The time and strokes tiles, the weekly bars, the weakest keys, the mix-ups and the heatmap always use every mode (their titles say `all modes`), and the chapter ladder ignores the switch and always shows chapter tests (Chapter 4's Stage 0 test counts as its test).
+
+**The panels**, top to bottom:
+
+- **Tiles.** This week's practice time and strokes (Monday to today, with all-time strokes under it), and the speed and first-try accuracy of the last 7 days. Each shows its change against the period before (last week, or the 7 days before) only when both periods have data.
+- **Wpm by day.** One dot per day you finished runs: that day's average wpm, weighted by words. A dashed line is the 7-day average of the daily values (each day counts once, so it can differ a little from the tile, which is weighted by words); it appears from 3 days with data. The axis starts at 0, and the best day is named above.
+- **Accuracy and consistency.** A line of first-try accuracy per day (the axis runs from 80% when every day is at 80% or better, and says so under the chart) and a bar per day for steadiness, the middle one of that day's runs. A shaded band shows the lowest to highest steadiness over the last 14 days, once at least 5 of them have a score.
+- **Rhythm.** How steadily you type inside one run (below). It shows the newest finished run of the mode, with a picker for the 20 latest and **Open this run in History**; the same section is on the detail page of every finished run in History (a run left early or never finished says `Rhythm is shown for finished runs.`).
+- **Practice time per week.** Bars of time practiced each Monday-to-Sunday week, the strokes under each bar, and the current week lighter as `so far`. With `All time` the bars start at the first week you practiced.
+- **Weakest keys.** The board with each key shaded by how often it was missed when it was needed, and the worst five in words. The shade is on a fixed scale: a key missed in 25% of its presses or more is fully red, so a calm board means few misses (it is not relative to your worst key). A key needs 30 presses to be ranked.
+- **Mix-ups.** Pairs where you pressed one wrong key in place of the one you needed (`-P instead of -B`), at most eight, most often first. A pair needs 3 occurrences.
+- **Chapter tests.** For each chapter with a test, your best result against the book's pass mark, `met` or `not yet` (with what it falls short of), or `not tried yet`. A row is `met` when any run passed, as the app clears the chapter; when your most accurate run is below the mark but another run passed, the row also says `passed on another run`.
+- **Practice, all modes.** A grid of the last 52 weeks (365 days), one square per day, shaded by practice time with the same steps as the Days tab (under 10 minutes, under 30, more), with your current and longest streak (counted within that year).
+
+**Where each number comes from.**
+
+- A **day** is the local date of the first stroke of a run, as on the Days tab; **weeks start on Monday**.
+- **Time practiced and strokes** count every run that has strokes, including runs you left early and runs whose tab was closed, so they agree with the Days tab. Time is first stroke to last stroke of each run, summed, as in "Time practiced" above.
+- **Wpm, accuracy and steadiness** use finished runs only. A run you left early is not counted, and a timed run that ran out the clock is. The wpm and accuracy of a run are the ones History shows; a day's figure is their average weighted by the words each run completed. Accuracy is first-try accuracy, shown with one decimal on the tile.
+- The **weakest keys** and **mix-ups** come from the strokes of every run, early or not.
+
+**Rhythm, in plain words.** The strokes of a run are timed against each other.
+
+- A **gap** is the time between one stroke and the one before it (a missed stroke and its retry are two gaps). The first stroke's gap is the time since its word appeared.
+- A pause over 10 seconds is a **break** (you stepped away): it is drawn as a dotted line marked `break` and left out of every score.
+- The **typical gap** is the middle one of the run's gaps. A **stall** is a gap more than 2.5 times the typical gap and over 1 second (a red bar).
+- **Steadiness**, 0 to 100, is how evenly the gaps fall around the typical gap: 100 means every gap alike, and a run that keeps swinging between quick and slow scores lower. It looks at the middle half of the gaps, so one stall barely changes it. A run with fewer than 10 strokes gets no score.
+- **Start vs finish** and the speed in each of the four quarters are **estimates**. A quarter is a quarter of the run's active time (breaks left out); the run's words are shared across the quarters in proportion to the correct strokes in each, divided by that quarter's minutes. The whole run's wpm is shown beside them, as counted by the app.
+- The strip has one bar per stroke. A run of more than 300 strokes is drawn wider than the page and scrolls sideways inside its own box; the seconds axis stays in view.
+
+**Being honest with small amounts of data.** A speed, accuracy or steadiness figure that rests on fewer than 3 runs shows a dash and `not enough data yet`. A key needs 30 presses to be ranked and a mix-up needs 3 occurrences. The plateau notice and the month report are not in this step (M6b).
+
+**A limit.** The archive does not record which stroke of a multi-stroke word you were attempting, so for those words a miss is matched to the closest stroke of any of the word's outlines (the page says so under Weakest keys). That is right for nearly all misses, but a wrong stroke can be blamed on the wrong stroke of the word, and retyping the previous stroke where a later one was needed is not seen as a miss on that key.
+
+**Keyboard.** Each chart is one tab stop: Tab reaches it, Left and Right move between its dots and bars, and Home and End go to the first and last. In the heatmap Left and Right move a week, Up and Down a day. Under every chart a **Show the numbers** disclosure holds the same figures as a table.
+
+**How it is built.** The page asks the local server for `GET /api/stats?from=&to=&mode=` (mode `free`, `drills` or `all`; read-only; the strokes are summed on the server and only totals leave it) and for `GET /api/days`, which both accept a span of up to 1,100 days. Neither creates `data/` if there is no archive. The charts are drawn as SVG, with no charting library. The design is in `docs/superpowers/specs/2026-10-28-lapwing-lab-m6-progress-design.md`; `docs/superpowers/m6a-checklist.md` lists what to check against your real history.
+
 ## Your data
 
 Everything the app writes lives in `data/`:
@@ -155,7 +201,7 @@ content/lapwing-dictionary/   vendored official Lapwing dictionary (generated; d
 content/build/          generated pages and word lists (git-ignored)
 scripts/                content pipeline and dev runner
 server/                 HTTP server, SQLite archive, journal and chapter notes files, settings
-src/                    client: reader, board, drills, chapter tests and gates, free type, history, days, journal, the dock tools, WebHID input
+src/                    client: reader, board, drills, chapter tests and gates, free type, history, days, progress, journal, the dock tools, WebHID input
 tests/                  vitest suites
 docs/superpowers/       specs/ and plans/
 data/                   your data (git-ignored)
