@@ -4,6 +4,7 @@ import type { Stage0Words } from '../../scripts/lib/stage0.ts'
 import { createTestLogger } from '../api.ts'
 import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { useDockDrillMarker } from '../state/dock.tsx'
 import { useProgress } from '../state/progress.tsx'
 import { ROW_DRILLS, STAGE0_INFO, buildStage0Drills, itemsForRun } from '../stage0/lists.ts'
 import type { Stage0Drill } from '../stage0/lists.ts'
@@ -72,6 +73,8 @@ function Summary({ drill, result, onAgain }: { drill: Stage0Drill; result: Drill
 
 /** The `/drill/stage0/<id>` route; `id` is the part after `stage0/`. */
 export function Stage0Route({ id }: { id: string }): JSX.Element {
+  // The host stays mounted from the drill to its result card: the bare dock hotkeys stay off through the swap.
+  useDockDrillMarker()
   const progress = useProgress()
   const known = STAGE0_INFO.some((info) => info.id === id)
   const rowDrill = ROW_DRILLS.find((d) => d.id === id)

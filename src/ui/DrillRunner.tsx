@@ -4,6 +4,7 @@ import { createTestLogger } from '../api.ts'
 import type { DrillItem } from '../core/drill.ts'
 import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { navigate } from '../router.ts'
+import { useDockDrillMarker } from '../state/dock.tsx'
 import { useProgress } from '../state/progress.tsx'
 import { AppLink } from './AppLink.tsx'
 import { Drill } from './Drill.tsx'
@@ -82,6 +83,8 @@ function RunnerResult({ title, result, requirement, passMark, backHref, backLabe
 /** The shared host of a section drill or a chapter test: pickers, the word drill, the lock and the result card. */
 export function DrillRunner(props: DrillRunnerProps): JSX.Element {
   const { title, backHref, backLabel, chapter, logTest, passMark, requirement, intro } = props
+  // The host stays mounted from the drill to its result card: the bare dock hotkeys stay off through the swap.
+  useDockDrillMarker()
   const progress = useProgress()
   const [visibility, pick] = useBoardVisibility()
   const [hints, pickHints] = useHints()

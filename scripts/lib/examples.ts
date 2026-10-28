@@ -20,9 +20,14 @@ const BAD_LAST = new Set(['is', 'are', 'be', 'presses', 'use', 'of'])
 
 // The word of an example item, or null when the text before the code span is prose rather than a word or short phrase:
 // one wrapping pair of double quotes is dropped, then 1 to 3 tokens of letters (a token may end in - or ^) must remain,
-// without a sentence-opening first word or, in a phrase, a sentence-ending last word.
+// without a sentence-opening first word or, in a phrase, a sentence-ending last word. A leading `As in "word"` (Chapter 13's
+// prefix examples) is unwrapped to the quoted word first, before the sentence-opening stoplist (which has `as`) is applied.
+const AS_IN = /^as in\s+["\u201c](.+?)["\u201d]\s*$/i
+
 function exampleWord(text: string): string | null {
   let word = text
+  const quoted = AS_IN.exec(word)
+  if (quoted) word = quoted[1].trim()
   if (word.length >= 2 && /^["\u201c\u201d]/.test(word) && /["\u201c\u201d]$/.test(word)) word = word.slice(1, -1).trim()
   const tokens = word.split(/\s+/)
   if (tokens.length > 3 || !tokens.every((t) => TOKEN.test(t))) return null

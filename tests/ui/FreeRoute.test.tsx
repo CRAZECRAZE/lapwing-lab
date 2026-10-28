@@ -3,7 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import type { TestLogger } from '../../src/api.ts'
+import { DockProvider } from '../../src/state/dock.tsx'
 import { UniProvider } from '../../src/state/uni-context.tsx'
+import { DockHost } from '../../src/ui/DockHost.tsx'
 import { FreeRoute } from '../../src/ui/FreeRoute.tsx'
 
 vi.mock('../../src/api.ts', () => ({
@@ -104,13 +106,20 @@ afterEach(() => {
 
 type Rig = { device: FakeDevice; stroke(bytes: number[]): void }
 
-async function mount(source: string, mode: string): Promise<Rig> {
+async function mount(source: string, mode: string, withDock = false): Promise<Rig> {
   const hid = new FakeHid()
   const device = new FakeDevice()
   hid.known = [device]
   render(
     <UniProvider hid={hid}>
-      <FreeRoute source={source} mode={mode} />
+      {withDock ? (
+        <DockProvider>
+          <FreeRoute source={source} mode={mode} />
+          <DockHost />
+        </DockProvider>
+      ) : (
+        <FreeRoute source={source} mode={mode} />
+      )}
     </UniProvider>,
   )
   await waitFor(() => expect(screen.queryByText(/Board disconnected|Loading/)).toBeNull())
@@ -206,6 +215,20 @@ describe('FreeRoute', () => {
     cleanup()
     expect(loggers[0].start).not.toHaveBeenCalled()
     expect(loggers[0].finish).not.toHaveBeenCalled()
+  })
+
+  it('keeps the bare dock hotkeys off on the result card, and the Alt forms on', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    const rig = await mount('pseudo', 'words-25', true)
+    for (let i = 0; i < 25; i++) rig.stroke(SAP)
+    await screen.findByRole('region', { name: 'Result' })
+    // Plover's output for the last stroke lands on the page body after the result card has replaced the drill.
+    for (const [key, code] of [['k', 'KeyK'], ['n', 'KeyN'], ['b', 'KeyB'], ['/', 'Slash']]) {
+      fireEvent.keyDown(document.body, { key, code })
+      expect(screen.queryByRole('dialog'), key).toBeNull()
+    }
+    fireEvent.keyDown(document.body, { key: 'k', code: 'KeyK', altKey: true })
+    expect(screen.getByRole('dialog', { name: 'Key chart' })).toBeTruthy()
   })
 
   it('shows the result card, and Again starts a fresh run with a new logger', async () => {

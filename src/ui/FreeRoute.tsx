@@ -8,6 +8,7 @@ import type { DrillItem } from '../core/drill.ts'
 import { PSEUDO_SOURCE, buildFreeItems, describeFree, itemCountFor, listIdsFor, parseMode, parseSource, poolFor } from '../freetype/free.ts'
 import type { FreeMode, FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { useDockDrillMarker } from '../state/dock.tsx'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
 import { HintPicker, useHints } from './HintPicker.tsx'
@@ -98,6 +99,8 @@ function FreeResult({ title, result, onAgain }: { title: string; result: DrillRe
 
 /** The `/practice/free/<source>/<mode>` route. */
 export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; mode: string }): JSX.Element {
+  // The host stays mounted from the drill to its result card: the bare dock hotkeys stay off through the swap.
+  useDockDrillMarker()
   const mode: FreeMode | undefined = parseMode(modeId)
   const [data, setData] = useState<Data>({ status: 'loading' })
   const [visibility, pick] = useBoardVisibility()

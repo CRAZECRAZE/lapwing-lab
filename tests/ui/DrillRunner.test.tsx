@@ -2,6 +2,8 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DrillItem } from '../../src/core/drill.ts'
+import { DockProvider } from '../../src/state/dock.tsx'
+import { DockHost } from '../../src/ui/DockHost.tsx'
 import { DrillRunner } from '../../src/ui/DrillRunner.tsx'
 import type { DrillRunnerProps } from '../../src/ui/DrillRunner.tsx'
 import { CONTENT, SAP, TAP, fakeLogger, mountRig, passed, prompt, stubContent } from './helpers/practice-rig.tsx'
@@ -107,6 +109,25 @@ describe('DrillRunner', () => {
     expect(within(card).getByRole('button', { name: 'Add a note' })).toBeTruthy()
     await waitFor(() => expect(getProgress).toHaveBeenCalledTimes(2))
     expect(loggers[0].finish).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ passed: true }) }))
+  })
+
+  it('keeps the bare dock hotkeys off on the result card, and the Alt forms on', async () => {
+    const rig = await mountRig(
+      <DockProvider>
+        {runner()}
+        <DockHost />
+      </DockProvider>,
+    )
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    await screen.findByRole('region', { name: 'Result' })
+    // Plover's output for the last stroke lands on the page body after the result card has replaced the drill.
+    for (const [key, code] of [['k', 'KeyK'], ['n', 'KeyN'], ['b', 'KeyB'], ['/', 'Slash']]) {
+      fireEvent.keyDown(document.body, { key, code })
+      expect(screen.queryByRole('dialog'), key).toBeNull()
+    }
+    fireEvent.keyDown(document.body, { key: 'k', code: 'KeyK', altKey: true })
+    expect(screen.getByRole('dialog', { name: 'Key chart' })).toBeTruthy()
   })
 
   it('says Not yet when the run misses the mark', async () => {

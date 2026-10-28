@@ -4,8 +4,10 @@ import type { JSX } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import { ProgressProvider } from '../../src/state/progress.tsx'
+import { DockProvider } from '../../src/state/dock.tsx'
 import { UniProvider } from '../../src/state/uni-context.tsx'
 import { App } from '../../src/ui/App.tsx'
+import { DockHost } from '../../src/ui/DockHost.tsx'
 import { Reader } from '../../src/ui/Reader.tsx'
 import { Stage0Panel } from '../../src/ui/Stage0Panel.tsx'
 import { Stage0Route } from '../../src/ui/Stage0Route.tsx'
@@ -177,6 +179,7 @@ type Rig = { device: FakeDevice; server: ReturnType<typeof mockServer>; stroke(b
 async function mountRoute(
   id: string,
   routes: Record<string, Json | Error | 'fail'> = { '/content/stage0.json': TINY },
+  withDock = false,
 ): Promise<Rig> {
   const server = mockServer(routes)
   const hid = new FakeHid()
@@ -185,7 +188,14 @@ async function mountRoute(
   render(
     <UniProvider hid={hid}>
       <ProgressProvider>
-        <Stage0Route id={id} />
+        {withDock ? (
+          <DockProvider>
+            <Stage0Route id={id} />
+            <DockHost />
+          </DockProvider>
+        ) : (
+          <Stage0Route id={id} />
+        )}
       </ProgressProvider>
     </UniProvider>,
   )
@@ -248,6 +258,19 @@ describe('Stage 0 drill route', () => {
     expect(screen.getByRole('button', { name: 'Add a note' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Back to Chapter 4' }))
     expect(location.pathname).toBe('/page/ch04')
+  })
+
+  it('keeps the bare dock hotkeys off on the summary, and the Alt forms on', async () => {
+    const rig = await mountRoute('pseudo-test', { '/content/stage0.json': TINY }, true)
+    rig.stroke(SAP)
+    await screen.findByText('Passed')
+    // Plover's output for the last stroke lands on the page body after the summary has replaced the drill.
+    for (const [key, code] of [['k', 'KeyK'], ['n', 'KeyN'], ['b', 'KeyB'], ['/', 'Slash']]) {
+      fireEvent.keyDown(document.body, { key, code })
+      expect(screen.queryByRole('dialog'), key).toBeNull()
+    }
+    fireEvent.keyDown(document.body, { key: 'k', code: 'KeyK', altKey: true })
+    expect(screen.getByRole('dialog', { name: 'Key chart' })).toBeTruthy()
   })
 
   it('reloads progress when a run finishes, so the Chapter 4 gate reflects it', async () => {

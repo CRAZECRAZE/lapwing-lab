@@ -88,6 +88,25 @@ describe('parseExampleItems', () => {
     expect(parseExampleItems(4, md).map((r) => r.word)).toEqual(['use'])
   })
 
+  it('unwraps a leading `As in "word"` to the quoted word, but still drops prose that starts with As in', () => {
+    const md = '* a^ `A`\n  - As in "<ins>a</ins>round" `A/ROUPBD`\n  - as in \u201c<ins>co</ins>star\u201d `KOE/STAR`\n'
+    expect(parseExampleItems(13, md)).toEqual([
+      { chapter: 13, word: 'a^', outlines: ['A'] },
+      { chapter: 13, word: 'around', outlines: ['A/ROUPBD'] },
+      { chapter: 13, word: 'costar', outlines: ['KOE/STAR'] },
+    ])
+    const prose = ['* As in the word above `KAT`', '* As in "one two three four" `KAT`', '* As in "if" `EU`', '* As `SEPBT`', ''].join('\n')
+    expect(parseExampleItems(13, prose)).toEqual([])
+  })
+
+  it('finds the ten prefix examples of the real Chapter 13', () => {
+    const rows = parseExampleItems(13, book('Chapter-13.md'))
+    expect(rows).toContainEqual({ chapter: 13, word: 'around', outlines: ['A/ROUPBD'] })
+    for (const word of ['costar', 'deplane', 'forgo', 'infix', 'mistake', 'nonstop', 'protip', 'retake', 'subway']) {
+      expect(rows.map((r) => r.word), word).toContain(word)
+    }
+  })
+
   it('finds dad in the real Chapter 5', () => {
     expect(parseExampleItems(5, book('Chapter-05.md'))).toContainEqual({ chapter: 5, word: 'dad', outlines: ['TKAD'] })
   })
@@ -124,10 +143,10 @@ describe('parseExampleItems', () => {
     }
   })
 
-  it('totals between 420 and 440 rows over chapters 1 to 26', () => {
+  it('totals between 420 and 450 rows over chapters 1 to 26', () => {
     let total = 0
     for (let n = 1; n <= 26; n++) total += parseExampleItems(n, book(`Chapter-${String(n).padStart(2, '0')}.md`)).length
     expect(total).toBeGreaterThanOrEqual(420)
-    expect(total).toBeLessThanOrEqual(440)
+    expect(total).toBeLessThanOrEqual(450)
   })
 })

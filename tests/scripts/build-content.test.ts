@@ -129,6 +129,12 @@ describe('lookup.json', () => {
     expect(entry('centre').hits).toContainEqual({ outline: 'SEPB/TER/#TPH', chapter: 21, source: 'example' })
   })
 
+  it('has chapter 13 example hits for the prefix words, such as around, mistake and subway', () => {
+    expect(entry('around').hits).toContainEqual({ outline: 'A/ROUPBD', chapter: 13, source: 'example' })
+    expect(entry('mistake').hits).toContainEqual({ outline: 'PHEUS/TAEUBG', chapter: 13, source: 'example' })
+    expect(entry('subway').hits).toContainEqual({ outline: 'SUB/WAEU', chapter: 13, source: 'example' })
+  })
+
   it('has hits from both practice lists and brief tables for a word in both, such as do', () => {
     const sources = new Set(entry('do').hits.map((h) => h.source))
     expect(sources.has('practice')).toBe(true)
