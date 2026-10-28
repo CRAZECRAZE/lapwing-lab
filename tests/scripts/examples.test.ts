@@ -107,6 +107,22 @@ describe('parseExampleItems', () => {
     }
   })
 
+  it('drops a nested "Also `outline`" sub-bullet, which describes the item above it, but keeps a real example word also', () => {
+    const md = '* list `HREUS/*T`\n  - Also `HR*EUS` (recommended)\n* thirst `THEURS/*T`\n  - also `TH*EURS`\n'
+    expect(parseExampleItems(12, md)).toEqual([
+      { chapter: 12, word: 'list', outlines: ['HREUS/*T'] },
+      { chapter: 12, word: 'thirst', outlines: ['THEURS/*T'] },
+    ])
+    expect(parseExampleItems(12, '* also `AUL/SO`\n')).toEqual([{ chapter: 12, word: 'also', outlines: ['AUL/SO'] }])
+  })
+
+  it('keeps list and thirst, and no also, in the real Chapter 12', () => {
+    const rows = parseExampleItems(12, book('Chapter-12.md'))
+    expect(rows.find((r) => r.word === 'list')?.outlines).toContain('HREUS/*T')
+    expect(rows.find((r) => r.word === 'thirst')?.outlines).toEqual(['THEURS/*T'])
+    expect(rows.map((r) => r.word.toLowerCase())).not.toContain('also')
+  })
+
   it('finds dad in the real Chapter 5', () => {
     expect(parseExampleItems(5, book('Chapter-05.md'))).toContainEqual({ chapter: 5, word: 'dad', outlines: ['TKAD'] })
   })

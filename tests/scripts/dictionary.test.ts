@@ -220,7 +220,7 @@ describe('buildDictionary', () => {
     const out = buildDictionary(input({ files, lists: [list('l', 5, [['kitten', ['KAT']]])] }))
     expect(cardOf(out, 'cat')!.r).toEqual([{ o: 'KAT' }])
     expect(cardOf(out, 'kitten')!.r).toEqual([
-      { o: 'KAT', x: true, b: [{ chapter: 5, source: 'practice' }] },
+      { o: 'KAT', x: true, b: [{ chapter: 5, source: 'practice' }], w: ['cat'] },
       { o: 'KITN' },
     ])
   })
@@ -289,6 +289,23 @@ describe('buildDictionary', () => {
       n: true,
       r: [{ o: 'R-R', b: [{ chapter: 20, source: 'practice' }], w: ['{#Enter}', '{#Return}'] }],
     })
+  })
+
+  it('says what the dictionary writes under a book-only row (C20), omitting w when it holds the outline nowhere', () => {
+    const files = empty()
+    files.main = { 'TP-PL': '{.}', 'TP-PLT': '.', 'KW-BG': '.' }
+    files.commands = { 'TP-PL': '{.}', 'TP-PL/X': '{.}' }
+    files.uk = { 'TP-PL': '{^.}' }
+    const out = buildDictionary(input({
+      files,
+      briefs: [
+        { chapter: 5, kind: 'chapter', translation: '.', outlines: ['TP-PL', 'STKPWHR'], explanation: '' },
+      ],
+    }))
+    const rows = cardOf(out, '.')!.r
+    expect(rows.find((r) => r.o === 'TP-PL')).toEqual({ o: 'TP-PL', x: true, b: [{ chapter: 5, source: 'brief' }], w: ['{.}', '{^.}'] })
+    expect(rows.find((r) => r.o === 'KW-BG')).toEqual({ o: 'KW-BG' })
+    expect(rows.find((r) => r.o === 'STKPWHR')).toEqual({ o: 'STKPWHR', x: true, b: [{ chapter: 5, source: 'brief' }] })
   })
 
   it('lists no translations as an empty w on a named card', () => {

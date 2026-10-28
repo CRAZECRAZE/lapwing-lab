@@ -37,19 +37,25 @@ function exampleWord(text: string): string | null {
   return tokens.join(' ')
 }
 
-function collect(tokens: Token[], found: { word: string; outline: string }[]): void {
+// A sub-bullet "Also `OUTLINE` (...)" gives a second outline for the item above it; its first word is not an example word.
+function alsoSubBullet(words: string, nested: boolean): boolean {
+  return nested && words.trim().toLowerCase() === 'also'
+}
+
+function collect(tokens: Token[], found: { word: string; outline: string }[], nested = false): void {
   for (const token of tokens) {
-    if (token.type === 'blockquote') collect((token as Tokens.Blockquote).tokens, found)
+    if (token.type === 'blockquote') collect((token as Tokens.Blockquote).tokens, found, nested)
     if (token.type !== 'list') continue
     for (const item of (token as Tokens.List).items) {
       const inline = ownInline(item)
       const at = inline.findIndex((t) => t.type === 'codespan')
       if (at > 0) {
-        const word = exampleWord(plainText(inline.slice(0, at)))
+        const before = plainText(inline.slice(0, at))
+        const word = alsoSubBullet(before, nested) ? null : exampleWord(before)
         const outline = (inline[at] as Tokens.Codespan).text
         if (word !== null && isOutline(outline)) found.push({ word, outline })
       }
-      collect(item.tokens, found)
+      collect(item.tokens, found, true)
     }
   }
 }

@@ -45,7 +45,10 @@ export type DictRow = {
   b?: BookLabel[]
   /** True for a row only the book has: the dictionary does not hold this pair. */
   x?: true
-  /** On a named card, the dictionary's translations of this outline (an empty array means none). */
+  /**
+   * What the dictionary writes for this outline, sorted: on a named card always (an empty array means none); on a
+   * book-only (`x`) row only when the dictionary holds the outline under other translations, never empty.
+   */
   w?: string[]
 }
 
@@ -128,6 +131,10 @@ function finishRow(row: RowState, words: Map<string, string[]>): DictRow {
   }
   if (row.x) out.x = true
   if (row.named) out.w = [...(words.get(row.o) ?? [])].sort(compareText)
+  else if (row.x) {
+    const written = words.get(row.o)
+    if (written && written.length > 0) out.w = [...written].sort(compareText)
+  }
   return out
 }
 

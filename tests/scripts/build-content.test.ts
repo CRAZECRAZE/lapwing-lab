@@ -161,6 +161,12 @@ describe('lookup.json', () => {
     expect(keys).toEqual([...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
   })
 
+  it('has no chapter 12 example hit for also', () => {
+    const also = lookup().find((e) => e.word === 'also')
+    expect(also?.hits ?? []).not.toContainEqual(expect.objectContaining({ chapter: 12, source: 'example' }))
+    expect(entry('list').hits).toContainEqual({ outline: 'HREUS/*T', chapter: 12, source: 'example' })
+  })
+
   it('leaves the generated drills out of the practice hits', () => {
     // The book's own lists cover chapters 5 to 17; the drills generated for chapters 18, 20 and 21 are not practice hits.
     const practice = lookup().flatMap((e) => e.hits.filter((h) => h.source === 'practice'))
@@ -212,6 +218,32 @@ describe('dictionary.json on the vendored book', () => {
     const word = dictionary().cards.find((c) => c.t === 'a' && !c.n)!
     expect(word.r.find((r) => r.o === 'A*')).toBeUndefined()
     expect(word.r.some((r) => r.x)).toBe(false)
+  })
+
+  it('has no chapter 12 example row on the also card (the "Also" sub-bullets describe list and thirst)', () => {
+    for (const c of dictionary().cards.filter((x) => x.t.toLowerCase() === 'also')) {
+      for (const r of c.r) expect(r.b ?? [], `also ${r.o}`).not.toContainEqual({ chapter: 12, source: 'example' })
+    }
+    expect(row('list', 'HREUS/*T').b).toContainEqual({ chapter: 12, source: 'example' })
+    expect(row('thirst', 'THEURS/*T').b).toContainEqual({ chapter: 12, source: 'example' })
+  })
+
+  it('says what the dictionary writes under a book-only row, and nothing when it holds the outline nowhere', () => {
+    // The Chapter 5 brief "." / TP-PL: the dictionary has a card ".", but writes TP-PL as {.}.
+    expect(row('.', 'TP-PL')).toMatchObject({ x: true, w: ['{.}'] })
+    // The book's subway SUB/WAEU is not in the dictionary at all.
+    expect(row('subway', 'SUB/WAEU').x).toBe(true)
+    expect(row('subway', 'SUB/WAEU')).not.toHaveProperty('w')
+  })
+
+  it('puts w only on named rows and on book-only rows, and never an empty w on a book-only row', () => {
+    for (const c of dictionary().cards) {
+      for (const r of c.r) {
+        if (r.w === undefined) continue
+        expect(c.n === true || r.x === true, `${c.t} ${r.o}`).toBe(true)
+        if (c.n !== true) expect(r.w.length, `${c.t} ${r.o}`).toBeGreaterThan(0)
+      }
+    }
   })
 
   it('holds every item of the five lists of names as a named card with its outline row, and none as an x row on a word', () => {
