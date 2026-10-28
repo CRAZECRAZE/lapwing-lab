@@ -13,7 +13,9 @@
   top: 0;
   z-index: 1;
   display: flex;
-  justify-content: center;
+  /* The board is 374 px wide: in a narrower drawer it scrolls sideways, and `safe` keeps its left edge reachable. */
+  overflow-x: auto;
+  justify-content: safe center;
   padding: 0.6rem 0.75rem;
   background: var(--bg);
   border: 1px solid var(--line);

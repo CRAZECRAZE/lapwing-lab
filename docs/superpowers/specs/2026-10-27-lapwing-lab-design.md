@@ -110,7 +110,7 @@ Every chapter has a pass mark, parsed from the book's text ("Aim for 10–20 WPM
 
 *Settled for M3 (2026-10-27):*
 - **Chapter test shape**, from the book's own test-settings screenshot (`img/5-test-settings.png`: limit 45, repetitions 3, sort random, "Total words: 135", show hint on misstroke only): the test draws **45 random words** from the chapter's `N-test` list and shows **each 3 times in a row**, so 135 prompts. Every chapter test list has at least 112 words.
-- **The chain.** Chapter 4's practice (Stage 0) is always open. Chapters 1–3 only get a "marked read" tick and never block anything. From Chapter 5 on, a chapter's practice opens once every chapter from 4 up to the one before it is cleared. Chapters 18 and up have no drills until M4, so until then they clear by "marked read". Chapters ahead stay readable.
+- **The chain.** Chapter 4's practice (Stage 0) is always open. Chapters 1–3 only get a "marked read" tick and never block anything. From Chapter 5 on, a chapter's practice opens once every chapter from 4 up to the one before it is cleared. Chapters 18 and up have no drills until M4, so until then they clear by "marked read". Chapters ahead stay readable. (Done in M4: Chapters 18, 20 and 21 now have generated drills and the section-drill gate; only Chapter 19 and Chapters 22 and up still clear by marked read.)
 - **Cleared** means: the chapter test (or, for Chapter 4, the Stage 0 test) was passed once; or, for chapters 12, 14, 17, every section drill was done once at ≥ 90%; or the chapter was marked read; or the owner used "move on anyway". A run left early never counts.
 - **Passing** needs the book's accuracy **and** at least the low end of its wpm range (Chapter 4: the accuracy within its time limit). The verdict is recorded with each run (`meta.passed`), so history keeps what the rule was when the run happened.
 - **Where drills live in the reader:** the book already ends each section with a link to its practice list. M3 makes those links live and shows them as a row with the word count and the last result. A panel at the top of every chapter page shows the gate, its requirement, the chapter's drills and the test, with "mark as read" / "move on anyway".
@@ -251,7 +251,7 @@ Added 2026-10-27 with the lab shell (3.5):
 Added 2026-10-27 with the M3 plan (4.1, "Settled for M3"):
 18. A chapter test is 45 random words from the `N-test` list, each shown 3 times in a row (135 prompts), read from the book's own settings screenshot.
 19. Stage 0 stays always open; chapters 1–3 only get a read tick and never block; the chain starts at Chapter 4.
-20. Chapters 18+ clear by "marked read" until M4 adds their generated drills.
+20. Chapters 18+ clear by "marked read" until M4 adds their generated drills. (Done in M4: Chapters 18, 20 and 21 now have generated drills and the section-drill gate; only Chapter 19 and Chapters 22 and up still clear by marked read.)
 21. The book's own practice links become the "Practice this section" rows (live links with word count and last result) instead of a separately inserted row; a panel at the top of each chapter page carries the gate.
 
 Added 2026-10-27 at the owner's request, after trying M3 (4.1, "Skipping ahead"):

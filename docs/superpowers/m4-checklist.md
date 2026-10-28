@@ -13,7 +13,7 @@ Keyboard note: the bare `/` key must be typed without Shift, so on a layout wher
 5. **The pause is real.** While a tool is open, press strokes on the Uni: nothing is counted and the drill does not move. Close the tool, wait a few seconds, then finish the drill: the speed on the result card is not dragged down by the seconds the tool was open.
 6. **Esc closes only the tool.** In the drill with a tool open, press Esc: the tool closes and you are still in the drill, and the next stroke you press counts. A second Esc exits the drill as usual.
 7. **No typing into the drill.** With `Alt+/` open, type a word into the Lookup box: the letters appear only in the box, and the drill's word and count do not change.
-8. **Stray Space or Enter.** With Plover's Output on, open a tool in a drill and press a few strokes: the board's output can press a focused drawer control (for example **Close**) because the drill's own key catcher is not focused while the drawer is open. This is a known limit; tell me how often it happens in practice.
+8. **Stray Space or Enter.** With Plover's Output on, open a tool in a drill and press a few strokes. Known limit (see the README): stray Space or Enter from the board's Plover output can press a focused drawer control, such as **Close**, while the drawer has the focus. Tell me how often it happens in practice.
 9. **While a dialog is open.** On a locked chapter click **Open anyway** (or **Move on anyway** on an open one) and, with the "Are you sure?" dialog open, press `K` and `Alt+K`: no tool opens. Cancel the dialog.
 
 ## Lookup
@@ -22,13 +22,13 @@ Keyboard note: the bare `/` key must be typed without Shift, so on a layout wher
 11. **Finds a stroke.** Type `TKAD` (capitals): `dad` is among the first hits, with `Chapter 5`.
 12. **Hides later chapters.** While you are before the end of the book, search for a word that only a later chapter teaches (say one from Chapter 15 when you are at Chapter 5): `Nothing found in Chapters up to N.` with an **Include later chapters** button. Tick the box (or press the button): the hits appear, each marked `later in the book` and naming its chapter.
 13. **Scrolling a long result list.** Type a single letter, such as `a`, so 30 results show. Scroll the drawer down: the small board and stroke at the top of the results stays in view while you scroll, and does not cover the text it describes.
-14. **Tabbing upward.** Click into the results and press Tab a few times, then Shift+Tab back up: a focused outline can be partly hidden under that sticky board at the top. This is a known open follow-up; tell me if it gets in the way.
+14. **Tabbing upward.** Click into the results and press Tab a few times, then Shift+Tab back up: the focused outline stays visible below the sticky board at the top, not hidden under it.
 
 ## Key chart
 
 15. **Hover lights the key.** Open Key chart and hover a row, for example `S-` and `-R`: that key lights on the board above the list. Tab to a row: the same.
 16. **The sounds match the book.** Compare the left-hand and right-hand sounds with the table in Chapter 5, and the vowels with the vowel sections. Say if a key's sounds are missing, wrong, or hard to read.
-17. **The board fits.** The board here is large (about 374 px wide). At your usual drawer width, check that all of it is visible with no sideways scrolling and nothing cut off on the left. Then make the window narrow (about 400 px wide or less) and check again; say if it overflows.
+17. **The board fits.** The board is about 374 px wide. At your usual drawer width, check that all of it is visible and nothing is cut off on the left. Then make the window narrow (about 400 px wide or less) and check again: the board should scroll sideways inside the drawer, with its left edge reachable.
 
 ## Briefs
 
