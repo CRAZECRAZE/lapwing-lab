@@ -8,10 +8,11 @@ export type Route =
   | { name: 'history' }
   | { name: 'test'; id: number }
   | { name: 'days'; date?: string }
+  | { name: 'progress' }
   | { name: 'journal'; date?: string }
   | { name: 'notfound' }
 
-export type Tab = 'book' | 'practice' | 'history' | 'days' | 'journal'
+export type Tab = 'book' | 'practice' | 'history' | 'days' | 'progress' | 'journal'
 
 /** The top-bar tab a route belongs to. */
 export function tabOf(route: Route): Tab {
@@ -24,6 +25,8 @@ export function tabOf(route: Route): Tab {
       return 'history'
     case 'days':
       return 'days'
+    case 'progress':
+      return 'progress'
     case 'journal':
       return 'journal'
     default:
@@ -65,6 +68,7 @@ export function parseRoute(pathname: string): Route {
     if (Number.isSafeInteger(id)) return { name: 'test', id }
   }
   if (/^\/days\/?$/.test(pathname)) return { name: 'days' }
+  if (/^\/progress\/?$/.test(pathname)) return { name: 'progress' }
   if (/^\/journal\/?$/.test(pathname)) return { name: 'journal' }
   const dated = DATED_PATH.exec(pathname)
   if (dated) return { name: dated[1] as 'days' | 'journal', date: dated[2] }

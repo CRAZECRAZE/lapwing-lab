@@ -49,6 +49,15 @@ describe('parseRoute', () => {
   })
 })
 
+describe('progress route', () => {
+  it('parses /progress with or without a trailing slash', () => {
+    expect(parseRoute('/progress')).toEqual({ name: 'progress' })
+    expect(parseRoute('/progress/')).toEqual({ name: 'progress' })
+    expect(parseRoute('/progress/oops')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/progressive')).toEqual({ name: 'notfound' })
+  })
+})
+
 describe('tabOf', () => {
   const cases: Array<[Route, string]> = [
     [{ name: 'page', id: 'home' }, 'book'],
@@ -60,6 +69,7 @@ describe('tabOf', () => {
     [{ name: 'test', id: 1 }, 'history'],
     [{ name: 'days' }, 'days'],
     [{ name: 'days', date: '2026-10-27' }, 'days'],
+    [{ name: 'progress' }, 'progress'],
     [{ name: 'journal' }, 'journal'],
     [{ name: 'journal', date: '2026-10-27' }, 'journal'],
   ]

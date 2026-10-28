@@ -9,17 +9,30 @@ beforeEach(() => history.replaceState(null, '', '/'))
 afterEach(cleanup)
 
 describe('TopBar', () => {
-  it('lists the five tabs as links', () => {
+  it('lists the six tabs as links, Progress between Days and Journal', () => {
     render(<TopBar current="book" />)
     const nav = screen.getByRole('navigation', { name: 'Sections' })
     const links = Array.from(nav.querySelectorAll('a'))
-    expect(links.map((a) => a.textContent)).toEqual(['Book', 'Practice', 'History', 'Days', 'Journal'])
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/', '/practice', '/history', '/days', '/journal'])
+    expect(links.map((a) => a.textContent)).toEqual(['Book', 'Practice', 'History', 'Days', 'Progress', 'Journal'])
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      '/',
+      '/practice',
+      '/history',
+      '/days',
+      '/progress',
+      '/journal',
+    ])
   })
 
   it('marks only the current tab', () => {
     render(<TopBar current="history" />)
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('aria-current')).toBe('page')
+    expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+  })
+
+  it('marks Progress as current on the progress tab', () => {
+    render(<TopBar current="progress" />)
+    expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
     expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
   })
 
@@ -78,6 +91,7 @@ describe('TopBar tool buttons', () => {
       'Practice',
       'History',
       'Days',
+      'Progress',
       'Journal',
     ])
   })

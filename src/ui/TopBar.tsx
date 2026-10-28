@@ -9,6 +9,7 @@ const TABS: ReadonlyArray<{ tab: Tab; label: string; href: string }> = [
   { tab: 'practice', label: 'Practice', href: '/practice' },
   { tab: 'history', label: 'History', href: '/history' },
   { tab: 'days', label: 'Days', href: '/days' },
+  { tab: 'progress', label: 'Progress', href: '/progress' },
   { tab: 'journal', label: 'Journal', href: '/journal' },
 ]
 

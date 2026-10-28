@@ -9,6 +9,12 @@ beforeEach(() => {
     vi.fn(async (url: string) => {
       if (url === '/api/tests' || url.startsWith('/api/tests?')) return new Response('[]', { status: 200 })
       if (url.startsWith('/api/days')) return new Response('[]', { status: 200 })
+      if (url.startsWith('/api/stats')) {
+        return new Response(
+          JSON.stringify({ from: '', to: '', mode: 'free', days: [], keys: [], mixups: [], allTimeStrokes: 0 }),
+          { status: 200 },
+        )
+      }
       if (url === '/api/journal') return new Response('[]', { status: 200 })
       if (url.startsWith('/api/journal/')) {
         return new Response(JSON.stringify({ date: url.slice('/api/journal/'.length), text: 'Kept words.' }), { status: 200 })
@@ -85,6 +91,15 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { level: 1, name: /^[A-Z][a-z]+ \d{4}$/ })).toBeTruthy()
     expect(await screen.findByText('0 days practiced · <1 min · 0 tests')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Days' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows the Progress page at /progress, under the Progress tab', async () => {
+    history.replaceState(null, '', '/progress')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Progress', level: 1 })).toBeTruthy()
+    expect(await screen.findByText('No practice recorded yet.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.queryByRole('navigation', { name: 'Book pages' })).toBeNull()
   })
 
   it('shows one day at /days/:date, and resets when going back to the month', async () => {
