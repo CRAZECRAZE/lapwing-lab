@@ -98,6 +98,8 @@ The owner's stance, in their words: "there isnt one correct way in steno", "i wa
 - **C17. Tags when a pair is in several files.** A row shows a tag for every non-main file the exact (translation, outline) pair is in. A pair only in the main file shows no tag; a pair in the main and UK files shows `UK`.
 - **C18. Fingerspelling hint** only for a query that is a single run of lower-case letters.
 - **C19. The book's names for keys and commands never join dictionary words (ruling after Task 4).** The generated drill lists whose items are names of things rather than words (`18-lowercase`, `18-numbers`, `18-uppercase`, `20-commands`, `20-punctuation`) always become named cards (C12), even when the name equals a dictionary word: the book's `Enter` is the Enter key, not the word `enter`, so its outline `R-R` must not show as a "book only" row on the dictionary card `enter`. The generated list `21-uk-spellings` holds real words and joins like any other list (C11, C13).
+- **C20. A book-only row says what the dictionary does with that outline (ruling after the Task 4 review).** A `book only` row (C13) whose outline the dictionary holds under other translations carries them as `w`, shown with the same muted line as a named card ("The dictionary writes this outline as: ..."). So the book's period brief `.` / `TP-PL` shows `book only` plus `{.}`, not a bare claim that the dictionary lacks it. A book-only row whose outline the dictionary does not hold at all has no `w` and shows only `book only`.
+- **C21. The book's example parser must not read "Also" as a word (ruling after the Task 4 review).** Chapter 12's sub-bullets "Also `HR*EUS`" and "Also `TH*EURS`" describe `list` and `thirst`; they are not examples for the word `also`. The example parser drops them (this also fixes the same wrong hits in the M4 `lookup.json`, which is retired later in this milestone).
 
 ## 8. Left to the builder
 
@@ -108,4 +110,4 @@ Index schema and file layout, search data structures, how stroke counts and key 
 - §3.3 item 1: Lookup searches the full official Lapwing dictionary with no chapter limit; book labels only.
 - §4.3: replace "merged Lapwing dictionary (the owner's real Plover stack…) and labels each result *Book brief* / *Derivable from rules* / *Not in dictionary*" with the behavior in §4 above. The known test cases stay: `especially` writes `EPS`, `ES/PERB/HREU` and `ES/PERBL/KWREU`; `the` writes `-T`.
 - §9: M5 is split. M5a: dictionary lookup (this document). M5b: briefs memory (SRS), designed later. M6 and M7 unchanged.
-- §11: add C1 to C19 above.
+- §11: add C1 to C21 above.
