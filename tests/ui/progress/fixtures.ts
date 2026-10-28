@@ -1,5 +1,6 @@
 import type { DayStat } from '../../../server/archive.ts'
 import type { DayQuality, StatsMode, StatsResponse } from '../../../server/stats.ts'
+import type { KeyStat, Mixup } from '../../../src/core/keystats.ts'
 import type { RangeId } from '../../../src/core/progressview.ts'
 import type { ReadyData } from '../../../src/ui/progress/Tiles.tsx'
 
@@ -30,6 +31,8 @@ export function ready(
     mode?: StatsMode
     range?: RangeId
     today?: string
+    keys?: KeyStat[]
+    mixups?: Mixup[]
   } = {},
 ): ReadyData {
   const mode = over.mode ?? 'free'
@@ -38,8 +41,8 @@ export function ready(
     to: '',
     mode,
     days: over.days ?? [],
-    keys: [],
-    mixups: [],
+    keys: over.keys ?? [],
+    mixups: over.mixups ?? [],
     allTimeStrokes: 1000,
   }
   return {

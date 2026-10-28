@@ -3,7 +3,28 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DayStat } from '../../server/archive.ts'
 import type { DayQuality, StatsResponse } from '../../server/stats.ts'
+import type { Progress as ChapterProgress } from '../../src/state/progress.tsx'
 import { Progress } from '../../src/ui/Progress.tsx'
+
+// The chapter ladder reads the chapter results through `useProgress`; here it gets a ready value with no chapters
+// unless a test sets `chapterProgress.value`.
+const chapterProgress = vi.hoisted(() => ({ value: null as ChapterProgress | null }))
+vi.mock('../../src/state/progress.tsx', async (importActual) => {
+  const actual = await importActual<typeof import('../../src/state/progress.tsx')>()
+  return { ...actual, useProgress: () => chapterProgress.value ?? NO_CHAPTERS }
+})
+const NO_CHAPTERS: ChapterProgress = {
+  status: 'ready',
+  chapters: [],
+  index: [],
+  results: { stage0: [], section: [], 'chapter-test': [] },
+  marks: [],
+  states: new Map(),
+  reload: async () => undefined,
+  setMark: async () => undefined,
+  setMarks: async () => undefined,
+  clearMark: async () => undefined,
+}
 
 // 2026-10-28 is a Wednesday: this week began Mon 26 Oct, the previous full week is 19 to 25 Oct,
 // the last 7 days are 22 to 28 Oct and the 7 days before are 15 to 21 Oct.
@@ -63,11 +84,19 @@ function stub(spec: Spec = {}): ReturnType<typeof vi.fn> {
   return fn
 }
 
-const calls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
+/** The year the heatmap asks for: the 365 days ending today, whatever the range. */
+const isYear = (p: Params): boolean => p.get('from') === '2025-10-29' && p.get('to') === TODAY
+
+const allCalls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
   fn.mock.calls
     .map(([u]) => new URL(String(u), 'http://localhost'))
     .filter((u) => u.pathname === path)
     .map((u) => u.searchParams)
+
+/** The requests of the page's own data; the heatmap's year is counted apart (`yearCalls`). */
+const calls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
+  allCalls(fn, path).filter((p) => !(path === '/api/days' && isYear(p)))
+const yearCalls = (fn: ReturnType<typeof vi.fn>): Params[] => allCalls(fn, '/api/days').filter(isYear)
 
 function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
   let resolve!: (v: T) => void
@@ -92,6 +121,7 @@ async function mount(today: string = TODAY): Promise<void> {
 
 beforeEach(() => {
   history.replaceState(null, '', '/progress')
+  chapterProgress.value = null
 })
 afterEach(() => {
   cleanup()
@@ -529,7 +559,14 @@ describe('Progress chart panels', () => {
   it('shows wpm by day, accuracy and consistency and practice time per week, in that order, after the tiles', async () => {
     stub()
     await mount()
-    expect(titles()).toEqual(['Free-type wpm by day', 'Accuracy and consistency', 'Practice time per week'])
+    expect(titles()).toEqual([
+      'Free-type wpm by day',
+      'Accuracy and consistency',
+      'Practice time per week',
+      'Weakest keys, all modes',
+      'Mix-ups, all modes',
+      'Practice, all modes', // the chapter ladder has no panel without chapter tests
+    ])
     const tiles = screen.getByRole('list', { name: 'Headline figures' })
     const wpm = screen.getByRole('heading', { name: 'Free-type wpm by day' })
     expect(tiles.compareDocumentPosition(wpm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -558,5 +595,103 @@ describe('Progress chart panels', () => {
     stub({ stats: () => statsOf([], { allTimeStrokes: 0 }), days: () => [] })
     await mount()
     expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0)
+  })
+})
+
+describe('Progress key, mix-up, ladder and year panels', () => {
+  const CHAPTERS = [
+    { chapter: 4, pageId: 'ch04', title: 'Chapter 4', gate: 'stage0' as const, passMark: { accuracy: 0.9, maxMinutes: 10 }, listIds: [] },
+    {
+      chapter: 5,
+      pageId: 'ch05',
+      title: 'Chapter 5',
+      gate: 'test' as const,
+      passMark: { accuracy: 0.9, minWpm: 10, maxWpm: 20 },
+      testListId: '5-test',
+      listIds: [],
+    },
+  ]
+  const withChapters = (): void => {
+    chapterProgress.value = {
+      ...NO_CHAPTERS,
+      chapters: CHAPTERS,
+      results: {
+        stage0: [],
+        section: [],
+        'chapter-test': [{ section: '5-test', runs: 2, passed: false, best: { accuracy: 0.95, wpm: 9.96 }, last: null }],
+      },
+    }
+  }
+  const titles = (): string[] => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent ?? '')
+  const keys = [{ slot: '-F' as const, required: 66, missed: 14 }]
+  const mixups = [{ pressed: '-P' as const, needed: '-B' as const, count: 9 }]
+
+  it('puts weakest keys, mix-ups, chapter tests and the year after the three day panels, in that order', async () => {
+    withChapters()
+    stub({ stats: () => statsOf(QUALITY, { keys, mixups }) })
+    await mount()
+    expect(titles()).toEqual([
+      'Free-type wpm by day',
+      'Accuracy and consistency',
+      'Practice time per week',
+      'Weakest keys, all modes',
+      'Mix-ups, all modes',
+      'Chapter tests (ignores the mode switch)',
+      'Practice, all modes',
+    ])
+    expect(document.querySelector('.weak__list')!.textContent).toContain('14 of 66')
+    expect(screen.getByText(/9 times/)).toBeTruthy()
+    expect(screen.getByText('9.9 wpm · 95%')).toBeTruthy()
+    expect(document.querySelector('.ladder__verdict')!.textContent).toBe('not yet')
+  })
+
+  it('asks for the year once, ending today, whatever the range, and does not ask again on a switch', async () => {
+    const fn = stub()
+    await mount()
+    expect(yearCalls(fn).map((p) => Object.fromEntries(p))).toEqual([{ from: '2025-10-29', to: '2026-10-28' }])
+    click('3 months')
+    await flush()
+    click('Everything')
+    await flush()
+    expect(yearCalls(fn)).toHaveLength(1)
+    expect(document.querySelectorAll('[data-date]')).toHaveLength(365)
+  })
+
+  it('keeps the year when a switch is pending, and keeps the key and mix-up panels all-mode', async () => {
+    stub({ stats: (p) => statsOf(QUALITY, { keys, mixups, mode: p.get('mode') as 'free' }) })
+    await mount()
+    const before = document.querySelector('.weak')!.innerHTML
+    click('Everything')
+    await flush()
+    expect(document.querySelector('.weak')!.innerHTML).toBe(before)
+  })
+
+  it('draws the same chapter ladder in every mode', async () => {
+    withChapters()
+    stub()
+    await mount()
+    const ladder = (): string => screen.getByRole('heading', { name: 'Chapter tests (ignores the mode switch)' }).closest('section')!.innerHTML
+    const free = ladder()
+    expect(free).toContain('Ch 5')
+    click('Drills and tests')
+    await flush()
+    expect(ladder()).toBe(free)
+    click('Everything')
+    await flush()
+    expect(ladder()).toBe(free)
+  })
+
+  it("shows the year's own failure and Try again without hiding the other panels", async () => {
+    let ok = false
+    const fn = stub({ days: (p) => (isYear(p) && !ok ? failed() : DAYS) })
+    await mount()
+    expect(screen.getByText(/Couldn't load the year\./)).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Headline figures' })).toBeTruthy()
+    ok = true
+    click('Try again')
+    await flush()
+    expect(yearCalls(fn)).toHaveLength(2)
+    expect(screen.queryByText(/Couldn't load the year/)).toBeNull()
+    expect(document.querySelectorAll('[data-date]')).toHaveLength(365)
   })
 })

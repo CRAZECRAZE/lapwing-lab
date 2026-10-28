@@ -2,7 +2,7 @@ import type { JSX } from 'preact'
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { DayStat, TestSummary } from '../../server/archive.ts'
 import { getDays, getJournal, listJournal, listTests } from '../api.ts'
-import { dayLabel, formatDuration, localDate, monthWeeks } from '../core/days.ts'
+import { dayLabel, dayLevel, formatDuration, localDate, monthWeeks } from '../core/days.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useStreak } from '../state/streak.ts'
 import { isCalendarDate } from './Journal.tsx'
@@ -24,7 +24,6 @@ const MONTH_NAMES = [
   'December',
 ]
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const MINUTE = 60000
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
@@ -34,12 +33,9 @@ function onLinkClick(e: MouseEvent): void {
   navigate((e.currentTarget as HTMLAnchorElement).getAttribute('href')!)
 }
 
-/** 0 no practice, 1 under 10 minutes, 2 under 30, 3 more. A day with strokes is at least 1. */
+/** The shading of a day (`dayLevel`); a day with a row is at least 1 even when its time is not measured. */
 function levelOf(stat: DayStat | undefined): 0 | 1 | 2 | 3 {
-  if (!stat) return 0
-  if (stat.activeMs < 10 * MINUTE) return 1
-  if (stat.activeMs < 30 * MINUTE) return 2
-  return 3
+  return stat ? (Math.max(1, dayLevel(stat.activeMs)) as 1 | 2 | 3) : 0
 }
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`

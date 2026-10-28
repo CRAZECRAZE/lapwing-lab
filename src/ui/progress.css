@@ -356,3 +356,335 @@
 .chart__table tbody th {
   color: var(--text);
 }
+
+/* Panel 6: the weakest keys, the board beside a short ranked list */
+
+.weak {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 2rem;
+  margin-top: 0.75rem;
+}
+
+.weak__side {
+  min-width: 12rem;
+}
+
+.weak__list,
+.mixups__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.weak__list li,
+.mixups__list li {
+  padding: 0.15rem 0;
+}
+
+.weak__list code,
+.mixups__list code {
+  display: inline-block;
+  min-width: 2.2rem;
+  color: var(--heading);
+  font-family: var(--mono);
+}
+
+.mixups__list code {
+  min-width: 0;
+}
+
+.weak__counts {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.weak__side .panel__note:first-child {
+  margin-top: 0;
+}
+
+.mixups__list {
+  margin-top: 0.75rem;
+}
+
+/* Panel 8: the chapter ladder. A row is the chapter, a bar of the best wpm against the mark, the figures and the verdict. */
+
+.ladder__list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ladder__row {
+  display: grid;
+  grid-template-columns: 3rem minmax(6rem, 1fr) 10rem 6rem;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder__name {
+  white-space: nowrap;
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.ladder__bar {
+  position: relative;
+  display: block;
+  height: 0.7rem;
+  border-radius: 0.35rem;
+  background: var(--raised);
+}
+
+.ladder__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 0.35rem;
+  background: var(--left);
+}
+
+.ladder__bar--met .ladder__fill {
+  background: var(--ok);
+}
+
+/* the tick at the pass mark: a light line that crosses the bar */
+.ladder__mark {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--heading);
+}
+
+.ladder__score {
+  color: var(--text);
+}
+
+.ladder__score--none {
+  grid-column: 2 / 4;
+  color: var(--muted);
+}
+
+.ladder__verdict {
+  font-weight: 600;
+}
+
+.ladder__verdict--met {
+  color: var(--ok);
+}
+
+.ladder__verdict--not-yet {
+  color: var(--left);
+}
+
+.ladder__need {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* a chapter not tried yet is one line: the mark sits beside the words */
+.ladder__row[data-state='untried'] .ladder__score--none {
+  grid-column: 2;
+}
+
+.ladder__row[data-state='untried'] .ladder__need {
+  grid-column: 3 / -1;
+  grid-row: 1;
+}
+
+@media (max-width: 500px) {
+  .ladder__row[data-state='untried'] .ladder__score--none,
+  .ladder__row[data-state='untried'] .ladder__need {
+    grid-column: 2 / -1;
+    grid-row: auto;
+  }
+
+  .ladder__row {
+    grid-template-columns: 3.2rem minmax(4rem, 1fr) auto;
+  }
+
+  .ladder__bar,
+  .ladder__nobar {
+    grid-column: 2 / -1;
+  }
+
+  .ladder__score {
+    grid-column: 2;
+  }
+
+  .ladder__verdict {
+    grid-column: 3;
+  }
+}
+
+/* Panel 9: the year heatmap. Columns are Monday-weeks, rows Monday to Sunday; it scrolls inside its own box. */
+
+.heat__scroll {
+  --cell: 13px;
+  --gap: 3px;
+  --head: 18px;
+  --labels: 30px;
+  margin-top: 0.75rem;
+  padding-bottom: 0.4rem;
+  overflow-x: auto;
+}
+
+.heat__grid {
+  position: relative;
+  display: flex;
+  gap: var(--gap);
+  width: max-content;
+  padding: 0 1.5rem 0 0; /* room for the last month's name */
+}
+
+.heat__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.heat__col--labels {
+  width: var(--labels);
+}
+
+.heat__monthslot {
+  position: relative;
+  display: block;
+  height: calc(var(--head) - var(--gap));
+}
+
+.heat__month {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.heat__week,
+.heat__weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.heat__weekday {
+  height: var(--cell);
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: var(--cell);
+}
+
+.heat__cell,
+.heat__spacer {
+  box-sizing: border-box;
+  display: block;
+  width: var(--cell);
+  height: var(--cell);
+  padding: 0;
+}
+
+.heat__cell {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--raised);
+  cursor: default;
+}
+
+.heat__cell[data-level='1'],
+.heat__swatch[data-swatch='1'] {
+  background: color-mix(in srgb, var(--ok) 28%, var(--panel));
+}
+
+.heat__cell[data-level='2'],
+.heat__swatch[data-swatch='2'] {
+  background: color-mix(in srgb, var(--ok) 50%, var(--panel));
+}
+
+.heat__cell[data-level='3'],
+.heat__swatch[data-swatch='3'] {
+  background: color-mix(in srgb, var(--ok) 78%, var(--panel));
+}
+
+.heat__cell:hover {
+  border-color: var(--muted);
+}
+
+.heat__cell:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+/* the note over the focused or hovered day: placed from its column and row, like the chart notes */
+.heat__tip {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--labels) + var(--gap) + var(--col) * (var(--cell) + var(--gap)) + var(--cell) / 2);
+  top: calc(var(--head) + var(--row) * (var(--cell) + var(--gap)));
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--heading);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 4px));
+}
+
+.heat__tip--below {
+  transform: translate(-50%, calc(var(--cell) + 4px));
+}
+
+.heat__tip--left {
+  transform: translate(calc(-1 * var(--cell) / 2), calc(-100% - 4px));
+}
+
+.heat__tip--left.heat__tip--below {
+  transform: translate(calc(-1 * var(--cell) / 2), calc(var(--cell) + 4px));
+}
+
+.heat__tip--right {
+  transform: translate(calc(-100% + var(--cell) / 2), calc(-100% - 4px));
+}
+
+.heat__tip--right.heat__tip--below {
+  transform: translate(calc(-100% + var(--cell) / 2), calc(var(--cell) + 4px));
+}
+
+.heat__legend {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.heat__swatch {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--raised);
+}
+
+.heat__streak {
+  margin: 0.75rem 0 0;
+  color: var(--heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.heat__streak + .heat__streak {
+  margin-top: 0.15rem;
+}

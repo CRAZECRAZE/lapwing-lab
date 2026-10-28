@@ -47,6 +47,15 @@
   --c: var(--right);
 }
 
+/* A key drawn hot (the weakest-keys panel): --heat is 0..1 and mixes the key's own colour toward --miss. */
+.key--heat {
+  --hot: calc(var(--heat) * 100%);
+  opacity: calc(0.55 + var(--heat) * 0.45);
+  border-color: color-mix(in srgb, var(--miss) var(--hot), var(--c));
+  background: color-mix(in srgb, var(--miss) calc(var(--heat) * 80%), color-mix(in srgb, var(--c) 28%, transparent));
+  color: color-mix(in srgb, var(--lit) var(--hot), var(--c));
+}
+
 .key--target,
 .key--down {
   opacity: 1;

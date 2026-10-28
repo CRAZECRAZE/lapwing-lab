@@ -5,9 +5,14 @@ import { localDate } from '../core/days.ts'
 import { RANGES } from '../core/progressview.ts'
 import type { RangeId } from '../core/progressview.ts'
 import { AccuracyConsistency } from './progress/AccuracyConsistency.tsx'
+import type { YearDays } from './progress/Heatmap.tsx'
+import { HeatmapPanel, useYearDays } from './progress/Heatmap.tsx'
+import { Ladder } from './progress/Ladder.tsx'
+import { Mixups } from './progress/Mixups.tsx'
 import { Tiles } from './progress/Tiles.tsx'
 import type { ReadyData } from './progress/Tiles.tsx'
 import { useProgressData } from './progress/useProgressData.ts'
+import { WeakKeys } from './progress/WeakKeys.tsx'
 import { WeeklyBars } from './progress/WeeklyBars.tsx'
 import { WpmByDay } from './progress/WpmByDay.tsx'
 import './progress.css'
@@ -52,6 +57,7 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
   const [range, setRange] = useState<RangeId>('4w')
   const [mode, setMode] = useState<StatsMode>('free')
   const data = useProgressData(range, mode, today)
+  const year = useYearDays(today) // not part of `data`: the year does not depend on the range or the mode
 
   return (
     <section class="progress" aria-labelledby="progress-title">
@@ -72,13 +78,13 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
           </button>
         </p>
       )}
-      {data.stats !== null && data.days !== null && <Panels data={data as ReadyData} />}
+      {data.stats !== null && data.days !== null && <Panels data={data as ReadyData} year={year} />}
     </section>
   )
 }
 
-/** Everything under the switches once the data is in. The later panels go below the tiles. */
-function Panels({ data }: { data: ReadyData }): JSX.Element {
+/** Everything under the switches once the data is in, in the order of the panels. */
+function Panels({ data, year }: { data: ReadyData; year: YearDays }): JSX.Element {
   if (data.days.length === 0 && data.stats.allTimeStrokes === 0) {
     return <p class="progress__muted">No practice recorded yet.</p>
   }
@@ -88,7 +94,10 @@ function Panels({ data }: { data: ReadyData }): JSX.Element {
       <WpmByDay data={data} />
       <AccuracyConsistency data={data} />
       <WeeklyBars data={data} />
-      {/* The heatmap, key and mix-up panels are added here, each a child taking `data`. */}
+      <WeakKeys data={data} />
+      <Mixups data={data} />
+      <Ladder />
+      <HeatmapPanel today={data.today} year={year} />
     </>
   )
 }

@@ -68,6 +68,17 @@ export function monthWeeks(year: number, month: number): (string | null)[][] {
   return weeks
 }
 
+/**
+ * How strongly a day is shaded on the Days tab and the year heatmap: 0 no practice, 1 under 10 minutes, 2 under 30,
+ * 3 more. A time that is not a positive number is no practice.
+ */
+export function dayLevel(activeMs: number): 0 | 1 | 2 | 3 {
+  if (!(activeMs > 0)) return 0
+  if (activeMs < 10 * 60000) return 1
+  if (activeMs < 30 * 60000) return 2
+  return 3
+}
+
 /** '<1 min', '12 min' or '1 h 05 min'. */
 export function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000)

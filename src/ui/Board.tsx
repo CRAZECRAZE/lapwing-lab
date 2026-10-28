@@ -2,7 +2,7 @@ import type { JSX } from 'preact'
 import { UNI_GRID, leverSlot } from '../core/uni.ts'
 import type { Lever } from '../core/uni.ts'
 import { SLOTS, slotMask } from '../core/steno.ts'
-import type { SlotMask } from '../core/steno.ts'
+import type { Slot, SlotMask } from '../core/steno.ts'
 import './board.css'
 
 export type BoardProps = {
@@ -10,6 +10,7 @@ export type BoardProps = {
   target?: SlotMask // slots drawn lit as "needed"
   pressed?: readonly Lever[] // levers physically down
   diff?: { missing: SlotMask; extra: SlotMask } // mistake overlay
+  heat?: Partial<Record<Slot, number>> // 0..1 per slot: how hot a key is drawn (red), e.g. how often it is missed
 }
 
 const VOWELS: readonly Lever[] = ['A-', 'O-', '-E', '-U']
@@ -27,7 +28,14 @@ function label(lever: Lever): string {
   return hand(lever) === 'right' && slot !== '#' ? slot : slot.replace('-', '')
 }
 
-export function Board({ size = 18, target = 0, pressed = [], diff }: BoardProps): JSX.Element {
+/** A heat rounded to 2 decimals and held to 1; 0 when it is not a positive number (the key is not shaded). */
+function heatOf(heat: BoardProps['heat'], lever: Lever): number {
+  const value = heat?.[leverSlot(lever)]
+  if (value === undefined || !(value > 0)) return 0
+  return Math.round(Math.min(value, 1) * 100) / 100
+}
+
+export function Board({ size = 18, target = 0, pressed = [], diff, heat }: BoardProps): JSX.Element {
   const lit = (mask: SlotMask, lever: Lever): boolean =>
     (mask & slotMask(leverSlot(lever))) !== 0
 
@@ -47,8 +55,16 @@ export function Board({ size = 18, target = 0, pressed = [], diff }: BoardProps)
           if (pressed.includes(lever)) classes.push('key--down')
           if (diff && lit(diff.missing, lever)) classes.push('key--missing')
           if (diff && lit(diff.extra, lever)) classes.push('key--extra')
+          const hot = heatOf(heat, lever)
+          if (hot > 0) classes.push('key--heat')
           return (
-            <div key={lever} class={classes.join(' ') + gap} data-lever={lever} aria-hidden="true">
+            <div
+              key={lever}
+              class={classes.join(' ') + gap}
+              data-lever={lever}
+              aria-hidden="true"
+              style={hot > 0 ? { '--heat': String(hot) } : undefined}
+            >
               {label(lever)}
             </div>
           )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, currentStreak, dayLabel, formatDuration, localDate, longestStreak, monthWeeks } from '../../src/core/days.ts'
+import { addDays, currentStreak, dayLabel, dayLevel, formatDuration, localDate, longestStreak, monthWeeks } from '../../src/core/days.ts'
 
 describe('localDate', () => {
   it('gives the local calendar day at the start and end of the day', () => {
@@ -142,5 +142,23 @@ describe('dayLabel', () => {
   it('formats weekday, day, month and year', () => {
     expect(dayLabel('2026-10-27')).toBe('Tue 27 Oct 2026')
     expect(dayLabel('2026-01-05')).toBe('Mon 5 Jan 2026')
+  })
+})
+
+describe('dayLevel', () => {
+  const MIN = 60000
+  it('is 0 for no practice, then steps at 10 and 30 minutes (the Days tab shading)', () => {
+    expect(dayLevel(0)).toBe(0)
+    expect(dayLevel(1)).toBe(1)
+    expect(dayLevel(10 * MIN - 1)).toBe(1)
+    expect(dayLevel(10 * MIN)).toBe(2)
+    expect(dayLevel(30 * MIN - 1)).toBe(2)
+    expect(dayLevel(30 * MIN)).toBe(3)
+    expect(dayLevel(10 * 60 * MIN)).toBe(3)
+  })
+
+  it('is 0 for a value that is not a time', () => {
+    expect(dayLevel(Number.NaN)).toBe(0)
+    expect(dayLevel(-5)).toBe(0)
   })
 })
