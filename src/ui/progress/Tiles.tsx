@@ -2,7 +2,6 @@ import type { JSX } from 'preact'
 import type { DayStat } from '../../../server/archive.ts'
 import type { DayQuality, StatsMode } from '../../../server/stats.ts'
 import { addDays, formatDuration } from '../../core/days.ts'
-import { formatAccuracy } from '../../core/format.ts'
 import { change, enough, weekStart } from '../../core/progressview.ts'
 import type { ProgressData } from './useProgressData.ts'
 
@@ -150,7 +149,7 @@ export function Tiles({ data }: { data: ReadyData }): JSX.Element {
       <Tile
         id="accuracy"
         label="First-try accuracy"
-        value={accuracyNow === null ? '—' : formatAccuracy(accuracyNow)}
+        value={accuracyNow === null ? '—' : `${(accuracyNow * 100).toFixed(1)}%`}
         note={accuracyNow === null ? missing : undefined}
         change={accuracyDiff === null ? null : decimalChange(accuracyDiff * 100, 'points')}
       />

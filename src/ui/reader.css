@@ -146,6 +146,41 @@ body {
   }
 }
 
+/* Narrow screens: the tabs take a row of their own and the tool buttons a second one below, so that nothing
+   is cut off or scrolled out of reach. Two rows, so the bar's height (and every sticky offset made of it) doubles. */
+@media (max-width: 640px) {
+  :root {
+    --topbar-h: 5.5rem;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    align-content: stretch;
+    padding: 0 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .topbar__tabs {
+    flex: 0 0 100%;
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .topbar a {
+    padding: 0 0.4rem;
+  }
+
+  .topbar__tools {
+    flex: 0 0 100%;
+    justify-content: flex-end;
+    padding-left: 0;
+  }
+
+  .topbar__tool {
+    min-height: 2rem;
+  }
+}
+
 /* Layout: nav | reading column + dock */
 
 .app {

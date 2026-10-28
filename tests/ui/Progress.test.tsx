@@ -216,7 +216,7 @@ describe('Progress requests', () => {
     await flush()
     click('Drills and tests')
     await flush()
-    expect(stacks.filter((s) => s.includes('/lapwing-lab/src/'))).toEqual([])
+    expect(stacks.filter((s) => /\/src\/(ui|core)\//.test(s))).toEqual([])
     expect(Object.fromEntries(calls(fn, '/api/stats')[2]!)).toEqual({
       from: '2026-07-30',
       to: '2026-10-28',
@@ -234,7 +234,7 @@ describe('Progress tiles', () => {
     expect(within(strokes).getByText('11,284')).toBeTruthy()
     expect(within(strokes).getByText('48,902 all time')).toBeTruthy()
     expect(within(tile('Free-type 7-day average')).getByText('15.4 wpm')).toBeTruthy()
-    expect(within(tile('First-try accuracy')).getByText('95%')).toBeTruthy()
+    expect(within(tile('First-try accuracy')).getByText('94.6%')).toBeTruthy()
   })
 
   it('shows each change against the earlier window when both have data', async () => {
@@ -319,7 +319,7 @@ describe('Progress tiles', () => {
     })
     await mount()
     expect(within(tile('Free-type 7-day average')).getByText('12.5 wpm')).toBeTruthy() // (10*300 + 20*100) / 400
-    expect(within(tile('First-try accuracy')).getByText('80%')).toBeTruthy() // (0.9*300 + 0.5*100) / 400
+    expect(within(tile('First-try accuracy')).getByText('80.0%')).toBeTruthy() // (0.9*300 + 0.5*100) / 400
   })
 
   it('puts a Sunday in the earlier week and a Monday in this one, and ignores older and future days', async () => {
@@ -357,8 +357,18 @@ describe('Progress tiles', () => {
     expect(within(wpm).getByText('35.0 wpm')).toBeTruthy()
     expect(within(wpm).getByText('+20.0 wpm vs the 7 days before')).toBeTruthy()
     const accuracy = tile('First-try accuracy')
-    expect(within(accuracy).getByText('90%')).toBeTruthy()
+    expect(within(accuracy).getByText('90.0%')).toBeTruthy()
     expect(within(accuracy).getByText('+40.0 points vs the 7 days before')).toBeTruthy()
+  })
+
+  it('shows accuracy to a tenth, so two figures that round to the same whole percent differ', async () => {
+    stub({ stats: () => statsOf([quality('2026-10-27', 3, 100, 15, 0.946)]) })
+    await mount()
+    expect(within(tile('First-try accuracy')).getByText('94.6%')).toBeTruthy()
+    cleanup()
+    stub({ stats: () => statsOf([quality('2026-10-27', 3, 100, 15, 0.951)]) })
+    await mount()
+    expect(within(tile('First-try accuracy')).getByText('95.1%')).toBeTruthy()
   })
 
   it('formats thousands the same everywhere', async () => {
