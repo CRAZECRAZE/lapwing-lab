@@ -11,6 +11,8 @@ import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
 import { readSettings, writeSettings } from './settings.ts'
+import { buildStats, emptyStats, STATS_MODES } from './stats.ts'
+import type { StatsMode } from './stats.ts'
 
 export interface ServerOptions {
   root: string
@@ -73,7 +75,8 @@ async function sendFile(req: IncomingMessage, res: ServerResponse, file: string)
 const JSON_TYPE = 'application/json; charset=utf-8'
 const MAX_BODY_BYTES = 1024 * 1024
 const MAX_JOURNAL_CHARS = 200000
-const MAX_DAYS_SPAN = 800
+// The longest from..to span /api/days and /api/stats answer (the all-time view reaches 1,100 days back).
+const MAX_DAYS_SPAN = 1100
 const MS_PER_DAY = 86400000
 
 class HttpError extends Error {
@@ -423,6 +426,21 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
     if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
     sendJson(res, 200, ctx.existingArchive()?.dayStats(from, to) ?? [])
+    return
+  }
+
+  if (pathname === '/api/stats') {
+    if (method !== 'GET') allow(res, 'GET')
+    const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+    const from = journalDate(params.get('from'), 'from')
+    const to = journalDate(params.get('to'), 'to')
+    const rawMode = params.get('mode') ?? 'free'
+    const mode = (STATS_MODES as readonly string[]).includes(rawMode) ? (rawMode as StatsMode) : bad('mode', 'one of free, drills, all')
+    const span = dayNumber(to) - dayNumber(from)
+    if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
+    if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
+    const archive = ctx.existingArchive()
+    sendJson(res, 200, archive ? buildStats(archive, { from, to, mode }) : emptyStats({ from, to, mode }))
     return
   }
 

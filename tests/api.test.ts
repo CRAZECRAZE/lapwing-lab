@@ -11,6 +11,7 @@ import {
   getProgress,
   getResults,
   getSettings,
+  getStats,
   getTest,
   listJournal,
   listNotes,
@@ -476,6 +477,15 @@ describe('history and journal calls', () => {
     const { calls, fetch } = fakeFetch(() => json(days))
     await expect(getDays('2026-10-01', '2026-10-31', fetch)).resolves.toEqual(days)
     expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/days?from=2026-10-01&to=2026-10-31' })
+  })
+
+  it('getStats sends from, to and mode and returns the response', async () => {
+    const stats = { from: '2026-10-01', to: '2026-10-31', mode: 'drills', days: [], keys: [], mixups: [], allTimeStrokes: 0 }
+    const { calls, fetch } = fakeFetch(() => json(stats))
+    await expect(getStats('2026-10-01', '2026-10-31', 'drills', fetch)).resolves.toEqual(stats)
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/stats?from=2026-10-01&to=2026-10-31&mode=drills' })
+    await expect(getStats('a', 'b', 'free', fakeFetch(() => json({ error: 'bad' }, 400)).fetch)).rejects.toThrow(/400/)
+    await expect(getStats('a', 'b', 'free', fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
   })
 
   it('listJournal returns the entries', async () => {

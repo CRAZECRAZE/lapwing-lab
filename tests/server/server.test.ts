@@ -715,15 +715,58 @@ describe('lab routes', () => {
     const days = await json('GET', '/api/days?from=2026-10-01&to=2026-10-31')
     expect(days).toEqual([expect.objectContaining({ date: '2026-10-27', tests: 2, strokes: 4 })])
     expect(await json('GET', '/api/days?from=2026-10-27&to=2026-10-27')).toHaveLength(1)
-    expect(await json('GET', '/api/days?from=2025-08-07&to=2027-10-16')).toHaveLength(1) // exactly 800 days apart
+    expect(await json('GET', '/api/days?from=2024-10-11&to=2027-10-16')).toHaveLength(1) // exactly 1,100 days apart
     const bads = [
       '', 'from=2026-10-01', 'to=2026-10-31', 'from=2026-10-31&to=2026-10-01', 'from=2026-02-30&to=2026-03-01',
-      'from=abc&to=2026-10-01', 'from=2025-08-06&to=2027-10-16', 'from=2000-01-01&to=2026-10-31',
+      'from=abc&to=2026-10-01', 'from=2024-10-10&to=2027-10-16', 'from=2000-01-01&to=2026-10-31',
     ]
     for (const q of bads) expect((await call('GET', `/api/days?${q}`)).status, q).toBe(400)
     const res = await call('POST', '/api/days?from=2026-10-01&to=2026-10-31')
     expect(res.status).toBe(405)
     expect(res.headers.get('allow')).toBe('GET')
+  })
+
+  it('answers /api/stats with the shape, defaulting to free mode', async () => {
+    await seed(new Date(2026, 9, 27, 12).getTime(), 3)
+    const all = await json('GET', '/api/stats?from=2026-10-01&to=2026-10-31&mode=all')
+    expect(all).toMatchObject({ from: '2026-10-01', to: '2026-10-31', mode: 'all', allTimeStrokes: 3 })
+    expect(all.days).toEqual([expect.objectContaining({ date: '2026-10-27', runs: 1 })])
+    expect(all.keys).toEqual(expect.arrayContaining([expect.objectContaining({ slot: 'S-', required: 3, missed: 0 })]))
+    expect(all.mixups).toEqual([])
+    // the seeded run is a stage0-test run: not a free run, so the default mode lists no day, but keys still count it
+    const dflt = await json('GET', '/api/stats?from=2026-10-01&to=2026-10-31')
+    expect(dflt).toMatchObject({ mode: 'free', days: [], allTimeStrokes: 3 })
+    expect(dflt.keys).toEqual(all.keys)
+    expect((await json('GET', '/api/stats?from=2026-11-01&to=2026-11-30&mode=drills')).days).toEqual([])
+    expect(await json('GET', '/api/stats?from=2024-10-11&to=2027-10-16&mode=all')).toMatchObject({ allTimeStrokes: 3 }) // exactly 1,100 days
+  })
+
+  it('400s bad /api/stats parameters, with or without an archive, and 405s other methods', async () => {
+    const bads = [
+      '', 'from=2026-10-01', 'to=2026-10-31', 'from=2026-10-31&to=2026-10-01', 'from=2026-02-30&to=2026-03-01',
+      'from=abc&to=2026-10-01', 'from=2024-10-10&to=2027-10-16', 'from=2000-01-01&to=2026-10-31',
+      'from=2026-10-01&to=2026-10-31&mode=weird', 'from=2026-10-01&to=2026-10-31&mode=', 'from=2026-10-01&to=2026-10-31&mode=ALL',
+    ]
+    for (const q of bads) expect((await call('GET', `/api/stats?${q}`)).status, q).toBe(400)
+    await seed(new Date(2026, 9, 27, 12).getTime())
+    for (const q of bads) expect((await call('GET', `/api/stats?${q}`)).status, q).toBe(400)
+    const res = await call('POST', '/api/stats?from=2026-10-01&to=2026-10-31')
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET')
+  })
+
+  it('answers /api/stats with the empty response and creates nothing when there is no database', async () => {
+    expect(await json('GET', '/api/stats?from=2026-10-01&to=2026-10-31&mode=drills')).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-31',
+      mode: 'drills',
+      days: [],
+      keys: [],
+      mixups: [],
+      allTimeStrokes: 0,
+    })
+    expect((await json('GET', '/api/stats?from=2026-10-01&to=2026-10-31')).mode).toBe('free')
+    expect(existsSync(dataDir)).toBe(false)
   })
 
   it('round-trips a journal entry through PUT, GET and the list', async () => {

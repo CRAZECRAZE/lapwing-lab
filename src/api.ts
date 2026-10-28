@@ -2,6 +2,7 @@
 // node:sqlite and node:fs out of the browser bundle.
 import type { DayStat, ProgressMark, SectionResult, StrokeRecord, TestRow, TestSummary } from '../server/archive.ts'
 import type { Settings } from '../server/settings.ts'
+import type { StatsMode, StatsResponse } from '../server/stats.ts'
 
 type FetchFn = typeof fetch
 
@@ -219,6 +220,16 @@ export async function getTest(
 export async function getDays(from: string, to: string, fetchFn: FetchFn = defaultFetch): Promise<DayStat[]> {
   const params = new URLSearchParams({ from, to })
   return (await request(fetchFn, 'GET', `/api/days?${params}`)) as DayStat[]
+}
+
+export async function getStats(
+  from: string,
+  to: string,
+  mode: StatsMode,
+  fetchFn: FetchFn = defaultFetch,
+): Promise<StatsResponse> {
+  const params = new URLSearchParams({ from, to, mode })
+  return (await request(fetchFn, 'GET', `/api/stats?${params}`)) as StatsResponse
 }
 
 export async function listJournal(fetchFn: FetchFn = defaultFetch): Promise<{ date: string; chars: number }[]> {
