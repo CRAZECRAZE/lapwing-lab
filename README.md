@@ -51,7 +51,7 @@ For the chapter word lists, the **Hint** setting chooses when the keys a word ne
 
 "Time practiced" is approximate: for each test it is the time from the first stroke to the last, so pauses inside a test count and time before the first stroke does not.
 
-The order of the remaining work (briefs memory and the full dictionary lookup, reports, routines) is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
+The full dictionary lookup is done (see "The dictionary" below). The order of the remaining work (briefs memory, reports, routines) is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
 
 ## Chapter practice and gates
 
@@ -69,7 +69,7 @@ Chapters 5 and up have practice lists, and the book ends most sections with a li
 
 Progress is not stored as its own state. It is worked out from the runs in the archive (each run records whether it passed) plus the few marks you set, and `data/steno.db` is the only place it lives. Deleting a mark, or the database, changes what is cleared.
 
-Known limits: Chapter 19 and Chapters 22 and up have no drills or tests; and the gates, tests and the dock have not been tried on the real board yet (see `docs/superpowers/m3-checklist.md` and `docs/superpowers/m4-checklist.md`).
+Known limits: Chapter 19 and Chapters 22 and up have no drills or tests; and the gates, tests and the dock have not been tried on the real board yet (see `docs/superpowers/m3-checklist.md`, `docs/superpowers/m4-checklist.md` and, for Lookup, `docs/superpowers/m5a-checklist.md`).
 
 ## The dock
 
@@ -85,14 +85,31 @@ Four quick-pull tools open as a drawer over the right-hand side of the page, bel
 - **Keys.** In the reader the bare keys work whenever the focus is not in a text field (`K`, `B` and `N` with Shift or Caps Lock too; `/` must be the plain key). The `Alt` forms work from anywhere, including while typing in a box, and go by the physical key, so `Alt+/` is the key that is `/` on a US layout. On drill screens (Stage 0, section drills, chapter tests, free type) only the `Alt` forms work, because the board's stray output would otherwise open tools. Pressing a tool's key again, or its top-bar button, closes it; pressing another tool's key switches to that tool. The buttons work on every tab. A bare `/` needs a layout where `/` is typed without Shift; if yours is not, use `Alt+/` or the button.
 - **Esc** closes the drawer and nothing else: in a drill, the first Esc closes the tool and you stay in the drill; the next one exits the drill as before. The dock keys do nothing while an "Are you sure?" dialog is open.
 - **A drill pauses while a tool is open.** Strokes are ignored and the clock stops, as when the board is unplugged (with the board connected, the drill says `Paused while a tool is open`). Closing the tool puts the focus back in the drill.
-- **Lookup** finds words and strokes. Type a word (`cat`) or an outline in capitals (`TKAD`, also a start of one, `TK`), and it lists up to 30 words; each hit says which chapter teaches it (`Chapter 5`) and where it comes from (practice list, brief, example). Hover or focus an outline to see it on a board (the first hit's first stroke shows until you pick another). It searches only what is taught so far, meaning the chapters up to your current one (the first not cleared, never earlier than 4). The **Include later chapters** box adds the rest, and those hits are marked `later in the book`. The box only appears while your current chapter is before the last one.
+- **Lookup** searches the whole official Lapwing dictionary, with no chapter limit (see "The dictionary" below). Type a word (`cat`) and it lists every way to write it, one outline under another, shortest first; type an outline in capitals (`TKAD`, or just the start of one, `TK`) and it lists what that writes. Results are cards, 30 at a time with a **Show more** button, and the count line says how many matched in total. Where the book teaches an outline, the row says which chapter (`Chapter 5`) and what kind of mention it is (practice list, brief, example). Hover or focus an outline to see it on a board (the first row's first stroke shows until you pick another); the board stays in view at the top of the drawer while the results scroll.
 - **Key chart** shows the board and, for each key, the sounds the book teaches for it (the Chapter 5 consonant table and the vowel sections), with examples. Hover or focus a key's row to light it on the board. It shows all keys at once, whatever chapter you are on.
-- **Briefs so far** lists the book's brief tables grouped by chapter, with the same **Include later chapters** box, and a filter that matches the translation, an outline or the explanation.
+- **Briefs so far** lists the book's brief tables grouped by chapter, limited to the chapters up to your current one (the first not cleared, never earlier than 4) unless you tick **Include later chapters**. A filter box matches the translation, an outline or the explanation.
 - **My notes** is one note per chapter (1 to 26), picked with the Chapter list at the top (a chapter that has text says `has notes`). It opens on the chapter you picked last, or else your current one, and saves as you type. If a note cannot be loaded it says so and offers **Try again**, and it never saves over what it could not read. If a save fails it says `Not saved — will retry`.
 
 Notes live in `data/notes/chNN.md` (for example `ch05.md`), plain markdown, one file per chapter, written the first time you type in one. They are part of `data/`, so back them up by copying `data/`.
 
 Known limit: stray Space or Enter from the board's Plover output can press a focused drawer control, such as **Close**, while the drawer has the focus; the drill's own key catcher is not focused while a tool is open. Turn Plover's Output off while you practice (see above).
+
+## The dictionary
+
+Lookup reads one generated file, `content/build/dictionary.json`: about 58,000 cards and 5.2 MB (5,222,722 bytes in the last build; the build stops if it grows past 8 MB). The app fetches it the first time you open Lookup (the box shows `Loading…` for a moment, and `Couldn't load the dictionary.` with **Try again** if it fails) and keeps it for the rest of the session. The reader and the drill screens never fetch it, so start-up does not pay for it.
+
+- **Where it comes from.** The official Lapwing dictionary, `https://github.com/aerickt/plover-lapwing-aio` (MIT), vendored read-only in `content/lapwing-dictionary/` at the commit in `content/lapwing-dictionary/PINNED_COMMIT` (`4ac5d53cf039a2b1f4c484456663c85e7df4e859`) with its `LICENSE` and a `SOURCE.md`. Six files are used: `lapwing-base.json`, `lapwing-uk-additions.json`, `lapwing-proper-nouns.json`, `lapwing-numbers.json`, `lapwing-commands.json` and `lapwing-semi-modal-movement.json`: the ones the book's Appendix C lists for the Plover set-up. The two modifier dictionaries, the Javelin-only files and `lapwing-prefixed-proper-nouns.json` are not used.
+- **Updating it.** `npm run sync:dictionary` re-vendors the pinned commit; `npm run sync:dictionary -- <40-hex commit>` takes another one (anything but a full 40-character hash is refused). It needs the network. Then run `npm run build:content` (or `npm start`) to rebuild `dictionary.json`. Do not edit the vendored files by hand. The tests never touch the network.
+- **Every outline, in order.** A card is one exact translation (`defense` and `Defense` are two cards) and lists all its outlines, fewest strokes first, then fewest keys pressed, then alphabetical. For example `especially` shows `EPS`, `ES/PERB/HREU` and `ES/PERBL/KWREU`. Lookup does not pick one as the right way, rank by taste or hide anything because its chapter is ahead.
+- **Searching.** The match ignores case. A word matches translations: the exact word first, then those that start with it, then those that contain it. A query in capitals made of steno letters (`TKAD`) searches outlines first, exact, then starting with it, then at a stroke start (`TK` finds `TKAT` and `-T/TKAT`, not `-T/KAT`), and then words; the rows that matched are marked with a bar at their left edge. Lower-case `tkad` is a word search and finds only words.
+- **Book labels.** A row carries `Chapter N` and `practice list`, `brief` or `example` only where the book itself states that outline for that word, and nothing else: the label never comes from a guess and never lands on a different translation that merely shares the outline. The labels are worked out when the content is built and are part of `dictionary.json`.
+- **Tags.** A row from a file other than the main one carries a small tag naming it: `UK`, `names`, `numbers`, `commands` or `movement`. A pair in several files shows each tag.
+- **`book only`.** If the book teaches an outline for a word that the dictionary does not hold for that word, the row is shown anyway and marked `book only`. When the dictionary writes that outline some other way, the row adds a muted line, "The dictionary writes this outline as:" with those translations.
+- **Plover syntax.** Entries such as `{^}.sh` or `{#Shift_l(Home)}` are shown exactly as stored, in monospace (a real newline shows as `\n`), so nothing is lost.
+- **`from the book`.** The book names keys, symbols and commands (`Enter`, `Comma (,)`, `Period (.)`, the letters and digits of Chapter 18) that are not dictionary words. Each is its own card marked `from the book`, with the book's outline and chapter and the same "The dictionary writes this outline as:" line (`not in the dictionary` when there is none). So searching `enter` or `comma` finds the book's entry too.
+- **Not found.** `Not in the dictionary.` For a query that is one run of lower-case letters, up to 40, a muted line `Fingerspell it:` follows with the strokes of its letters from Chapter 18 (`qzxv` gives `KW*`, `STKPW*`, `KP*`, `SR*`). A longer query shows only the first line.
+- **What it does not do.** It never reads your own Plover dictionaries, on purpose, so your habits are not echoed back. It never writes anything (nothing in `data/`). It uses no network at run time: the only fetch is of `/content/dictionary.json` from the local server. It does not label outlines as brief or write-out.
+- **Known limits.** The Briefs tool still shows only the chapters taught so far (its own **Include later chapters** box); `thirst`'s outline `TH*EURS`, which the book gives as an "Also" sub-bullet, has no chapter label. Both are listed in `docs/superpowers/m0-m1-followups.md`. The design is in `docs/superpowers/specs/2026-10-28-lapwing-lab-m5a-dictionary-lookup-design.md`.
 
 ## Your data
 
@@ -125,14 +142,16 @@ The second one needs the `sqlite3` CLI.
 npm test                # vitest
 npm run typecheck       # tsc --noEmit
 npm run dev             # API server (port 5757) + Vite dev server with hot reload
-npm run build:content   # regenerate content/build from the vendored book
+npm run build:content   # regenerate content/build from the vendored book and dictionary
 npm run sync:book       # re-vendor the book at the pinned commit (needs network)
+npm run sync:dictionary # re-vendor the dictionary at the pinned commit, or a given one (needs network)
 ```
 
-`npm run dev` (leave `PORT` unset; the Vite proxy is fixed to 5757) prints the Vite address to open; Vite proxies `/api`, `/content` and `/media` to the server on 5757. `npm run sync:book` is only for re-vendoring the pinned book commit; you do not need it for normal use.
+`npm run dev` (leave `PORT` unset; the Vite proxy is fixed to 5757) prints the Vite address to open; Vite proxies `/api`, `/content` and `/media` to the server on 5757. `npm run sync:book` is only for re-vendoring the pinned book commit; you do not need it for normal use; the same goes for `npm run sync:dictionary`.
 
 ```
 content/lapwing-book/   vendored book (generated; do not edit)
+content/lapwing-dictionary/   vendored official Lapwing dictionary (generated; do not edit)
 content/build/          generated pages and word lists (git-ignored)
 scripts/                content pipeline and dev runner
 server/                 HTTP server, SQLite archive, journal and chapter notes files, settings
@@ -147,4 +166,4 @@ dist/                   client build (git-ignored)
 
 The vendored book content under `content/lapwing-book` is *Lapwing for Beginners* from `aerickt/lapwing-for-beginners`, licensed GPL-3.0, at the commit pinned in `content/lapwing-book/PINNED_COMMIT`. That is fine for a private repo; the GPL applies to content derived from it if this is ever published.
 
-`steno-lessions` (AGPL) was used as reference only; no code from it is used. The Lapwing dictionaries are MIT but are not used yet.
+`steno-lessions` (AGPL) was used as reference only; no code from it is used. The vendored dictionary under `content/lapwing-dictionary` is the Lapwing dictionary from `aerickt/plover-lapwing-aio`, licensed MIT (the licence is in that folder), at the commit pinned in `content/lapwing-dictionary/PINNED_COMMIT`.

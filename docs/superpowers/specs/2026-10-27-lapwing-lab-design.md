@@ -66,7 +66,7 @@ Prompt-first (chosen by the owner). A large word or stroke in the middle, a smal
 
 ### 3.3 The dock (quick pulls)
 All one keypress, available from the reader and the drill screen. These five are the builder's starting set; the owner has not yet said what they most often need.
-1. **Lookup `/`** — "how do I write …". Early on it searches only what the book has taught so far (practice-list words, example words, brief tables). Once the dictionary merge exists (M5) it searches the full Lapwing dictionary and classifies results (see 4.3).
+1. **Lookup `/`** — "how do I write …". Early on it searches only what the book has taught so far (practice-list words, example words, brief tables). Once the dictionary merge exists (M5) it searches the full Lapwing dictionary and classifies results (see 4.3). *Amended by M5a (2026-10-28):* Lookup searches the full official Lapwing dictionary with no chapter limit and shows book labels only; see `2026-10-28-lapwing-lab-m5a-dictionary-lookup-design.md`.
 2. **Key chart `K`** — the board with the sound each key makes.
 3. **Briefs so far `B`** — every brief table from chapters up to the current one.
 4. **My notes `N`** — free-form notes per chapter, kept as plain markdown.
@@ -122,6 +122,8 @@ A deck of briefs taught by the book, scheduled SM-2-style, with a daily due queu
 
 ### 4.3 Reverse lookup and the brief/derivable classification
 Searches a merged Lapwing dictionary (the owner's real Plover stack, in Plover's priority order; see `docs/reference/steno-lab-plan.md` §5.1) and labels each result: *Book brief* (with the chapter that teaches it), *Derivable from rules*, or *Not in dictionary* (fingerspelling hint). Needs a brief → chapter provenance map built from the book's brief tables. Known test cases: `especially` → `EPS` (brief) + derivable `ES/PERB/HREU`; `the` → `-T` (brief only).
+
+*Amended by M5a (2026-10-28):* this classification is replaced. Lookup searches the official Lapwing dictionary (not the owner's stack), lists every outline of a word shortest first, and labels only where the book teaches an outline; there is no "derivable" guess. The test cases stay: `especially` writes `EPS`, `ES/PERB/HREU` and `ES/PERBL/KWREU`; `the` writes `-T`. See M5a spec §4.
 
 ### 4.4 Training archive
 All practice is recorded from the first session: sessions, tests, and every stroke. See §6. Basic history and per-day views arrive in M2 (3.5). The rest comes later (M6): a heatmap, trend lines per mode and chapter, confusion pairs (which wrong key was hit instead of the right one), plateau detection and an end-of-month report (wpm and accuracy deltas, weakest keys, top confusion pairs, practice time, suggested focus, owner-annotatable).
@@ -220,7 +222,7 @@ The pipeline's output: chapters with sections, rendered prose, media references,
 - **M2 — The lab shell** (moved up at the owner's request). Top-bar tabs; free type; History; Days with streak; Journal with result-card notes; lazy logging so abandoned runs leave no ghost rows (3.5).
 - **M3 — Core practice.** Section drills and chapter tests inline in the reader (Chapters 5 onward as lists exist), prompt-first drill screen, hint on miss, mistake diff, gates with override. They also appear on the Practice tab.
 - **M4 — The dock.** Lookup over book data, key chart, briefs so far, notes; generated drills for table-only chapters.
-- **M5 — Memory and lookup.** SRS; dictionary merge; full lookup with classification.
+- **M5 — Memory and lookup.** SRS; dictionary merge; full lookup with classification. *Amended by M5a (2026-10-28):* M5 is split. **M5a** (done): the dictionary lookup, per the M5a spec. **M5b:** briefs memory (SRS), designed later.
 - **M6 — The record.** Heatmap, trend lines, month-end report, confusion pairs, plateau detection (the basic views are M2).
 - **M7 — The architecture around it.** Routine planner, session composer, ghosts, real-text practice.
 
@@ -265,3 +267,6 @@ Added 2026-10-28 with the M4 plan (3.3, "Settled for M4"):
 27. "Taught so far" = chapters up to the current chapter, with an `Include later chapters` checkbox.
 28. Chapters 18, 20 and 21 get generated drills and clear by the section-drill gate.
 29. Notes live in `data/notes/chNN.md` and reuse the journal's save queue.
+
+Added 2026-10-28 with the M5a spec:
+30. Calls C1 to C22 (vendored official dictionary, `Show more` by 30, file tags, raw Plover syntax, fingerspelling hint, sort order, the join rules between book labels and dictionary cards, named cards, `book only` rows) are listed in `specs/2026-10-28-lapwing-lab-m5a-dictionary-lookup-design.md`, §7 and §7a.

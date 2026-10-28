@@ -63,8 +63,8 @@ The owner's stance, in their words: "there isnt one correct way in steno", "i wa
 
 - Vendor the upstream dictionaries into `content/lapwing-dictionary/`, committed like the book, with `SOURCE.md`, `PINNED_COMMIT` and the upstream `LICENSE` (the upstream repository, `https://github.com/aerickt/plover-lapwing-aio`, is MIT licensed). Files: `lapwing-base.json`, `lapwing-uk-additions.json`, `lapwing-proper-nouns.json`, `lapwing-numbers.json`, `lapwing-commands.json`, `lapwing-semi-modal-movement.json`, all from `plover_lapwing/dictionaries/`. Pinned commit at the time of writing: `4ac5d53cf039a2b1f4c484456663c85e7df4e859`. A script `npm run sync:dictionary` fetches a given commit (like `sync:book`; refuses anything but a full 40-hex hash). Tests never touch the network.
 - Measured on those files: about 144,000 outline entries, about 58,000 distinct translations, 36,000 of which have more than one outline; a compact word→outlines index is about 3.3 MB. 13 outlines have different translations in different files.
-- The content build adds `content/build/dictionary.json`, a compact index with the source-file tag per outline, with a size guard (builder's choice of limit, well above the measured size, as the existing 5 MB guard on `lookup.json`).
-- The M4 book index (`lookup.json`) stays and keeps providing the chapter labels; the new index provides the outlines. The generated drill lists (Chapters 18, 20, 21) are added to the book labels as `practice list` entries so that names like `Enter` and `Comma (,)` can be found.
+- The content build adds `content/build/dictionary.json`, a compact index with the source-file tag per outline, with a size guard (built as 8 MB, well above the size of the real build, 5,222,722 bytes).
+- The M4 book index (`lookup.json`) was retired in this milestone (C16): the chapter labels are baked into `dictionary.json` at build time, along with the outlines. The generated drill lists (Chapters 18, 20, 21) are added to the book labels as `practice list` entries so that names like `Enter` and `Comma (,)` can be found.
 
 ## 6. Constraints
 
@@ -99,7 +99,8 @@ The owner's stance, in their words: "there isnt one correct way in steno", "i wa
 - **C18. Fingerspelling hint** only for a query that is a single run of lower-case letters.
 - **C19. The book's names for keys and commands never join dictionary words (ruling after Task 4).** The generated drill lists whose items are names of things rather than words (`18-lowercase`, `18-numbers`, `18-uppercase`, `20-commands`, `20-punctuation`) always become named cards (C12), even when the name equals a dictionary word: the book's `Enter` is the Enter key, not the word `enter`, so its outline `R-R` must not show as a "book only" row on the dictionary card `enter`. The generated list `21-uk-spellings` holds real words and joins like any other list (C11, C13).
 - **C20. A book-only row says what the dictionary does with that outline (ruling after the Task 4 review).** A `book only` row (C13) whose outline the dictionary holds under other translations carries them as `w`, shown with the same muted line as a named card ("The dictionary writes this outline as: ..."). So the book's period brief `.` / `TP-PL` shows `book only` plus `{.}`, not a bare claim that the dictionary lacks it. A book-only row whose outline the dictionary does not hold at all has no `w` and shows only `book only`.
-- **C21. The book's example parser must not read "Also" as a word (ruling after the Task 4 review).** Chapter 12's sub-bullets "Also `HR*EUS`" and "Also `TH*EURS`" describe `list` and `thirst`; they are not examples for the word `also`. The example parser drops them (this also fixes the same wrong hits in the M4 `lookup.json`, which is retired later in this milestone).
+- **C21. The book's example parser must not read "Also" as a word (ruling after the Task 4 review).** Chapter 12's sub-bullets "Also `HR*EUS`" and "Also `TH*EURS`" describe `list` and `thirst`; they are not examples for the word `also`. The example parser drops them (this also fixes the same wrong hits in the M4 `lookup.json`, which was retired in this milestone).
+- **C22. Fingerspelling hint length (implementation choice during the build).** The hint is skipped for a query longer than 40 letters, so a pasted paragraph does not draw thousands of chips; such a query shows only `Not in the dictionary.` (`MAX_FINGERSPELL` in `src/ui/tools/Lookup.tsx`).
 
 ## 8. Left to the builder
 
@@ -110,4 +111,4 @@ Index schema and file layout, search data structures, how stroke counts and key 
 - §3.3 item 1: Lookup searches the full official Lapwing dictionary with no chapter limit; book labels only.
 - §4.3: replace "merged Lapwing dictionary (the owner's real Plover stack…) and labels each result *Book brief* / *Derivable from rules* / *Not in dictionary*" with the behavior in §4 above. The known test cases stay: `especially` writes `EPS`, `ES/PERB/HREU` and `ES/PERBL/KWREU`; `the` writes `-T`.
 - §9: M5 is split. M5a: dictionary lookup (this document). M5b: briefs memory (SRS), designed later. M6 and M7 unchanged.
-- §11: add C1 to C21 above.
+- §11: add C1 to C22 above.
