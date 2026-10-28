@@ -5,9 +5,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildContent, gateFor, practiceChapter } from '../../scripts/build-content.ts'
 import { parseOutline, SLOTS } from '../../src/core/steno.ts'
 import type { LookupEntry } from '../../scripts/lib/lookup.ts'
+import { DICT_FILE_NAMES, DICT_FILES } from '../../scripts/lib/dictionary.ts'
+import type { DictCard, DictionaryFile } from '../../scripts/lib/dictionary.ts'
 import type { BuildStats, ChapterInfo, PracticeIndexEntry } from '../../scripts/build-content.ts'
 
 const bookDir = join(import.meta.dirname, '..', '..', 'content', 'lapwing-book')
+const dictionaryDir = join(import.meta.dirname, '..', '..', 'content', 'lapwing-dictionary')
 const PINNED = '46b53e1ebec3b19fb402da046d6dc0a13b530787'
 
 let work: string
@@ -21,7 +24,7 @@ function readJson(...parts: string[]): any {
 beforeAll(async () => {
   work = mkdtempSync(join(tmpdir(), 'build-content-'))
   outDir = join(work, 'out')
-  stats = await buildContent({ bookDir, outDir })
+  stats = await buildContent({ bookDir, outDir, dictionaryDir })
 })
 
 afterAll(() => {
@@ -162,6 +165,66 @@ describe('lookup.json', () => {
     // The book's own lists cover chapters 5 to 17; the drills generated for chapters 18, 20 and 21 are not practice hits.
     const practice = lookup().flatMap((e) => e.hits.filter((h) => h.source === 'practice'))
     expect(practice.every((h) => h.chapter <= 17)).toBe(true)
+  })
+})
+
+describe('dictionary.json on the vendored book', () => {
+  const dictionary = (): DictionaryFile => readJson('dictionary.json')
+  const card = (text: string): DictCard => {
+    const found = dictionary().cards.find((c) => c.t === text)
+    expect(found, `card ${text}`).toBeDefined()
+    return found!
+  }
+  const row = (text: string, outline: string) => {
+    const found = card(text).r.find((r) => r.o === outline)
+    expect(found, `row ${text} ${outline}`).toBeDefined()
+    return found!
+  }
+
+  it('is written with the pinned dictionary commit and matches the stats', () => {
+    const file = dictionary()
+    expect(file.commit).toBe(readFileSync(join(dictionaryDir, 'PINNED_COMMIT'), 'utf8').trim())
+    expect(stats.dictionaryCards).toBe(file.cards.length)
+    expect(stats.dictionaryBytes).toBe(statSync(join(outDir, 'dictionary.json')).size)
+    expect(file.letters.a).toBe('A*')
+  })
+
+  it('stays under 8 MB and holds between 55,000 and 62,000 cards', () => {
+    expect(statSync(join(outDir, 'dictionary.json')).size).toBeLessThan(8 * 1024 * 1024)
+    expect(dictionary().cards.length).toBeGreaterThan(55000)
+    expect(dictionary().cards.length).toBeLessThan(62000)
+  })
+
+  it('labels the chapter 13 example outlines of around, mistake and subway', () => {
+    expect(card('around').r.map((r) => r.o)).toEqual(expect.arrayContaining(['A/ROUPBD', 'ARPBD']))
+    expect(row('around', 'A/ROUPBD').b).toContainEqual({ chapter: 13, source: 'example' })
+    expect(card('mistake').r.map((r) => r.o)).toEqual(expect.arrayContaining(['SPHAEUBG', 'PHEUS/TAEUBG']))
+    expect(row('mistake', 'PHEUS/TAEUBG').b).toContainEqual({ chapter: 13, source: 'example' })
+    expect(row('mistake', 'SPHAEUBG').b ?? []).not.toContainEqual({ chapter: 13, source: 'example' })
+    expect(row('subway', 'SUB/WAEU').b).toContainEqual({ chapter: 13, source: 'example' })
+    expect(row('subway', 'SUB/WA*EU').b).toBeUndefined()
+  })
+
+  it('labels the lowercase a of Chapter 18 as a practice item', () => {
+    expect(row('a', 'A*').b).toContainEqual({ chapter: 18, source: 'practice' })
+  })
+
+  it('keeps the Chapter 20 Enter command as a book-only row on the enter card', () => {
+    // The book calls the command "Enter", which is a word the dictionary has, so R-R (the dictionary writes it as
+    // "{^~|\n^}") lands as an x row on the `enter` card instead of a card of its own.
+    const enter = card('enter')
+    expect(enter.n).toBeUndefined()
+    expect(row('enter', 'R-R')).toEqual({ o: 'R-R', b: [{ chapter: 20, source: 'practice' }], x: true })
+    expect(dictionary().cards.some((c) => c.t === 'Enter')).toBe(false)
+  })
+
+  it('holds a command the dictionary has no word for as a named card whose rows carry the dictionary words', () => {
+    // "Enter (capitalize next word)" is the book's own heading text; R*R is written "{^\n}{^}{-|}" in lapwing-commands.json.
+    expect(card('Enter (capitalize next word)')).toEqual({
+      t: 'Enter (capitalize next word)',
+      n: true,
+      r: [{ o: 'R*R', b: [{ chapter: 20, source: 'practice' }], w: ['{^\n}{^}{-|}'] }],
+    })
   })
 })
 
@@ -356,5 +419,146 @@ describe('buildContent on a fixture book', () => {
     writeFileSync(join(dir, 'src', 'Chapter-05.md'), 'No pass mark here\n')
     writeFileSync(join(dir, 'src', 'practice', '5-test.txt'), 'a\tA\n')
     await expect(buildContent({ bookDir: dir, outDir: join(work, 'fixture-nomark') })).rejects.toThrow(/chapter 5/i)
+  })
+})
+
+describe('dictionary.json on a fixture book and dictionary', () => {
+  const FILES: Record<string, Record<string, string>> = {
+    main: { KAT: 'cat', SAP: 'sap' },
+    uk: { KAT: 'cat', SEPB: 'centre' },
+    names: {},
+    numbers: { '#S': '1' },
+    commands: {},
+    movement: {},
+  }
+
+  function dictDir(files: Record<string, unknown> = {}): string {
+    const dir = mkdtempSync(join(work, 'dict-'))
+    for (const file of DICT_FILES) {
+      writeFileSync(join(dir, DICT_FILE_NAMES[file]), JSON.stringify(file in files ? files[file] : FILES[file]))
+    }
+    writeFileSync(join(dir, 'PINNED_COMMIT'), 'abc123\n')
+    return dir
+  }
+
+  function book(): string {
+    const dir = mkdtempSync(join(work, 'book-'))
+    mkdirSync(join(dir, 'src', 'practice'), { recursive: true })
+    writeFileSync(join(dir, 'PINNED_COMMIT'), `${PINNED}\n`)
+    writeFileSync(join(dir, 'src', 'SUMMARY.md'), '# Summary\n- [Home](Home.md)\n- [Chapter 21](Chapter-21.md)\n')
+    writeFileSync(join(dir, 'src', 'Home.md'), 'Hello\n')
+    writeFileSync(join(dir, 'src', 'Chapter-21.md'), '# Chapter 21\n\n* centre `SEPB/TER/#TPH`\n')
+    writeFileSync(join(dir, 'src', 'practice', '1-words.txt'), 'cat\tKAT\nzap\tSAP\n')
+    return dir
+  }
+
+  const dictionaryOf = (out: string): DictionaryFile => JSON.parse(readFileSync(join(out, 'dictionary.json'), 'utf8'))
+
+  it('writes ordered cards with the commit, book labels, named cards and book-only rows', async () => {
+    const out = join(work, 'dict-ok')
+    const result = await buildContent({ bookDir: book(), outDir: out, dictionaryDir: dictDir() })
+    const file = dictionaryOf(out)
+    expect(file.commit).toBe('abc123')
+    expect(file.cards.map((c) => c.t)).toEqual(['1', 'cat', 'centre', 'sap', 'zap'])
+    expect(file.cards.find((c) => c.t === 'cat')).toEqual({
+      t: 'cat',
+      r: [{ o: 'KAT', f: ['uk'], b: [{ chapter: 1, source: 'practice' }] }],
+    })
+    expect(file.cards.find((c) => c.t === 'zap')).toEqual({
+      t: 'zap',
+      n: true,
+      r: [{ o: 'SAP', b: [{ chapter: 1, source: 'practice' }], w: ['sap'] }],
+    })
+    expect(result.dictionaryCards).toBe(5)
+    expect(result.dictionaryBytes).toBe(statSync(join(out, 'dictionary.json')).size)
+  })
+
+  it('adds the generated drill items to the dictionary as labelled rows', async () => {
+    const out = join(work, 'dict-generated')
+    await buildContent({ bookDir: book(), outDir: out, dictionaryDir: dictDir() })
+    const centre = dictionaryOf(out).cards.find((c) => c.t === 'centre')!
+    expect(centre.r).toEqual([
+      { o: 'SEPB', f: ['uk'] },
+      {
+        o: 'SEPB/TER/#TPH',
+        b: [
+          { chapter: 21, source: 'practice' },
+          { chapter: 21, source: 'example' },
+        ],
+        x: true,
+      },
+    ])
+  })
+
+  it('writes nothing and reports zero when no dictionary directory is given', async () => {
+    const out = join(work, 'dict-none')
+    const result = await buildContent({ bookDir: book(), outDir: out })
+    expect(existsSync(join(out, 'dictionary.json'))).toBe(false)
+    expect(result.dictionaryCards).toBe(0)
+    expect(result.dictionaryBytes).toBe(0)
+  })
+
+  it('builds byte-identical files twice', async () => {
+    const dir = dictDir()
+    const a = join(work, 'dict-twice-a')
+    const b = join(work, 'dict-twice-b')
+    await buildContent({ bookDir: book(), outDir: a, dictionaryDir: dir })
+    await buildContent({ bookDir: book(), outDir: b, dictionaryDir: dir })
+    expect(readFileSync(join(a, 'dictionary.json'))).toEqual(readFileSync(join(b, 'dictionary.json')))
+  })
+
+  it('rejects a dictionary file with a non-string value, naming the file and the key', async () => {
+    const dir = dictDir({ main: { KAT: 'cat', SAP: 3 } })
+    await expect(buildContent({ bookDir: book(), outDir: join(work, 'dict-num'), dictionaryDir: dir })).rejects.toThrow(
+      /lapwing-base\.json: expected an object of strings, got a number at "SAP"/,
+    )
+  })
+
+  it('rejects a dictionary file that holds an array or null instead of an object', async () => {
+    const asArray = dictDir({ uk: ['KAT'] })
+    await expect(buildContent({ bookDir: book(), outDir: join(work, 'dict-arr'), dictionaryDir: asArray })).rejects.toThrow(
+      /lapwing-uk-additions\.json: expected an object/,
+    )
+    const asNull = dictDir({ names: null })
+    await expect(buildContent({ bookDir: book(), outDir: join(work, 'dict-null'), dictionaryDir: asNull })).rejects.toThrow(
+      /lapwing-proper-nouns\.json: expected an object/,
+    )
+  })
+
+  it('rejects a dictionary file that is not JSON, naming the file', async () => {
+    const dir = dictDir()
+    writeFileSync(join(dir, DICT_FILE_NAMES.numbers), '{nope')
+    await expect(buildContent({ bookDir: book(), outDir: join(work, 'dict-json'), dictionaryDir: dir })).rejects.toThrow(
+      /lapwing-numbers\.json/,
+    )
+  })
+
+  it('rejects a missing dictionary file, naming it and keeping the cause', async () => {
+    const dir = dictDir()
+    rmSync(join(dir, DICT_FILE_NAMES.commands))
+    const error = await buildContent({ bookDir: book(), outDir: join(work, 'dict-missing'), dictionaryDir: dir }).catch((e) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toMatch(/lapwing-commands\.json/)
+    expect(error.cause?.code).toBe('ENOENT')
+  })
+
+  it('throws over the size limit and leaves no dictionary.json behind', async () => {
+    const out = join(work, 'dict-big')
+    await expect(
+      buildContent({ bookDir: book(), outDir: out, dictionaryDir: dictDir(), dictionaryMaxBytes: 100 }),
+    ).rejects.toThrow(/dictionary\.json is \d+ bytes, over the 100 byte limit/)
+    expect(existsSync(join(out, 'dictionary.json'))).toBe(false)
+  })
+
+  it('accepts a file exactly at the size limit', async () => {
+    const dir = dictDir()
+    const probe = join(work, 'dict-probe')
+    const { dictionaryBytes } = await buildContent({ bookDir: book(), outDir: probe, dictionaryDir: dir })
+    const out = join(work, 'dict-exact')
+    await buildContent({ bookDir: book(), outDir: out, dictionaryDir: dir, dictionaryMaxBytes: dictionaryBytes })
+    expect(existsSync(join(out, 'dictionary.json'))).toBe(true)
+    await expect(
+      buildContent({ bookDir: book(), outDir: join(work, 'dict-under'), dictionaryDir: dir, dictionaryMaxBytes: dictionaryBytes - 1 }),
+    ).rejects.toThrow(/over the/)
   })
 })

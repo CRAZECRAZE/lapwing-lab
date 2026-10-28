@@ -4,6 +4,8 @@ import { parsePassMark } from './lib/passmark.ts'
 import type { PassMark } from './lib/passmark.ts'
 import { parseExampleItems } from './lib/examples.ts'
 import type { ExampleRow } from './lib/examples.ts'
+import { buildDictionary, DICT_FILE_NAMES, DICT_FILES } from './lib/dictionary.ts'
+import type { DictFile } from './lib/dictionary.ts'
 import { generatedLists } from './lib/generated.ts'
 import { parseKeyChart } from './lib/keychart.ts'
 import { buildLookup } from './lib/lookup.ts'
@@ -46,11 +48,14 @@ export type BuildStats = {
   briefRows: number
   lookupEntries: number
   lookupBytes: number
+  dictionaryCards: number
+  dictionaryBytes: number
 }
 
 const SUMMARY_LINE = /^-\s*\[([^\]]+)\]\(([^)]+\.md)\)\s*$/
 const BRIEF_CHAPTERS = { first: 5, last: 12 }
 const LOOKUP_MAX_BYTES = 5 * 1024 * 1024
+export const DICTIONARY_MAX_BYTES = 8 * 1024 * 1024
 
 function pageEntry(title: string, file: string): PageEntry {
   let match: RegExpExecArray | null
@@ -104,6 +109,43 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, JSON.stringify(value))
 }
 
+function typeName(value: unknown): string {
+  return value === null ? 'null' : Array.isArray(value) ? 'an array' : `a ${typeof value}`
+}
+
+// One vendored dictionary file: a JSON object whose values are all strings. Any other shape or a missing file fails
+// the build with a message that names the file.
+async function readDictionaryFile(dir: string, file: DictFile): Promise<Record<string, string>> {
+  const name = DICT_FILE_NAMES[file]
+  let text: string
+  try {
+    text = await readFile(join(dir, name), 'utf8')
+  } catch (cause) {
+    throw new Error(`${name}: cannot read the dictionary file in ${dir}`, { cause })
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (cause) {
+    throw new Error(`${name}: not valid JSON`, { cause })
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${name}: expected an object of strings, got ${typeName(parsed)}`)
+  }
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(`${name}: expected an object of strings, got ${typeName(value)} at ${JSON.stringify(key)}`)
+    }
+  }
+  return parsed as Record<string, string>
+}
+
+async function readDictionaryFiles(dir: string): Promise<Record<DictFile, Record<string, string>>> {
+  const files = {} as Record<DictFile, Record<string, string>>
+  for (const file of DICT_FILES) files[file] = await readDictionaryFile(dir, file)
+  return files
+}
+
 function chapterInfos(
   entries: PageEntry[],
   practiceIndex: PracticeIndexEntry[],
@@ -125,8 +167,14 @@ function chapterInfos(
   return infos.sort((a, b) => a.chapter - b.chapter)
 }
 
-export async function buildContent(opts: { bookDir: string; outDir: string }): Promise<BuildStats> {
-  const { bookDir, outDir } = opts
+export async function buildContent(opts: {
+  bookDir: string
+  outDir: string
+  dictionaryDir?: string
+  dictionaryMaxBytes?: number
+}): Promise<BuildStats> {
+  const { bookDir, outDir, dictionaryDir } = opts
+  const dictionaryMaxBytes = opts.dictionaryMaxBytes ?? DICTIONARY_MAX_BYTES
   const src = join(bookDir, 'src')
   const commit = (await readFile(join(bookDir, 'PINNED_COMMIT'), 'utf8')).trim()
   const entries = parseSummary(await readFile(join(src, 'SUMMARY.md'), 'utf8'))
@@ -157,13 +205,14 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
 
   // Drills generated from the table-only chapters sit next to the book's own lists.
   let generatedCount = 0
+  const generated: LookupList[] = []
   for (const entry of entries) {
     if (entry.kind !== 'chapter' || entry.number === undefined) continue
     for (const list of generatedLists(entry.number, markdowns.get(entry.file)!)) {
       if (practiceIds.has(list.id)) throw new Error(`generated practice list ${list.id} clashes with a book list`)
       practiceIds.add(list.id)
       practiceIndex.push({ id: list.id, chapter: list.chapter, items: list.items.length })
-      
+      generated.push({ id: list.id, chapter: list.chapter, items: list.items })
       generatedCount++
       await writeJson(join(outDir, 'practice', `${list.id}.json`), { id: list.id, items: list.items })
     }
@@ -227,6 +276,27 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
   }
   await writeFile(join(outDir, 'lookup.json'), lookupJson)
 
+  let dictionaryCards = 0
+  let dictionaryBytes = 0
+  if (dictionaryDir !== undefined) {
+    const files = await readDictionaryFiles(dictionaryDir)
+    const dictionaryCommit = (await readFile(join(dictionaryDir, 'PINNED_COMMIT'), 'utf8')).trim()
+    const dictionary = buildDictionary({
+      files,
+      lists: [...bookLists, ...generated],
+      briefs,
+      examples,
+      commit: dictionaryCommit,
+    })
+    const dictionaryJson = JSON.stringify(dictionary)
+    dictionaryBytes = Buffer.byteLength(dictionaryJson)
+    if (dictionaryBytes > dictionaryMaxBytes) {
+      throw new Error(`dictionary.json is ${dictionaryBytes} bytes, over the ${dictionaryMaxBytes} byte limit`)
+    }
+    await writeFile(join(outDir, 'dictionary.json'), dictionaryJson)
+    dictionaryCards = dictionary.cards.length
+  }
+
   return {
     pages: entries.length,
     practiceLists: practiceFiles.length,
@@ -236,6 +306,8 @@ export async function buildContent(opts: { bookDir: string; outDir: string }): P
     briefRows: briefs.length,
     lookupEntries: lookup.length,
     lookupBytes,
+    dictionaryCards,
+    dictionaryBytes,
   }
 }
 
@@ -244,11 +316,13 @@ if (import.meta.main) {
   const stats = await buildContent({
     bookDir: join(root, 'content', 'lapwing-book'),
     outDir: join(root, 'content', 'build'),
+    dictionaryDir: join(root, 'content', 'lapwing-dictionary'),
   })
   console.log(
     `Built ${stats.pages} pages, ${stats.practiceLists} practice lists (${stats.practiceLines} lines) ` +
       `and ${stats.generatedLists} generated lists, ` +
       `${stats.outlineTags} outline tags, ${stats.briefRows} brief rows, ` +
-      `lookup ${stats.lookupEntries} entries (${Math.round(stats.lookupBytes / 1024)} KB)`,
+      `lookup ${stats.lookupEntries} entries (${Math.round(stats.lookupBytes / 1024)} KB), ` +
+      `dictionary ${stats.dictionaryCards} cards (${Math.round(stats.dictionaryBytes / 1024)} KB)`,
   )
 }
