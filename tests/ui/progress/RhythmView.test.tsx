@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render } from '@testing-library/preact'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RhythmView } from '../../../src/ui/progress/RhythmView.tsx'
@@ -16,7 +17,7 @@ function figure(c: Element, name: string): string {
   expect(dt, `figure ${name}`).toBeTruthy()
   return dt!.parentElement!.textContent!.slice(name.length)
 }
-const strip = (c: Element): Element => c.querySelector('.rhythm__strip svg')!
+const strip = (c: Element): Element => c.querySelector('.rhythm__scroll svg')!
 const hits = (c: Element): HTMLElement[] => Array.from(strip(c).querySelectorAll<HTMLElement>('g.chart__hit'))
 const bars = (c: Element): Element[] => Array.from(strip(c).querySelectorAll('rect.rhythm__bar'))
 const stallBars = (c: Element): Element[] => Array.from(strip(c).querySelectorAll('rect.rhythm__bar--stall'))
@@ -122,6 +123,25 @@ describe('RhythmView: the stroke strip', () => {
     expect(hits(container)[29].querySelector('.rhythm__break')).not.toBeNull()
   })
 
+  it('draws the break as a dotted line across the whole chart with the word break over it', () => {
+    const { container } = view(even(120).map((g, i) => (i === 70 ? 15_000 : g)))
+    const line = breaks(container)[0]
+    const plot = Number(line.getAttribute('y1')) - Number(line.getAttribute('y2'))
+    expect(plot).toBeGreaterThanOrEqual(180) // the whole height of the plot, not a stub
+    expect(line.getAttribute('stroke-dasharray')).toBeTruthy()
+    const words = Array.from(strip(container).querySelectorAll('.rhythm__breakword')).map((t) => t.textContent)
+    expect(words).toEqual(['break'])
+    // the tooltip and the label still say break
+    fireEvent.focus(hits(container)[70])
+    expect(strip(container).querySelector('.chart__tip')!.textContent).toContain('break')
+  })
+
+  it('writes the word break over a dotted line only when the previous word is not too close', () => {
+    const { container } = view(even(120).map((g, i) => (i === 70 || i === 71 ? 15_000 : g)))
+    expect(breaks(container)).toHaveLength(2)
+    expect(strip(container).querySelectorAll('.rhythm__breakword')).toHaveLength(1)
+  })
+
   it('draws the strip for a run with too few strokes to score', () => {
     const { container } = view(even(6))
     expect(bars(container)).toHaveLength(6)
@@ -138,8 +158,8 @@ describe('RhythmView: the stroke strip', () => {
     const line = strip(container).querySelector('line.rhythm__typical')
     expect(line).not.toBeNull()
     expect(line!.getAttribute('stroke-dasharray') ?? '').not.toBe('')
-    expect(strip(container).textContent).toContain('typical 0.62 s')
-    const ticks = Array.from(strip(container).querySelectorAll('.chart__tick-y')).map((t) => t.textContent)
+    expect(container.querySelector('.rhythm__key')!.textContent).toContain('typical 0.62 s')
+    const ticks = Array.from(container.querySelectorAll('.rhythm__stripbox .chart__tick-y')).map((t) => t.textContent)
     expect(ticks.length).toBeGreaterThanOrEqual(2)
     expect(ticks.every((t) => / s$/.test(t!))).toBe(true)
   })
@@ -164,7 +184,7 @@ describe('RhythmView: the stroke strip', () => {
     const { container } = view(even(60).map((g, i) => (i === 30 ? 9000 : g)))
     const heights = bars(container).map((b) => Number(b.getAttribute('height')))
     const tallest = Math.max(...heights)
-    const plot = 180 // the drawn height of the plot
+    const plot = 190 // the drawn height of the plot
     expect(tallest).toBeLessThanOrEqual(plot)
     const others = bars(container).filter((_, i) => i !== 30).map((b) => Number(b.getAttribute('height')))
     expect(Math.min(...others)).toBeGreaterThan(plot * 0.2)
@@ -219,32 +239,68 @@ describe('RhythmView: the stroke strip', () => {
   })
 })
 
+const gapsOf = (n: number): number[] => Array.from({ length: n }, (_, i) => 400 + ((i * 37) % 500))
+const stripBox = (c: Element): Element => c.querySelector('.rhythm__stripbox')!
+
 describe('RhythmView: many strokes', () => {
-  for (const n of [150, 300, 800]) {
-    it(`draws ${n} strokes, one bar each, with no NaN or Infinity`, () => {
-      const gaps = Array.from({ length: n }, (_, i) => 400 + ((i * 37) % 500))
-      const { container } = view(gaps)
+  for (const n of [150, 300]) {
+    it(`draws ${n} strokes, one bar each, scaled to the container, with no NaN or Infinity`, () => {
+      const { container } = view(gapsOf(n))
+      expect(bars(container)).toHaveLength(n)
+      expect(hits(container)).toHaveLength(n)
+      expect(tabStops(container)).toEqual([0])
+      expect(badNumbers(container)).toEqual([])
+      const svg = strip(container)
+      expect((svg.parentElement as HTMLElement).style.overflowX).toBe('auto')
+      expect(svg.getAttribute('width')).toBe('100%')
+      expect(svg.getAttribute('viewBox')).toBe('0 0 560 240')
+      expect(svg.getAttribute('style')).toBeNull() // nothing sets a pixel width: the container decides
+      expect(svg.classList.contains('rhythm__plot--wide')).toBe(false)
+      expect(stripBox(container).querySelector('.rhythm__yaxis')).toBeNull() // the axis is inside the drawing
+      expect(svg.querySelectorAll('.chart__tick-y').length).toBeGreaterThanOrEqual(2)
+    })
+  }
+
+  for (const n of [301, 800]) {
+    it(`draws ${n} strokes at 3 units each in a scrolling box, with its own pixel width and a seconds axis beside it`, () => {
+      const { container } = view(gapsOf(n))
       expect(bars(container)).toHaveLength(n)
       expect(hits(container)).toHaveLength(n)
       expect(tabStops(container)).toEqual([0])
       expect(badNumbers(container)).toEqual([])
       const svg = strip(container)
       const scroller = svg.parentElement as HTMLElement
+      expect(scroller.classList.contains('rhythm__scroll')).toBe(true)
       expect(scroller.style.overflowX).toBe('auto')
-      if (n <= 300) {
-        // fits the container: scaled down, nothing to scroll
-        expect(svg.getAttribute('width')).toBe('100%')
-      } else {
-        // wider than the container: kept at a readable bar width and scrolled inside its own box
-        const width = Number(svg.getAttribute('width'))
-        expect(width).toBeGreaterThan(n * 2)
-        expect(svg.getAttribute('viewBox')).toBe(`0 0 ${width} 240`)
-        expect(svg.getAttribute('style') ?? '').toContain('max-width: none')
-        const widths = bars(container).map((b) => Number(b.getAttribute('width')))
-        expect(Math.min(...widths)).toBeGreaterThanOrEqual(1.5)
-      }
+      const width = Number(svg.getAttribute('width'))
+      expect(width).toBe(6 + 12 + n * 3)
+      expect(svg.getAttribute('viewBox')).toBe(`0 0 ${width} 240`)
+      // the generic .chart rule says width: 100%, which beats the attribute: the drawing must say its width in style
+      const style = (svg as HTMLElement).style
+      expect(style.width).toBe(`${width}px`)
+      expect(style.maxWidth).toBe('none')
+      expect(svg.classList.contains('rhythm__plot--wide')).toBe(true)
+      expect(Math.min(...bars(container).map((b) => Number(b.getAttribute('width'))))).toBeGreaterThanOrEqual(1.5)
+      // the seconds axis is a drawing of its own beside the scrolling box, not inside it
+      const axis = stripBox(container).querySelector('.rhythm__yaxis')!
+      expect(axis).not.toBeNull()
+      expect(axis.parentElement).toBe(stripBox(container))
+      expect(scroller.contains(axis)).toBe(false)
+      expect(Array.from(axis.querySelectorAll('.chart__tick-y')).every((t) => / s$/.test(t.textContent!))).toBe(true)
+      expect(svg.querySelectorAll('.chart__tick-y')).toHaveLength(0)
+      expect(svg.querySelectorAll('line.chart__grid').length).toBeGreaterThanOrEqual(2)
+      // same vertical scale: the axis and the plot are both 240 tall
+      expect(axis.getAttribute('viewBox')).toMatch(/ 240$/)
     })
   }
+
+  it('moves on to the first stroke past the boundary at 301 and still has one tab stop', () => {
+    const { container } = view(gapsOf(301))
+    hits(container)[0].focus()
+    fireEvent.keyDown(hits(container)[0], { key: 'End' })
+    expect(document.activeElement).toBe(hits(container)[300])
+    expect(tabStops(container)).toEqual([300])
+  })
 
   it('keeps the tooltip of a far-right bar inside the drawing', () => {
     const gaps = Array.from({ length: 800 }, (_, i) => 400 + ((i * 37) % 500))
@@ -314,5 +370,64 @@ describe('RhythmView: the quarters', () => {
   it('the quarters chart has one tab stop of its own', () => {
     const { container } = view(even(60))
     expect(container.querySelectorAll('.rhythm__quarters [tabindex="0"]')).toHaveLength(1)
+  })
+})
+
+describe('RhythmView: a quarter with no data', () => {
+  it('shows a dash in its slot and in its label, not an empty slot', () => {
+    // no correct stroke in the third quarter (strokes 30 to 44 of 60)
+    const { container } = view(even(60), testRow(), (i) => !(i >= 30 && i <= 44))
+    const quarters = container.querySelector('.rhythm__quarters')!
+    const groups = Array.from(quarters.querySelectorAll('g.chart__hit'))
+    expect(groups).toHaveLength(4)
+    expect(groups[2].getAttribute('aria-label')).toBe('3rd quarter: — (not enough strokes)')
+    expect(groups[2].querySelector('rect.rhythm__qbar')).toBeNull()
+    expect(groups[2].querySelector('.rhythm__qnone')!.textContent).toBe('—')
+    expect(groups[0].querySelector('rect.rhythm__qbar')).not.toBeNull()
+    expect(groups[0].querySelector('.rhythm__qnone')).toBeNull()
+    expect(quarters.querySelectorAll('rect.rhythm__qbar')).toHaveLength(3)
+  })
+})
+
+// jsdom lays nothing out, so a stylesheet that squeezes the wide strip back to its container cannot be seen in the other
+// tests (that is how the first version shipped: `.chart { width: 100% }` beat the svg's width attribute). These read the
+// rules themselves; the measured widths in a real browser are in the task report.
+describe('progress.css: the rules the long strip depends on', () => {
+  const css = readFileSync('src/ui/progress.css', 'utf8') // vitest runs from the project root
+  const body = (selector: string): string => {
+    const at = css.indexOf(`${selector} {`)
+    return at < 0 ? '' : css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at))
+  }
+
+  it('releases the wide drawing from the generic .chart width, with a more specific selector placed after it', () => {
+    const generic = body('.chart')
+    expect(generic).toMatch(/width:\s*100%/) // the rule being overridden
+    expect(generic).toMatch(/max-width:\s*40rem/)
+    const wide = body('.rhythm__strip .chart.rhythm__plot--wide')
+    expect(wide).toMatch(/max-width:\s*none/)
+    expect(wide).toMatch(/margin-inline:\s*0/)
+    // more specific than `.rhythm__strip .chart` (which caps the strip at a reading width) and written after it
+    expect(css.indexOf('.rhythm__strip .chart.rhythm__plot--wide {')).toBeGreaterThan(css.indexOf('.rhythm__strip .chart {'))
+    expect(css.indexOf('.rhythm__strip .chart {')).toBeGreaterThan(css.indexOf('\n.chart {'))
+  })
+
+  it('lets the strip use the width of the panel up to a reading width', () => {
+    expect(body('.rhythm__strip .chart')).toMatch(/max-width:\s*44rem/)
+  })
+
+  it('keeps the scrolling box shrinkable beside the axis, in a row', () => {
+    expect(body('.rhythm__stripbox')).toMatch(/display:\s*flex/)
+    expect(body('.rhythm__scroll')).toMatch(/min-width:\s*0/)
+    expect(body('.rhythm__yaxis')).toMatch(/flex:\s*none/)
+  })
+
+  it('draws stalls with the --stall token, defined once in :root of reader.css with the keyboard miss red', () => {
+    const reader = readFileSync('src/ui/reader.css', 'utf8')
+    const board = readFileSync('src/ui/board.css', 'utf8')
+    const stall = /:root\s*\{[^}]*--stall:\s*(#[0-9a-f]{6})/.exec(reader)?.[1]
+    expect(stall).toBeTruthy()
+    expect(stall).toBe(/--miss:\s*(#[0-9a-f]{6})/.exec(board)?.[1])
+    expect(body('.rhythm__bar--stall')).toMatch(/fill:\s*var\(--stall\)/)
+    expect(css).not.toMatch(/--stall:/) // not redefined here
   })
 })

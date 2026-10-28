@@ -723,10 +723,9 @@
   max-width: 22rem;
 }
 
-/* Panel 4 and the History page: the rhythm of one run. The stall red is the keyboard's miss red. */
+/* Panel 4 and the History page: the rhythm of one run. A stall is drawn in --stall (reader.css). */
 
 .rhythm {
-  --stall: #e0645c;
   margin-top: 0.5rem;
 }
 
@@ -776,10 +775,61 @@
   font-weight: 600;
 }
 
-/* a long run is wider than the box and scrolls inside it */
-.rhythm__scroll {
+/* the strip: on the screen as wide as the figures above it, up to a reading width */
+.rhythm__strip .chart {
+  max-width: 44rem;
+}
+
+/*
+ * A run of more than 300 strokes is drawn at 3 px a stroke, wider than its container, in a box that scrolls sideways;
+ * its seconds axis is a drawing of its own beside the box (so the scale stays in view). The generic `.chart` rule sets
+ * `width: 100%` and `max-width: 40rem`, which would squeeze the drawing back to the container: this rule has the
+ * higher specificity (three classes, above `.rhythm__strip .chart`) and the drawing also states its own pixel width in its style. Guarded in
+ * tests/ui/progress/RhythmView.test.tsx, since jsdom lays nothing out.
+ */
+.rhythm__strip .chart.rhythm__plot--wide {
+  max-width: none;
+  margin-inline: 0;
+  flex: none;
+}
+
+.rhythm__stripbox {
+  display: flex;
+  align-items: flex-start;
   margin-top: 0.25rem;
+}
+
+.rhythm__yaxis {
+  flex: none;
+  display: block;
+  overflow: visible;
+}
+
+.rhythm__scroll {
+  flex: 1 1 0;
+  min-width: 0;
   padding-bottom: 0.25rem;
+}
+
+.rhythm__xtitle {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.rhythm__key {
+  margin: 0.4rem 0 0;
+  color: var(--heading);
+  font-size: 0.85rem;
+}
+
+.rhythm__sample {
+  display: inline-block;
+  width: 1.6rem;
+  margin-right: 0.3rem;
+  border-top: 2px dashed var(--text);
+  vertical-align: middle;
 }
 
 .rhythm__bar {
@@ -793,8 +843,14 @@
 }
 
 .rhythm__break {
-  stroke: var(--muted);
+  stroke: var(--text);
+  stroke-opacity: 0.8;
   stroke-linecap: butt;
+}
+
+.rhythm__breakword {
+  fill: var(--heading);
+  font-size: 12px;
 }
 
 .rhythm__capmark {
@@ -805,16 +861,6 @@
 .rhythm__typical {
   stroke: var(--text);
   stroke-width: 1.5;
-}
-
-.rhythm__typical-label {
-  fill: var(--heading);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.rhythm__axis {
-  font-size: 13px;
 }
 
 .rhythm__qrow {

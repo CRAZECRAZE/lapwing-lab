@@ -61,19 +61,23 @@ export function ChartSvg({
   label,
   children,
   width,
+  className,
 }: {
   label: string
   children: ComponentChildren
   /** A drawing wider than the standard one is shown at that many pixels (1 unit is 1 px), not scaled down to fit. */
   width?: number
+  /** Extra classes (a wide drawing needs one to be released from the generic `.chart` width: see progress.css). */
+  className?: string
 }): JSX.Element {
   const wide = width !== undefined && width > VIEW_W
   return (
     <svg
-      class="chart"
+      class={className ? `chart ${className}` : 'chart'}
       viewBox={`0 0 ${wide ? num(width) : VIEW_W} ${VIEW_H}`}
       width={wide ? num(width) : '100%'}
-      style={wide ? { maxWidth: 'none', marginInline: 0 } : undefined}
+      // the generic `.chart` rule sets `width: 100%`, which beats the attribute: a wide drawing says its width in style
+      style={wide ? { width: `${num(width)}px`, maxWidth: 'none', marginInline: 0 } : undefined}
       role="group"
       aria-label={label}
     >

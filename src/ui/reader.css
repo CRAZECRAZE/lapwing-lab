@@ -12,6 +12,7 @@
   --vowel: #5b9bd5;
   --right: #a07ad8;
   --ok: #6fae7e;
+  --stall: #e0645c; /* a stalled stroke on the rhythm strip: the same red as the keyboard's --miss (board.css) */
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --topbar-h: 2.75rem; /* height of the sticky tab bar; sticky offsets below sit under it */
 }

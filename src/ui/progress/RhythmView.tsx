@@ -13,12 +13,15 @@ type RunInfo = Pick<TestRow, 'wpm' | 'accuracy' | 'meta'>
 type StrokeInfo = Pick<StrokeRecord, 'tsMs' | 'correct' | 'latencyMs'>
 
 // The strip: room on the left for the seconds, under for the stroke numbers and their title.
-const STRIP_MARGINS: Margins = { l: 52, r: 12, t: 26, b: 44 }
+const STRIP_MARGINS: Margins = { l: 52, r: 12, t: 22, b: 28 }
+/** The wide drawing has no axis inside it: that is the drawing of its own beside the scrolling box. */
+const WIDE_MARGINS: Margins = { l: 6, r: 12, t: 22, b: 28 }
+const AXIS_W = 52
+/** Words `break` over the dotted lines are at least this far apart (drawing units). */
+const BREAK_WORD_ROOM = 40
 /** A run with more strokes than this is drawn wider than its container, this many units per stroke, and scrolls. */
 const MAX_FIT = 300
 const WIDE_SLOT = 3
-/** The height of the dotted mark that stands for a break. */
-const BREAK_MARK = 16
 const QUARTER_MARGINS: Margins = { l: 46, r: 12, t: 24, b: 30 }
 const QUARTER_NAMES = ['1st', '2nd', '3rd', '4th']
 
@@ -104,8 +107,13 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
   const n = gaps.length
   const { active, props: point } = useChartPoints(n)
 
-  const width = n > MAX_FIT ? STRIP_MARGINS.l + STRIP_MARGINS.r + n * WIDE_SLOT : VIEW_W
-  const box: Box = { left: STRIP_MARGINS.l, right: width - STRIP_MARGINS.r, top: STRIP_MARGINS.t, bottom: VIEW_H - STRIP_MARGINS.b }
+  // Up to MAX_FIT strokes the drawing is scaled to its container with the seconds axis inside it. A longer run is drawn
+  // at 3 px a stroke in a box that scrolls sideways, and its seconds axis is a drawing of its own beside the box, so the
+  // scale stays in view while the strokes scroll.
+  const wide = n > MAX_FIT
+  const m: Margins = wide ? WIDE_MARGINS : STRIP_MARGINS
+  const width = wide ? m.l + m.r + n * WIDE_SLOT : VIEW_W
+  const box: Box = { left: m.l, right: width - m.r, top: m.t, bottom: VIEW_H - m.b }
   const slot = (box.right - box.left) / n
   const barWidth = clamp(slot * 0.7, 1.5, 14)
   const centre = (i: number): number => num(box.left + slot * (i + 0.5))
@@ -116,83 +124,118 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
   const yOf = (ms: number): number => num(y(clamp(ms / 1000, 0, topSeconds)))
   const left = ticks(topSeconds).map((v) => ({ value: v, y: y(v), text: tickSeconds(v) }))
 
-  const most = n > MAX_FIT ? 60 : labelsThatFit(box.right - box.left, textWidth(String(n)), 10)
+  const most = wide ? 60 : labelsThatFit(box.right - box.left, textWidth(String(n)), 10)
   const labels = dateTickOffsets(n - 1, most).map((i) => ({ x: centre(i), text: String(i + 1) }))
 
-  const label = (i: number): string => {
+  const detail = (i: number): string => {
     const g = gaps[i]
-    return `Stroke ${i + 1}: ${pause(g.ms)} pause${g.kind === 'normal' ? '' : `, ${g.kind}`}`
+    return `${pause(g.ms)} pause${g.kind === 'normal' ? '' : `, ${g.kind}`}`
   }
+  const label = (i: number): string => `Stroke ${i + 1}: ${detail(i)}`
   const typicalY = typicalGapMs === null ? null : yOf(typicalGapMs)
-  const typicalText = typicalGapMs === null ? '' : `typical ${seconds2(typicalGapMs)}`
+
+  // a `break` word over the dotted line, unless another is close to it
+  const breakWords = new Set<number>()
+  let lastWord = -Infinity
+  gaps.forEach((g, i) => {
+    if (g.kind === 'break' && centre(i) - lastWord >= BREAK_WORD_ROOM) {
+      breakWords.add(i)
+      lastWord = centre(i)
+    }
+  })
 
   const rows = gaps.map((g, i) => ({ key: String(i), cells: [String(i + 1), (g.ms / 1000).toFixed(2), g.kind] }))
   const shown = active !== null ? gaps[active] : null
-  const shownY = shown === null ? 0 : shown.kind === 'break' ? box.bottom - BREAK_MARK : yOf(shown.ms)
+  const shownY = shown === null ? 0 : shown.kind === 'break' ? box.top : yOf(shown.ms)
 
   return (
     <div class="rhythm__strip">
       <h3 class="rhythm__sub">Pause before each stroke</h3>
-      <div class="rhythm__scroll" style={{ overflowX: 'auto' }}>
-        <ChartSvg label={`Chart of the pause before each of ${plural(n, 'stroke')}`} width={width}>
-          <Grid box={box} left={left} />
-          <XLabels labels={labels} y={box.bottom + 18} />
-          <text class="chart__tick rhythm__axis" x={num((box.left + box.right) / 2)} y={VIEW_H - 4} text-anchor="middle">
-            Stroke number
-          </text>
-          {gaps.map((g, i) => {
-            const x = centre(i)
-            const isBreak = g.kind === 'break'
-            const top = isBreak ? box.bottom : yOf(g.ms)
-            const capped = !isBreak && g.ms / 1000 > topSeconds
-            return (
-              <g key={i} class="chart__hit" role="img" aria-label={label(i)} {...point(i)}>
-                <rect class="chart__column" x={num(x - Math.max(slot, 1) / 2)} y={box.top} width={num(Math.max(slot, 1))} height={num(box.bottom - box.top)} />
-                {isBreak ? (
-                  <line
-                    class="rhythm__break"
-                    x1={x}
-                    x2={x}
-                    y1={num(box.bottom)}
-                    y2={num(box.bottom - BREAK_MARK)}
-                    stroke-dasharray="2 2"
-                    stroke-width={num(Math.max(barWidth, 2))}
-                  />
-                ) : (
-                  <rect
-                    class={g.kind === 'stall' ? 'rhythm__bar rhythm__bar--stall' : 'rhythm__bar'}
-                    x={num(x - barWidth / 2)}
-                    y={top}
-                    width={num(barWidth)}
-                    height={num(box.bottom - top)}
-                  />
-                )}
-                {capped && <line class="rhythm__capmark" x1={num(x - 3)} x2={num(x + 3)} y1={num(top - 3)} y2={num(top - 3)} />}
+      {typicalGapMs !== null && (
+        <p class="rhythm__key">
+          <span class="rhythm__sample" aria-hidden="true" /> typical {seconds2(typicalGapMs)}
+        </p>
+      )}
+      <div class="rhythm__stripbox">
+        {wide && (
+          <svg class="rhythm__yaxis" viewBox={`0 0 ${AXIS_W} ${VIEW_H}`} width={AXIS_W} height={VIEW_H} aria-hidden="true">
+            <g class="chart__axes">
+              {left.map((t) => (
+                <text key={t.value} class="chart__tick chart__tick-y" x={AXIS_W - 6} y={num(t.y + 4)} text-anchor="end">
+                  {t.text}
+                </text>
+              ))}
+            </g>
+          </svg>
+        )}
+        <div class="rhythm__scroll" style={{ overflowX: 'auto' }}>
+          <ChartSvg
+            label={`Chart of the pause before each of ${plural(n, 'stroke')}`}
+            width={wide ? width : undefined}
+            className={wide ? 'rhythm__plot rhythm__plot--wide' : 'rhythm__plot'}
+          >
+            {wide ? (
+              <g class="chart__axes">
+                {left.map((t) => (
+                  <line key={t.value} class="chart__grid" data-value={t.value} x1={box.left} x2={box.right} y1={num(t.y)} y2={num(t.y)} />
+                ))}
               </g>
-            )
-          })}
-          {typicalY !== null && (
-            <>
-              <line class="rhythm__typical" x1={box.left} x2={box.right} y1={typicalY} y2={typicalY} stroke-dasharray="6 4" />
-              <line class="rhythm__typical" x1={num(box.right - textWidth(typicalText) * 0.85 - 30)} x2={num(box.right - textWidth(typicalText) * 0.85 - 6)} y1={num(box.top - 12)} y2={num(box.top - 12)} stroke-dasharray="6 4" />
-              <text class="rhythm__typical-label" x={num(box.right)} y={num(box.top - 8)} text-anchor="end">
-                {typicalText}
-              </text>
-            </>
-          )}
-          {shown && (
-            <Tip
-              x={centre(active!)}
-              y={shownY}
-              width={width}
-              lines={[`Stroke ${active! + 1}`, `${pause(shown.ms)} pause${shown.kind === 'normal' ? '' : `, ${shown.kind}`}`]}
-            />
-          )}
-        </ChartSvg>
+            ) : (
+              <Grid box={box} left={left} />
+            )}
+            <XLabels labels={labels} y={box.bottom + 18} />
+            {gaps.map((g, i) => {
+              const x = centre(i)
+              const isBreak = g.kind === 'break'
+              const top = isBreak ? box.bottom : yOf(g.ms)
+              const capped = !isBreak && g.ms / 1000 > topSeconds
+              return (
+                <g key={i} class="chart__hit" role="img" aria-label={label(i)} {...point(i)}>
+                  <rect class="chart__column" x={num(x - Math.max(slot, 1) / 2)} y={box.top} width={num(Math.max(slot, 1))} height={num(box.bottom - box.top)} />
+                  {isBreak ? (
+                    <>
+                      <line
+                        class="rhythm__break"
+                        x1={x}
+                        x2={x}
+                        y1={num(box.bottom)}
+                        y2={num(box.top)}
+                        stroke-dasharray="3 3"
+                        stroke-width={num(Math.max(barWidth, 2))}
+                      />
+                      {breakWords.has(i) && (
+                        <text
+                          class="rhythm__breakword"
+                          x={x}
+                          y={num(box.top - 4)}
+                          text-anchor={x - box.left < 20 ? 'start' : box.right - x < 20 ? 'end' : 'middle'}
+                        >
+                          break
+                        </text>
+                      )}
+                    </>
+                  ) : (
+                    <rect
+                      class={g.kind === 'stall' ? 'rhythm__bar rhythm__bar--stall' : 'rhythm__bar'}
+                      x={num(x - barWidth / 2)}
+                      y={top}
+                      width={num(barWidth)}
+                      height={num(box.bottom - top)}
+                    />
+                  )}
+                  {capped && <line class="rhythm__capmark" x1={num(x - 3)} x2={num(x + 3)} y1={num(top - 3)} y2={num(top - 3)} />}
+                </g>
+              )
+            })}
+            {typicalY !== null && <line class="rhythm__typical" x1={box.left} x2={box.right} y1={typicalY} y2={typicalY} stroke-dasharray="6 4" />}
+            {shown && <Tip x={centre(active!)} y={shownY} width={width} lines={[`Stroke ${active! + 1}`, detail(active!)]} />}
+          </ChartSvg>
+        </div>
       </div>
+      <p class="rhythm__xtitle">Stroke number</p>
       <p class="panel__note">
         This run: {plural(rhythm.stalls, 'stall')}, {plural(rhythm.breaks, 'break')}. Each bar is the pause before one stroke; red bars are
-        stalls. A dotted mark is a break: a pause over 10 seconds, left out of the scores. A short line over a bar means it is taller
+        stalls. A dotted line marked break is a pause over 10 seconds, left out of the scores. A short line over a bar means it is taller
         than the chart. The dashed line is your typical gap.
       </p>
       <DataTable
@@ -235,7 +278,7 @@ function Quarters({
   const centre = (i: number): number => num(box.left + slot * (i + 0.5))
   const text = (q: number | null): string => (q === null ? '—' : q.toFixed(1))
   const left = ticks(top).map((v) => ({ value: v, y: y(v), text: String(v) }))
-  const name = (i: number): string => `${QUARTER_NAMES[i]} quarter: ${quarters[i] === null ? 'not enough strokes' : `${text(quarters[i])} wpm, estimated`}`
+  const name = (i: number): string => `${QUARTER_NAMES[i]} quarter: ${quarters[i] === null ? '— (not enough strokes)' : `${text(quarters[i])} wpm, estimated`}`
   const rows = quarters.map((q, i) => ({
     key: QUARTER_NAMES[i],
     cells: [QUARTER_NAMES[i], text(q), String(rhythm.quarters![i].correct)],
@@ -253,7 +296,11 @@ function Quarters({
             {quarters.map((q, i) => (
               <g key={i} class="chart__hit" role="img" aria-label={name(i)} {...point(i)}>
                 <rect class="chart__column" x={num(centre(i) - slot / 2)} y={box.top} width={num(slot)} height={num(box.bottom - box.top)} />
-                {q !== null && (
+                {q === null ? (
+                  <text class="rhythm__qvalue rhythm__qnone" x={centre(i)} y={num(box.bottom - 8)} text-anchor="middle">
+                    —
+                  </text>
+                ) : (
                   <>
                     <rect class="chart__bar rhythm__qbar" x={num(centre(i) - barWidth / 2)} y={num(y(q))} width={num(barWidth)} height={num(box.bottom - y(q))} />
                     <text class="rhythm__qvalue" x={centre(i)} y={num(y(q) - 6)} text-anchor="middle">

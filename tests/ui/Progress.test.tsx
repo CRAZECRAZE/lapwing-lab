@@ -438,7 +438,6 @@ describe('Progress loading, failure and empty states', () => {
     expect(screen.queryByRole('list', { name: 'Headline figures' })).toBeNull()
     gate.resolve(statsOf(QUALITY))
     await flush()
-    await flush() // the rhythm panel asks for its runs once the page is in
     expect(screen.queryByText('Loading…')).toBeNull()
     expect(screen.getByRole('list', { name: 'Headline figures' })).toBeTruthy()
   })
@@ -598,6 +597,38 @@ describe('Progress chart panels', () => {
     expect(heading.closest('section')!.querySelectorAll('rect.rhythm__bar')).toHaveLength(30)
     expect(heading.closest('section')!.textContent).toContain('Oct 27, 14:05 · Free type · 20.0 wpm')
     expect(allCalls(fn, '/api/tests/7')).toHaveLength(1)
+  })
+
+  it('keeps the picked run when the range is switched, and asks for nothing again', async () => {
+    const at = new Date(2026, 9, 27, 14, 5).getTime()
+    const rowOf = (id: number) => ({ id, sessionId: 1, startedAt: at + id * 1000, endedAt: at + id * 1000 + 60000, mode: 'free', chapter: null, section: null, itemCount: 30, wpm: 20, accuracy: 0.9, meta: { elapsedMs: 18000 } })
+    const strokesOf = (id: number) => Array.from({ length: 30 }, (_, i) => ({ testId: id, tsMs: at + i * 600, prompt: 'w', expected: ['SAP'], pressedLevers: [], pressedMask: 0, correct: true, latencyMs: 600, attemptNo: 1 }))
+    const fn = stub({
+      tests: (url) => {
+        const one = /^\/api\/tests\/(\d+)$/.exec(url.pathname)
+        if (one) return { test: rowOf(Number(one[1])), strokes: strokesOf(Number(one[1])) }
+        return [7, 6].map((id) => ({ ...rowOf(id), strokeCount: 30, firstStrokeAt: at + id * 1000, lastStrokeAt: at + id * 1000 + 18000 }))
+      },
+    })
+    await mount()
+    await flush()
+    await flush()
+    const select = (): HTMLSelectElement => screen.getByLabelText('Run') as HTMLSelectElement
+    expect(select().value).toBe('7')
+    fireEvent.change(select(), { target: { value: '6' } })
+    await flush()
+    await flush()
+    expect(allCalls(fn, '/api/tests/6')).toHaveLength(1)
+    const lists = allCalls(fn, '/api/tests').length
+    const strokes7 = allCalls(fn, '/api/tests/7').length
+    click('3 months')
+    await flush()
+    await flush()
+    expect(screen.getByRole('heading', { name: 'Rhythm: how steady you type' })).toBeTruthy() // the panel is back
+    expect(select().value).toBe('6')
+    expect(allCalls(fn, '/api/tests')).toHaveLength(lists)
+    expect(allCalls(fn, '/api/tests/6')).toHaveLength(1)
+    expect(allCalls(fn, '/api/tests/7')).toHaveLength(strokes7)
   })
 
   it('draws the dots of the days practiced and the weeks of the range from the fetched data', async () => {

@@ -13,6 +13,8 @@ import { RhythmPanel } from './progress/RhythmPanel.tsx'
 import { Tiles } from './progress/Tiles.tsx'
 import type { ReadyData } from './progress/Tiles.tsx'
 import { useProgressData } from './progress/useProgressData.ts'
+import { useRhythm } from './progress/useRhythm.ts'
+import type { RhythmState } from './progress/useRhythm.ts'
 import { WeakKeys } from './progress/WeakKeys.tsx'
 import { WeeklyBars } from './progress/WeeklyBars.tsx'
 import { WpmByDay } from './progress/WpmByDay.tsx'
@@ -58,6 +60,8 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
   const [range, setRange] = useState<RangeId>('4w')
   const [mode, setMode] = useState<StatsMode>('free')
   const data = useProgressData(range, mode, today)
+  // the rhythm panel's runs and pick live here: the panels are rebuilt each time the numbers reload
+  const rhythm = useRhythm(mode)
   const year = useYearDays(today) // not part of `data`: the year does not depend on the range or the mode
 
   return (
@@ -79,13 +83,13 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
           </button>
         </p>
       )}
-      {data.stats !== null && data.days !== null && <Panels data={data as ReadyData} year={year} />}
+      {data.stats !== null && data.days !== null && <Panels data={data as ReadyData} year={year} rhythm={rhythm} />}
     </section>
   )
 }
 
 /** Everything under the switches once the data is in, in the order of the panels. */
-function Panels({ data, year }: { data: ReadyData; year: YearDays }): JSX.Element {
+function Panels({ data, year, rhythm }: { data: ReadyData; year: YearDays; rhythm: RhythmState }): JSX.Element {
   if (data.days.length === 0 && data.stats.allTimeStrokes === 0) {
     return <p class="progress__muted">No practice recorded yet.</p>
   }
@@ -94,7 +98,7 @@ function Panels({ data, year }: { data: ReadyData; year: YearDays }): JSX.Elemen
       <Tiles data={data} />
       <WpmByDay data={data} />
       <AccuracyConsistency data={data} />
-      <RhythmPanel data={data} />
+      <RhythmPanel data={data} rhythm={rhythm} />
       <WeeklyBars data={data} />
       <WeakKeys data={data} />
       <Mixups data={data} />
