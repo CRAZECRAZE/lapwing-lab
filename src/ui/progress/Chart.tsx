@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks'
 import { addDays } from '../../core/days.ts'
 import { daysBetween } from '../../core/progressview.ts'
 import type { RangeId } from '../../core/progressview.ts'
-import { dateTickOffsets, num, scaleLinear, shortDate } from '../../core/chartmath.ts'
+import { dateTickOffsets, labelsThatFit, num, scaleLinear, shortDate, textWidth } from '../../core/chartmath.ts'
 
 // The drawing is a fixed 560 by 240 box that the browser scales to the width of its container.
 export const VIEW_W = 560
@@ -56,10 +56,10 @@ export function NotEnough(): JSX.Element {
   )
 }
 
-/** The drawing: scales with its container, and is one picture with a summary for a screen reader. */
+/** The drawing: scales with its container. A group with a summary label, around the points a keyboard can reach. */
 export function ChartSvg({ label, children }: { label: string; children: ComponentChildren }): JSX.Element {
   return (
-    <svg class="chart" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" role="img" aria-label={label}>
+    <svg class="chart" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" role="group" aria-label={label}>
       {children}
     </svg>
   )
@@ -121,18 +121,49 @@ export function Tip({ x, y, lines }: { x: number; y: number; lines: string[] }):
   )
 }
 
-type Handlers = { onFocus: () => void; onBlur: () => void; onMouseEnter: () => void; onMouseLeave: () => void }
+type PointProps = {
+  tabindex: number
+  onFocus: () => void
+  onBlur: () => void
+  onClick: () => void
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+  onKeyDown: (e: KeyboardEvent) => void
+}
 
-/** Which dot or bar is hovered or focused, and the handlers to give each one. */
-export function useActive(): [number | null, (index: number) => Handlers] {
+/**
+ * The reachable points of one chart (dots, columns or bars) with a roving tabindex: the chart is one tab stop (the
+ * point whose index is `stop` has tabindex 0, the others -1), the arrow keys move along the points (clamped, no wrap),
+ * Home and End go to the first and last, and a point that is clicked or focused becomes the stop.
+ * `active` is the point to show a tooltip for: the hovered or focused one.
+ */
+export function useChartPoints(count: number): { active: number | null; stop: number; props: (index: number) => PointProps } {
   const [active, setActive] = useState<number | null>(null)
-  const bind = (index: number): Handlers => ({
-    onFocus: () => setActive(index),
+  const [stopped, setStop] = useState(0)
+  const stop = Math.min(stopped, Math.max(0, count - 1))
+  const props = (index: number): PointProps => ({
+    tabindex: index === stop ? 0 : -1,
+    onFocus: () => {
+      setActive(index)
+      setStop(index)
+    },
     onBlur: () => setActive((a) => (a === index ? null : a)),
+    onClick: () => setStop(index),
     onMouseEnter: () => setActive(index),
     onMouseLeave: () => setActive((a) => (a === index ? null : a)),
+    onKeyDown: (e) => {
+      const target =
+        e.key === 'ArrowRight' ? index + 1 : e.key === 'ArrowLeft' ? index - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? count - 1 : null
+      if (target === null) return
+      e.preventDefault()
+      const next = Math.min(Math.max(target, 0), count - 1)
+      if (next === index) return
+      const points = (e.currentTarget as Element).closest('svg')?.querySelectorAll<SVGElement>('g.chart__hit')
+      setStop(next)
+      points?.[next]?.focus()
+    },
   })
-  return [active, bind]
+  return { active, stop, props }
 }
 
 /** The numbers behind a chart, in a table under a `Show the numbers` summary. The first column heads each row. */
@@ -216,7 +247,9 @@ export function dayAxis(
   const pad = 10
   const scale = scaleLinear([0, span], [box.left + pad, box.right - pad])
   const xOf = (date: string): number => num(scale(daysBetween(start, date)))
-  const labels = dateTickOffsets(span, 6).map((o) => {
+  // at most 6 labels, fewer when a long label (with its year) would run into the next one
+  const most = labelsThatFit(box.right - box.left, textWidth(manyYears ? 'Oct 23 2026' : 'Oct 23'), 6)
+  const labels = dateTickOffsets(span, most).map((o) => {
     const d = addDays(start, o)
     return { x: xOf(d), text: shortDate(d, manyYears) }
   })

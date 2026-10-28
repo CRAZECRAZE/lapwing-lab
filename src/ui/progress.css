@@ -236,18 +236,22 @@
 
 .chart__bar--grey {
   fill: var(--muted);
-  fill-opacity: 0.45;
+  fill-opacity: 0.7; /* 3.3:1 against the panel (solid --muted is 5.3:1); still quieter than the green line */
 }
 
 .chart__bar--now {
-  fill-opacity: 0.45;
+  fill-opacity: 0.7; /* 3.5:1 against the panel, lighter than the full bars; the dashed outline marks it too */
   stroke: var(--vowel);
   stroke-dasharray: 4 3;
 }
 
+/* The band is read by its two dashed edges (--text on the panel is 12:1); the fill only shades it */
 .chart__band {
   fill: var(--muted);
-  fill-opacity: 0.18;
+  fill-opacity: 0.15;
+  stroke: var(--text);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
 }
 
 /* Dots and bars you can reach: a ring or an outline on hover and keyboard focus */

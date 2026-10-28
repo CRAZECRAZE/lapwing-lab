@@ -138,3 +138,26 @@ export function compactCount(n: number): string {
   if (n < 1000) return String(Math.round(n))
   return `${(Math.round(n / 100) / 10).toString()}k`
 }
+
+/** Drawn width, in viewBox units, of one character of the 14px axis text (digits are the widest, about 8). */
+export const CHAR_WIDTH = 8
+
+/** The estimated drawn width of a label. */
+export function textWidth(text: string): number {
+  return text.length * CHAR_WIDTH
+}
+
+/**
+ * How many slots apart labels must be so that labels `width` wide, in slots `slot` wide, keep `gap` between them:
+ * 1 means every slot can hold one. Always a whole number, at least 1.
+ */
+export function labelStep(width: number, slot: number, gap = 8): number {
+  if (!Number.isFinite(width) || !Number.isFinite(slot) || slot <= 0) return 1e9
+  return Math.max(1, Math.ceil((width + gap) / slot))
+}
+
+/** How many labels of `width` fit side by side along `room`, between 2 and `most`. */
+export function labelsThatFit(room: number, width: number, most: number): number {
+  const fit = Number.isFinite(room) && Number.isFinite(width) ? Math.floor(room / (width + 12)) : 2
+  return Math.max(2, Math.min(most, fit))
+}

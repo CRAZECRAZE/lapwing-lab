@@ -114,10 +114,8 @@ describe('WpmByDay words, labels and tooltips', () => {
   it('makes every dot focusable with a label of the day, the wpm and the runs', () => {
     const { container } = render(<WpmByDay data={ready({ days: THREE })} />)
     const dots = dotsOf(container)
-    for (const d of dots) {
-      expect(d.getAttribute('tabindex')).toBe('0')
-      expect(d.getAttribute('role')).toBe('img')
-    }
+    expect(dots.map((d) => d.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']) // one tab stop, arrows for the rest
+    for (const d of dots) expect(d.getAttribute('role')).toBe('img')
     expect(dots.map((d) => d.getAttribute('aria-label'))).toEqual([
       'Oct 14: 17.0 wpm over 3 runs',
       'Oct 20: 8.0 wpm over 2 runs',
@@ -150,7 +148,7 @@ describe('WpmByDay words, labels and tooltips', () => {
   it('summarises the chart in the label of the drawing', () => {
     const { container } = render(<WpmByDay data={ready({ days: THREE })} />)
     const svg = container.querySelector('svg')!
-    expect(svg.getAttribute('role')).toBe('img')
+    expect(svg.getAttribute('role')).toBe('group')
     expect(svg.getAttribute('aria-label')).toBe('Line chart of wpm by day, 3 days, from 8.0 to 17.0')
     expect(svg.getAttribute('viewBox')).toBeTruthy()
   })
@@ -224,5 +222,56 @@ describe('WpmByDay title, explanation and empty states', () => {
     const { container } = render(<WpmByDay data={ready({ days: [] })} />)
     expect(screen.getByText('No finished runs in this range yet.')).toBeTruthy()
     expect(container.querySelector('svg')).toBeNull()
+  })
+})
+
+describe('WpmByDay trend values', () => {
+  // Days with gaps; the trend of a day is the plain mean of the daily wpm of the practiced days in the 7 calendar
+  // days ending on it (the day and the 6 before), each day counting once.
+  const GAPS = [
+    q('2026-10-01', 1, 30, 10),
+    q('2026-10-02', 1, 30, 12),
+    q('2026-10-05', 1, 30, 8),
+    q('2026-10-09', 1, 30, 14),
+    q('2026-10-10', 1, 30, 16),
+  ]
+  const EXPECTED = [10, 11, (10 + 12 + 8) / 3, (8 + 14) / 2, (8 + 14 + 16) / 3]
+
+  it('lists the 7-day trailing mean of the practiced days in the table', () => {
+    const { container } = render(<WpmByDay data={ready({ days: GAPS })} />)
+    const cells = Array.from(container.querySelectorAll('tbody tr')).map((r) => r.querySelectorAll('td')[3].textContent)
+    expect(cells).toEqual(EXPECTED.map((v) => v.toFixed(1)))
+    expect(container.querySelectorAll('thead th')[4].textContent).toBe('Trend (7-day average)')
+  })
+
+  it('draws the dashed path at those values, on the same axis as the dots', () => {
+    const { container } = render(<WpmByDay data={ready({ days: GAPS })} />)
+    const zero = baseline(container)
+    const top = Number(container.querySelector('line[data-value="20"]')!.getAttribute('y1')) // the axis tops at 20
+    const ys = Array.from(trendOf(container)!.getAttribute('d')!.matchAll(/[ML][\d.]+ ([\d.]+)/g)).map((m) => Number(m[1]))
+    expect(ys).toHaveLength(5)
+    ys.forEach((y, i) => expect(zero - y).toBeCloseTo(((zero - top) * EXPECTED[i]) / 20, 1))
+  })
+
+  it('says under the chart that the dashed line counts each day once', () => {
+    render(<WpmByDay data={ready({ days: GAPS })} />)
+    expect(screen.getByText('Dashed line: the 7-day average of the daily values (each day counts once).')).toBeTruthy()
+  })
+})
+
+describe('WpmByDay date labels', () => {
+  it('keep clear of each other when they carry a year (days over a year end, all time)', () => {
+    const today = '2027-01-20'
+    const days = ['2026-12-20', '2026-12-28', '2027-01-03', '2027-01-12', '2027-01-19'].map((d) => q(d, 2, 60, 12))
+    const { container } = render(<WpmByDay data={ready({ days, range: 'all', today })} />)
+    const labels = Array.from(container.querySelectorAll('text.chart__tick-x')).map((t) => ({
+      x: Number(t.getAttribute('x')),
+      w: (t.textContent ?? '').length * 8,
+      text: t.textContent ?? '',
+    }))
+    expect(labels.some((l) => /20\d\d$/.test(l.text))).toBe(true)
+    for (let i = 1; i < labels.length; i++) {
+      expect(labels[i].x - labels[i].w / 2, labels.map((l) => l.text).join(' ')).toBeGreaterThanOrEqual(labels[i - 1].x + labels[i - 1].w / 2)
+    }
   })
 })

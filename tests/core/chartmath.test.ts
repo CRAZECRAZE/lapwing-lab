@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   bestPoint,
+  CHAR_WIDTH,
   cap,
   compactCount,
   dateTickOffsets,
   durationText,
+  labelsThatFit,
+  labelStep,
   linePath,
   niceMax,
   num,
   scaleLinear,
   shortDate,
   ticks,
+  textWidth,
   tickDuration,
   timeAxis,
 } from '../../src/core/chartmath.ts'
@@ -219,5 +223,34 @@ describe('durationText', () => {
     expect(durationText(-5)).toBe('0 min')
     expect(durationText(20000)).toBe('<1 min')
     expect(durationText(276 * MIN)).toBe('4 h 36 min')
+  })
+})
+
+describe('label fitting', () => {
+  it('estimates a label as its characters times the character width', () => {
+    expect(textWidth('11.3k')).toBe(5 * CHAR_WIDTH)
+    expect(textWidth('')).toBe(0)
+  })
+
+  it('gives 1 when a slot holds a label and its gap, else the number of slots a label needs', () => {
+    expect(labelStep(40, 48)).toBe(1)
+    expect(labelStep(40, 47)).toBe(2)
+    expect(labelStep(40, 18)).toBe(3)
+    expect(labelStep(0, 18)).toBe(1)
+  })
+
+  it('stays a usable whole number for a zero, negative or non-finite slot', () => {
+    for (const slot of [0, -3, NaN, Infinity]) {
+      const n = labelStep(40, slot)
+      expect(Number.isInteger(n) && n >= 1).toBe(true)
+    }
+    expect(labelStep(NaN, 10)).toBeGreaterThanOrEqual(1)
+  })
+
+  it('fits between 2 and the most labels along a room', () => {
+    expect(labelsThatFit(480, 48, 6)).toBe(6)
+    expect(labelsThatFit(480, 88, 6)).toBe(4)
+    expect(labelsThatFit(100, 88, 6)).toBe(2)
+    expect(labelsThatFit(NaN, 88, 6)).toBe(2)
   })
 })

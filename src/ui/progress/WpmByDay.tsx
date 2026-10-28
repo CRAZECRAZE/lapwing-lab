@@ -15,7 +15,7 @@ import {
   Panel,
   spansYears,
   Tip,
-  useActive,
+  useChartPoints,
   XLabels,
 } from './Chart.tsx'
 import type { ReadyData } from './Tiles.tsx'
@@ -66,7 +66,7 @@ export function WpmByDay({ data }: { data: ReadyData }): JSX.Element {
 
 function Chart({ data, title, dots }: { data: ReadyData; title: string; dots: Dot[] }): JSX.Element {
   const { range, today } = data
-  const [active, bind] = useActive()
+  const { active, props: point } = useChartPoints(dots.length)
   const { from, to } = rangeBounds(range, today)
   const box = boxOf(MARGINS)
   const dates = dots.map((d) => d.date)
@@ -117,7 +117,7 @@ function Chart({ data, title, dots }: { data: ReadyData; title: string; dots: Do
         {dots.map((d, i) => {
           const p = pointOf(d)
           return (
-            <g key={d.date} class="chart__hit" tabindex={0} role="img" aria-label={label(d)} {...bind(i)}>
+            <g key={d.date} class="chart__hit" role="img" aria-label={label(d)} {...point(i)}>
               <circle class="chart__ring" cx={p.x} cy={p.y} r="9" />
               <circle class="chart__dot" cx={p.x} cy={p.y} r="4" />
             </g>
@@ -131,7 +131,7 @@ function Chart({ data, title, dots }: { data: ReadyData; title: string; dots: Do
           />
         )}
       </ChartSvg>
-      {trend.length > 0 && <p class="panel__note">Dashed line: the 7-day average.</p>}
+      {trend.length > 0 && <p class="panel__note">Dashed line: the 7-day average of the daily values (each day counts once).</p>}
       <DataTable
         caption={`${title}: the days you finished runs, with their speed, runs and words${trend.length > 0 ? ' and the 7-day average' : ''}.`}
         head={['Day', 'Wpm', 'Runs', 'Words', ...(trend.length > 0 ? ['Trend (7-day average)'] : [])]}

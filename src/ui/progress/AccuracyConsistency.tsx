@@ -14,7 +14,7 @@ import {
   Panel,
   spansYears,
   Tip,
-  useActive,
+  useChartPoints,
   XLabels,
 } from './Chart.tsx'
 import type { Margins } from './Chart.tsx'
@@ -78,7 +78,7 @@ function Chart({
   days: Day[]
 }): JSX.Element {
   const { range, today } = data
-  const [active, bind] = useActive()
+  const { active, props: point } = useChartPoints(days.length)
   const { from, to } = rangeBounds(range, today)
   const box = boxOf(MARGINS)
   const dates = days.map((d) => d.date)
@@ -161,7 +161,7 @@ function Chart({
           const x = axis.xOf(d.date)
           const top = d.steadiness === null ? box.bottom : steadyY(d.steadiness)
           return (
-            <g key={d.date} class="chart__hit" tabindex={0} role="img" aria-label={label(d)} {...bind(i)}>
+            <g key={d.date} class="chart__hit" role="img" aria-label={label(d)} {...point(i)}>
               <rect
                 class="chart__column"
                 x={num(x - Math.max(barWidth, 8) / 2)}

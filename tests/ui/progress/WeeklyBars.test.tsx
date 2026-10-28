@@ -38,7 +38,7 @@ describe('WeeklyBars weeks and bars', () => {
   it('draws an empty slot with 0 min for a week without practice', () => {
     const { container } = render(<WeeklyBars data={ready({ stats: DAYS })} />)
     const empty = hits(container)[1]
-    expect(empty.getAttribute('tabindex')).toBe('0')
+    expect(empty.getAttribute('tabindex')).toBe('-1') // reachable by the arrow keys; only one bar is a tab stop
     expect(empty.getAttribute('aria-label')).toBe('Week of Oct 5: 0 min, 0 strokes')
     expect(empty.querySelector('rect.chart__slot')).not.toBeNull()
     expect(barHeight(empty)).toBe(0)
@@ -70,11 +70,11 @@ describe('WeeklyBars weeks and bars', () => {
     expect(texts).toEqual(['0', '0', '0', '10,080', '11,284'])
   })
 
-  it('shortens the strokes under 14 bars and leaves them out beyond 26 bars (the table keeps them)', () => {
+  it('thins the strokes under 14 bars so they fit, and leaves them out beyond 26 bars (the table keeps them)', () => {
     const three = render(<WeeklyBars data={ready({ stats: DAYS, range: '3m' })} />)
     const short = Array.from(three.container.querySelectorAll('text.chart__strokes')).map((t) => t.textContent)
-    expect(short).toHaveLength(14)
-    expect(short.slice(-2)).toEqual(['10.1k', '11.3k'])
+    expect(short).toHaveLength(7) // every other week, counted back from the latest
+    expect(short[short.length - 1]).toBe('11.3k')
     cleanup()
     const all = render(<WeeklyBars data={ready({ stats: [stat('2025-09-02', 30, 400), ...DAYS], range: 'all' })} />)
     expect(hits(all.container).length).toBeGreaterThan(26)
@@ -126,6 +126,17 @@ describe('WeeklyBars the current week', () => {
     expect(all[all.length - 1].getAttribute('aria-label')).toMatch(/^Week of Oct 26.*so far$/)
   })
 
+  it('says under the chart that the first week starts at the start of the range', () => {
+    render(<WeeklyBars data={ready({ stats: DAYS })} />)
+    expect(screen.getByText('The first week starts on Oct 1 (the start of the range).')).toBeTruthy()
+  })
+
+  it('has no such line when the range starts on a Monday', () => {
+    // 3m from 2026-10-28 is Jul 30 (a Thursday), so use a today whose 4 week range starts on a Monday
+    render(<WeeklyBars data={ready({ stats: DAYS, today: '2026-11-01' })} />)
+    expect(screen.queryByText(/The first week starts on/)).toBeNull()
+  })
+
   it('notes a first week that starts before the range', () => {
     const { container } = render(<WeeklyBars data={ready({ stats: DAYS })} />)
     expect(hits(container)[0].getAttribute('aria-label')).toBe('Week of Sep 28, from Oct 1: 0 min, 0 strokes')
@@ -135,7 +146,7 @@ describe('WeeklyBars the current week', () => {
 describe('WeeklyBars labels, tooltip and table', () => {
   it('makes every bar focusable and shows a tooltip on focus and hover', () => {
     const { container } = render(<WeeklyBars data={ready({ stats: DAYS })} />)
-    for (const h of hits(container)) expect(h.getAttribute('tabindex')).toBe('0')
+    expect(hits(container).filter((h) => h.getAttribute('tabindex') === '0')).toHaveLength(1)
     expect(container.querySelector('.chart__tip')).toBeNull()
     fireEvent.focus(hits(container)[3])
     expect(container.querySelector('.chart__tip')!.textContent).toContain('3 h 11 min, 10,080 strokes')
@@ -143,6 +154,15 @@ describe('WeeklyBars labels, tooltip and table', () => {
     expect(container.querySelector('.chart__tip')).toBeNull()
     fireEvent.mouseEnter(hits(container)[4])
     expect(container.querySelector('.chart__tip')!.textContent).toContain('Week of Oct 26')
+  })
+
+  it('says so far in the tooltip of the current week only', () => {
+    const { container } = render(<WeeklyBars data={ready({ stats: DAYS })} />)
+    fireEvent.focus(hits(container)[4])
+    expect(container.querySelector('.chart__tip')!.textContent).toContain('so far')
+    fireEvent.blur(hits(container)[4])
+    fireEvent.focus(hits(container)[3])
+    expect(container.querySelector('.chart__tip')!.textContent).not.toContain('so far')
   })
 
   it('has a table of the same weeks in the same order with the same numbers', () => {
@@ -169,7 +189,7 @@ describe('WeeklyBars labels, tooltip and table', () => {
   it('summarises the drawing', () => {
     const { container } = render(<WeeklyBars data={ready({ stats: DAYS })} />)
     const svg = container.querySelector('svg')!
-    expect(svg.getAttribute('role')).toBe('img')
+    expect(svg.getAttribute('role')).toBe('group')
     expect(svg.getAttribute('aria-label')).toBe('Bar chart of practice time per week, 5 weeks, from 0 min to 4 h 36 min')
   })
 })

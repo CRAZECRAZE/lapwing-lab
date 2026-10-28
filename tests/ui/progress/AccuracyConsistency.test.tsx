@@ -54,6 +54,16 @@ describe('AccuracyConsistency drawing', () => {
     expect(screen.getByText('Accuracy axis: 80% to 100%.')).toBeTruthy()
   })
 
+  it('uses the 80 axis for exactly 80% and the 0 axis for 79.9%', () => {
+    const at = (accuracy: number) =>
+      ready({ days: [q('2026-10-20', 3, 90, 12, 0.9, 70), q('2026-10-21', 3, 90, 12, accuracy, 70), q('2026-10-22', 3, 90, 12, 0.95, 70)] })
+    const exact = render(<AccuracyConsistency data={at(0.8)} />)
+    expect(leftTicks(exact.container)[0]).toBe('80%')
+    cleanup()
+    const below = render(<AccuracyConsistency data={at(0.799)} />)
+    expect(leftTicks(below.container)[0]).toBe('0%')
+  })
+
   it('uses a 0 to 100 axis when any day is below 80%', () => {
     const days = [...DAYS, q('2026-10-24', 3, 90, 12, 0.71, 60)]
     const { container } = render(<AccuracyConsistency data={ready({ days })} />)
@@ -98,6 +108,24 @@ describe('AccuracyConsistency day-to-day band', () => {
     expect(screen.getByText('Over the last 14 days your steadiness ranged from 50 to 90')).toBeTruthy()
   })
 
+  it('leaves out a day just before the 14 days: 4 days inside and one on Oct 14 is no band', () => {
+    const days = run(['2026-10-14', '2026-10-15', '2026-10-20', '2026-10-24', '2026-10-27'], [5, 50, 60, 70, 80])
+    const { container } = render(<AccuracyConsistency data={ready({ days })} />)
+    expect(container.querySelector('rect.chart__band')).toBeNull()
+    expect(screen.queryByText(/ranged from/)).toBeNull()
+  })
+
+  it('draws the band from the 5 days inside the window and not the day before it', () => {
+    const days = run(
+      ['2026-10-14', '2026-10-15', '2026-10-18', '2026-10-21', '2026-10-24', '2026-10-27'],
+      [5, 50, 60, 70, 80, 90],
+    )
+    const { container } = render(<AccuracyConsistency data={ready({ days })} />)
+    expect(container.querySelector('rect.chart__band')).not.toBeNull()
+    expect(screen.getByText('Over the last 14 days your steadiness ranged from 50 to 90')).toBeTruthy()
+    expect(container.querySelector('tfoot')!.textContent).toContain('50 to 90')
+  })
+
   it('draws the band between the lowest and the highest bar top', () => {
     const { container } = render(<AccuracyConsistency data={ready({ days: FIVE })} />)
     const tops = Array.from(container.querySelectorAll('rect.chart__bar')).map((r) => Number(r.getAttribute('y')))
@@ -111,7 +139,7 @@ describe('AccuracyConsistency day-to-day band', () => {
 describe('AccuracyConsistency labels and table', () => {
   it('makes every day focusable with a label of its accuracy and steadiness', () => {
     const { container } = render(<AccuracyConsistency data={ready({ days: DAYS })} />)
-    expect(hits(container).map((h) => h.getAttribute('tabindex'))).toEqual(['0', '0', '0'])
+    expect(hits(container).map((h) => h.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']) // one tab stop
     expect(hits(container).map((h) => h.getAttribute('aria-label'))).toEqual([
       'Oct 20: 92.5% accuracy, steadiness 70',
       'Oct 22: 94.6% accuracy, steadiness 78',
@@ -154,7 +182,7 @@ describe('AccuracyConsistency labels and table', () => {
   it('summarises the drawing', () => {
     const { container } = render(<AccuracyConsistency data={ready({ days: DAYS })} />)
     const svg = container.querySelector('svg')!
-    expect(svg.getAttribute('role')).toBe('img')
+    expect(svg.getAttribute('role')).toBe('group')
     expect(svg.getAttribute('aria-label')).toBe(
       'Chart of accuracy and steadiness by day, 3 days, accuracy from 92.5% to 95.2%',
     )
