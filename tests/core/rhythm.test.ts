@@ -164,6 +164,16 @@ describe('runRhythm: stalls', () => {
     expect(slow.stalls).toBe(1)
   })
 
+  it('measures the stall threshold against the median gap, not the smallest gap', () => {
+    // 10 x 300, 20 x 600, 10 x 1200 plus 1000 and 1600: the median is 600 (threshold 1500) while the smallest gap
+    // is 300 (threshold 750), so only the 1600 gap is a stall; 1000 and the 1200s would be stalls against the minimum.
+    const gaps = [...even(10, 300), ...even(10, 600), 1_000, ...even(10, 600), ...even(10, 1_200), 1_600]
+    const r = runRhythm(run(gaps))
+    expect(r.typicalGapMs).toBe(600)
+    expect(r.stalls).toBe(1)
+    expect(r.gaps.filter((g) => g.kind === 'stall').map((g) => g.ms)).toEqual([1_600])
+  })
+
   it('counts every stall', () => {
     const r = runRhythm(run([...even(10), 3_000, ...even(10), 5_000, ...even(10), 2_000]))
     expect(r.stalls).toBe(3)
@@ -209,6 +219,47 @@ describe('runRhythm: the first gap and the clock', () => {
       { tsMs: T0 + 100, correct: true, latencyMs: 1 },
     ])
     expect(allFinite(r)).toBe(true)
+  })
+})
+
+describe('runRhythm: infinite numbers', () => {
+  it('turns Infinity and -Infinity in tsMs or latencyMs into a gap of 0', () => {
+    for (const bad of [Infinity, -Infinity]) {
+      const r = runRhythm([
+        { tsMs: T0, correct: true, latencyMs: bad },
+        { tsMs: T0 + 500, correct: true, latencyMs: 500 },
+        { tsMs: bad, correct: true, latencyMs: 1 },
+        { tsMs: T0 + 1_000, correct: true, latencyMs: 1 },
+        { tsMs: T0 + 1_500, correct: true, latencyMs: 1 },
+      ])
+      expect(r.gaps.map((g) => g.ms)).toEqual([0, 500, 0, 0, 500])
+      expect(allFinite(r)).toBe(true)
+    }
+  })
+})
+
+describe('runRhythm: steadiness pins', () => {
+  it('scores gaps alternating 600 and 1200 ms about 51', () => {
+    // 30 gaps of 600 and 30 of 1200: median 900, quartiles 600 and 1200, IQR 600, spread 600 / 1.349 = 444.8,
+    // cv = 444.8 / 900 = 0.494, score = round(100 * (1 - 0.494)) = 51 (current implementation gives exactly 51).
+    expect(Math.abs((runRhythm(run(alternating(60))).steadiness as number) - 51)).toBeLessThanOrEqual(3)
+  })
+
+  it('scores a seeded lognormal-like run (sigma 0.25 around 600 ms, 150 gaps) between 72 and 84', () => {
+    // mulberry32 + Box-Muller, fixed seed. For a lognormal, IQR / 1.349 / median is about sigma = 0.25, so about 75;
+    // the current implementation gives 73 for this seed. A wider spread constant (P10-P90 or no 1.349) falls below 72.
+    let seed = 12345
+    const uniform = (): number => {
+      seed = (seed + 0x6d2b79f5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+    const normal = (): number => Math.sqrt(-2 * Math.log(1 - uniform())) * Math.cos(2 * Math.PI * uniform())
+    const gaps = Array.from({ length: 150 }, () => Math.round(600 * Math.exp(0.25 * normal())))
+    const score = runRhythm(run(gaps)).steadiness as number
+    expect(score).toBeGreaterThanOrEqual(72)
+    expect(score).toBeLessThanOrEqual(84)
   })
 })
 
