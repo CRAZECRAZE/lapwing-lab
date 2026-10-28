@@ -9,7 +9,7 @@ import { ChartSvg, DataTable, Grid, Tip, useChartPoints, VIEW_H, VIEW_W, XLabels
 import type { Box, Margins } from './Chart.tsx'
 import '../progress.css'
 
-type RunInfo = Pick<TestRow, 'wpm' | 'accuracy' | 'meta'>
+type RunInfo = Pick<TestRow, 'wpm' | 'accuracy' | 'meta' | 'mode'>
 type StrokeInfo = Pick<StrokeRecord, 'tsMs' | 'correct' | 'latencyMs'>
 
 // The strip: room on the left for the seconds, under for the stroke numbers and their title.
@@ -24,6 +24,9 @@ const MAX_FIT = 300
 const WIDE_SLOT = 3
 const QUARTER_MARGINS: Margins = { l: 46, r: 12, t: 24, b: 30 }
 const QUARTER_NAMES = ['1st', '2nd', '3rd', '4th']
+
+const CHAPTER_NOTE =
+  "A chapter test shows each word three times in a row. The pause before a word's first showing includes reading time, and the stalls and the steadiness count it, so compare this score with other chapter tests, not with free type."
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n))
 const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
@@ -83,6 +86,7 @@ export function RhythmView({ test, strokes }: { test: RunInfo; strokes: readonly
           <dd class="rhythm__meaning">Last quarter against the first, estimated.</dd>
         </div>
       </dl>
+      {test.mode === 'chapter-test' && <p class="panel__note rhythm__chapternote">{CHAPTER_NOTE}</p>}
       {rhythm.steadiness === null && (
         <p class="panel__note">
           {scoredGaps < RHYTHM_DEFAULTS.minGaps

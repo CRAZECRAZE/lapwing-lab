@@ -1,5 +1,4 @@
 import type { JSX } from 'preact'
-import type { StatsMode } from '../../../server/stats.ts'
 import { bestPoint, cap, linePath, niceMax, num, scaleLinear, shortDate, ticks } from '../../core/chartmath.ts'
 import { dayLabel } from '../../core/days.ts'
 import { enough, movingAverage, rangeBounds } from '../../core/progressview.ts'
@@ -18,19 +17,17 @@ import {
   useChartPoints,
   XLabels,
 } from './Chart.tsx'
+import { MODE_SCOPES } from './Tiles.tsx'
 import type { ReadyData } from './Tiles.tsx'
 
-const TITLES: Record<StatsMode, string> = {
-  free: 'Free-type wpm by day',
-  drills: 'Drills and tests wpm by day',
-  all: 'Wpm by day',
-}
+const TITLE = 'Wpm by day'
 
 const LINE = 'The average wpm of the runs you finished each day, weighted by words.'
 /** A trend needs this many practiced days; it is a moving average over this many calendar days. */
 const TREND_DAYS = 3
 const TREND_WINDOW = 7
 
+type PanelHead = { id: string; title: string; scope: string; line: string }
 type Dot = { date: string; value: number; runs: number; words: number }
 
 const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
@@ -38,8 +35,7 @@ const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 
 /** Panel 2: one dot per day practiced (the day's wpm), a line through them, and a dashed 7-day trend from 3 days. */
 export function WpmByDay({ data }: { data: ReadyData }): JSX.Element {
   const { stats, mode } = data
-  const title = TITLES[mode]
-  const head = { id: 'progress-wpm', title, line: LINE }
+  const head = { id: 'progress-wpm', title: TITLE, scope: MODE_SCOPES[mode], line: LINE }
   const runs = stats.days.reduce((sum, d) => sum + d.runs, 0)
   if (stats.days.length === 0) {
     return (
@@ -61,10 +57,10 @@ export function WpmByDay({ data }: { data: ReadyData }): JSX.Element {
       </Panel>
     )
   }
-  return <Chart data={data} title={title} dots={dots} />
+  return <Chart data={data} head={head} dots={dots} />
 }
 
-function Chart({ data, title, dots }: { data: ReadyData; title: string; dots: Dot[] }): JSX.Element {
+function Chart({ data, head, dots }: { data: ReadyData; head: PanelHead; dots: Dot[] }): JSX.Element {
   const { range, today } = data
   const { active, props: point } = useChartPoints(dots.length)
   const { from, to } = rangeBounds(range, today)
@@ -103,7 +99,7 @@ function Chart({ data, title, dots }: { data: ReadyData; title: string; dots: Do
 
   const shown = active !== null ? dots[active] : null
   return (
-    <Panel id="progress-wpm" title={title} line={LINE}>
+    <Panel {...head}>
       <p class="panel__best">{`Best day: ${shortDate(best.date, manyYears)}, ${best.value.toFixed(1)} wpm`}</p>
       <ChartSvg
         label={`Line chart of wpm by day, ${plural(dots.length, 'day')}, from ${slowest.toFixed(1)} to ${best.value.toFixed(1)}`}
@@ -133,7 +129,7 @@ function Chart({ data, title, dots }: { data: ReadyData; title: string; dots: Do
       </ChartSvg>
       {trend.length > 0 && <p class="panel__note">Dashed line: the 7-day average of the daily values (each day counts once).</p>}
       <DataTable
-        caption={`${title}: the days you finished runs, with their speed, runs and words${trend.length > 0 ? ' and the 7-day average' : ''}.`}
+        caption={`${head.title}: the days you finished runs, with their speed, runs and words${trend.length > 0 ? ' and the 7-day average' : ''}.`}
         head={['Day', 'Wpm', 'Runs', 'Words', ...(trend.length > 0 ? ['Trend (7-day average)'] : [])]}
         rows={rows}
       />

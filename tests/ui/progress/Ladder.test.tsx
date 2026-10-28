@@ -170,7 +170,7 @@ describe('Ladder: met and not yet', () => {
       const { container } = show({ results: { 'chapter-test': [result('5-test', true, [0.94, 12])] } })
       expect(shorts(container, 5)).toEqual([])
       expect(shorts(container, 7)).toEqual([])
-      expect(text(row(container, 5).querySelector('.ladder__need')!)).toBe('needs 90% and 10 wpm')
+      expect(text(row(container, 5).querySelector('.ladder__need')!)).toBe('mark: 90% and 10 wpm')
     })
 
     it('says the accuracy for Chapter 4 when that is short, and nothing extra when only its time limit failed', () => {
@@ -187,7 +187,8 @@ describe('Ladder: met and not yet', () => {
     const passed = show({ results: { stage0: [result('pseudo-test', true, [0.93, 3])] } })
     expect(row(passed.container, 4).getAttribute('data-state')).toBe('met')
     expect(text(row(passed.container, 4))).toContain('3 wpm · 93%')
-    expect(text(row(passed.container, 4))).toContain('needs 90% within 10 minutes')
+    expect(text(row(passed.container, 4))).toContain('mark: 90% within 10 minutes')
+    expect(text(row(passed.container, 4))).not.toContain('needs')
     cleanup()
     const slow = show({ results: { stage0: [result('pseudo-test', false, [0.97, 30])] } })
     expect(row(slow.container, 4).getAttribute('data-state')).toBe('not-yet')
@@ -214,10 +215,28 @@ describe('Ladder: met and not yet', () => {
     expect(row(container, 5).getAttribute('data-state')).toBe('untried')
   })
 
-  it('shows the mark in words', () => {
+  it('shows the mark in words: needs ... until it is met, then mark: ...', () => {
     const { container } = show()
     expect(text(row(container, 5))).toContain('needs 90% and 10 wpm')
     expect(text(row(container, 7))).toContain('needs 90% and 20 wpm')
+  })
+
+  it('says mark: 90% and 10 wpm, not needs, for a met row; needs ... for not yet and not tried yet', () => {
+    const { container } = show({
+      results: { 'chapter-test': [result('5-test', true, [0.94, 12]), result('7-test', false, [0.95, 15])] },
+    })
+    const need = (n: number): string => row(container, n).querySelector('.ladder__need')!.textContent!
+    expect(row(container, 5).getAttribute('data-state')).toBe('met')
+    expect(need(5)).toBe('mark: 90% and 10 wpm')
+    expect(text(row(container, 5))).not.toContain('needs')
+    expect(row(container, 7).getAttribute('data-state')).toBe('not-yet')
+    expect(need(7)).toBe('needs 20 wpm')
+    expect(row(container, 4).getAttribute('data-state')).toBe('untried')
+    expect(need(4)).toBe('needs 90% within 10 minutes')
+    // met on another run: the mark still reads as a mark
+    cleanup()
+    const other = show({ results: { 'chapter-test': [result('5-test', true, [0.85, 8])] } })
+    expect(row(other.container, 5).querySelector('.ladder__need')!.textContent).toMatch(/^mark: 90% and 10 wpm/)
   })
 
   it('does not read a result of another list as the chapter test', () => {

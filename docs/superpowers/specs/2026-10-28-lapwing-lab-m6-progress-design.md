@@ -31,7 +31,7 @@ In the owner's words: "an average wpm by day for free types", "a visual page to 
 
 The Progress tab has a header with two switches and the panels below.
 - **Range:** last 4 weeks (default), last 3 months, or all time.
-- **Mode:** Free type (default), Everything, or Chapter tests. Panels that are about one mode say so in their title.
+- **Mode:** Free type (default), Drills and tests, or Everything (what each covers is C10). Panels and tiles that follow the mode say so in a muted suffix beside their title (`free type`, `drills and tests` or `all modes`).
 
 Panels, in this order (spec of each in §4): 1 headline tiles, 2 free-type wpm by day, 3 accuracy and consistency, 4 rhythm, 5 practice time and strokes per week, 6 weakest keys, 7 mix-ups, 8 chapter ladder, 9 year heatmap and streak, 10 plateau notice, then the month-end report as its own section at the bottom with a month picker.
 
@@ -58,7 +58,7 @@ Panels, in this order (spec of each in §4): 1 headline tiles, 2 free-type wpm b
 - **Pause before a stroke (gap):** the time from the previous stroke of the run (or from the first prompt appearing, for the first stroke) to this stroke. Gaps that are really breaks (over 10 seconds) are ignored for rhythm and counted as breaks, not stalls.
 - **Typical gap:** the median gap of the run.
 - **Stall:** a gap more than 2.5 times the typical gap and at least 1 second long.
-- **Steadiness (0 to 100):** how evenly the gaps fall around the typical gap, higher is steadier, computed from the spread of the gaps relative to their median (a robust measure, so one stall does not wreck the score; the exact formula is the builder's, with the properties that a perfectly even run scores near 100, doubling every other gap lowers it clearly, and a run with fewer than 10 gaps shows no score). Its meaning is stated on the page in plain words.
+- **Steadiness (0 to 100):** how evenly the gaps fall around the typical gap, higher is steadier, computed from the spread of the gaps relative to their median (a robust measure, so one stall does not wreck the score; the exact formula is the builder's, with the properties that a perfectly even run scores near 100, doubling every other gap lowers it clearly, and a run with fewer than 10 gaps shows no score). Its meaning is stated on the page in plain words. A chapter test shows each word three times in a row, so the first showing includes reading time and the repeats are quick: its steadiness and stall count read erratic by design, and the page says to compare chapter tests with chapter tests, not with free type.
 - **Start versus finish:** wpm in the last quarter of the run against the first quarter (by time).
 - **Local time:** days and weeks are the machine's local calendar, as on the Days tab; weeks start on Monday.
 - **Not enough data:** a figure that rests on fewer than 3 runs (day, week or range) is shown as a dash with "not enough data yet".

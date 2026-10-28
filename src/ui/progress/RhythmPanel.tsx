@@ -1,6 +1,5 @@
 import type { JSX } from 'preact'
 import type { TestSummary } from '../../../server/archive.ts'
-import type { StatsMode } from '../../../server/stats.ts'
 import { shortDate } from '../../core/chartmath.ts'
 import { localDate } from '../../core/days.ts'
 import { describeTest } from '../../core/review.ts'
@@ -8,11 +7,11 @@ import { isPlainClick, navigate } from '../../router.ts'
 import { clockTime } from '../TestList.tsx'
 import { Panel, spansYears } from './Chart.tsx'
 import { RhythmView } from './RhythmView.tsx'
+import { MODE_SCOPES } from './Tiles.tsx'
 import type { ReadyData } from './Tiles.tsx'
 import { PICKER_RUNS } from './useRhythm.ts'
 import type { RhythmState } from './useRhythm.ts'
 
-const SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes' }
 const TITLE = 'Rhythm: how steady you type'
 const LINE =
   'How evenly you type inside one run: the pauses between strokes, the stalls, and the speed through the run. The day-by-day steadiness is in the chart above.'
@@ -29,7 +28,7 @@ function optionLabel(t: TestSummary, withYear: boolean): string {
  */
 export function RhythmPanel({ data, rhythm }: { data: ReadyData; rhythm: RhythmState }): JSX.Element {
   const { list, id, run } = rhythm
-  const head = { id: 'progress-rhythm', title: TITLE, scope: SCOPES[data.mode], line: LINE }
+  const head = { id: 'progress-rhythm', title: TITLE, scope: MODE_SCOPES[data.mode], line: LINE }
   if (list.status === 'error') {
     return (
       <Panel {...head}>

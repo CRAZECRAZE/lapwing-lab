@@ -168,7 +168,7 @@ describe('Progress page structure', () => {
     )
     expect(screen.getByText('This week')).toBeTruthy()
     expect(screen.getByText('Strokes this week')).toBeTruthy()
-    expect(screen.getByText('Free-type 7-day average')).toBeTruthy()
+    expect(screen.getByText('7-day average')).toBeTruthy()
     expect(screen.getByText('First-try accuracy')).toBeTruthy()
   })
 
@@ -177,7 +177,8 @@ describe('Progress page structure', () => {
     await mount()
     expect(within(tile('This week')).getByText('all modes')).toBeTruthy()
     expect(within(tile('Strokes this week')).getByText('all modes')).toBeTruthy()
-    expect(within(tile('Free-type 7-day average')).queryByText('all modes')).toBeNull()
+    // the two quality tiles follow the mode, so in Free type they say free type, not all modes
+    expect(within(tile('7-day average')).queryByText('all modes')).toBeNull()
     expect(within(tile('First-try accuracy')).queryByText('all modes')).toBeNull()
   })
 })
@@ -267,7 +268,7 @@ describe('Progress tiles', () => {
     const strokes = tile('Strokes this week')
     expect(within(strokes).getByText('11,284')).toBeTruthy()
     expect(within(strokes).getByText('48,902 all time')).toBeTruthy()
-    expect(within(tile('Free-type 7-day average')).getByText('15.4 wpm')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('15.4 wpm')).toBeTruthy()
     expect(within(tile('First-try accuracy')).getByText('94.6%')).toBeTruthy()
   })
 
@@ -276,7 +277,7 @@ describe('Progress tiles', () => {
     await mount()
     expect(within(tile('This week')).getByText('+1 h 25 min vs last week')).toBeTruthy()
     expect(within(tile('Strokes this week')).getByText('+1,204 vs last week')).toBeTruthy()
-    expect(within(tile('Free-type 7-day average')).getByText('+1.4 wpm vs the 7 days before')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('+1.4 wpm vs the 7 days before')).toBeTruthy()
     expect(within(tile('First-try accuracy')).getByText('+2.1 points vs the 7 days before')).toBeTruthy()
   })
 
@@ -288,7 +289,7 @@ describe('Progress tiles', () => {
     await mount()
     expect(within(tile('This week')).getByText('-12 min vs last week')).toBeTruthy()
     expect(within(tile('Strokes this week')).getByText('same as last week')).toBeTruthy()
-    expect(within(tile('Free-type 7-day average')).getByText('-1.5 wpm vs the 7 days before')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('-1.5 wpm vs the 7 days before')).toBeTruthy()
     expect(within(tile('First-try accuracy')).getByText('-2.0 points vs the 7 days before')).toBeTruthy()
   })
 
@@ -299,7 +300,7 @@ describe('Progress tiles', () => {
     })
     await mount()
     expect(within(tile('This week')).getByText('2 h 00 min')).toBeTruthy()
-    expect(within(tile('Free-type 7-day average')).getByText('15.0 wpm')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('15.0 wpm')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/vs last week|vs the 7 days before/)
   })
 
@@ -315,7 +316,7 @@ describe('Progress tiles', () => {
   it('shows — and not enough data yet for a window resting on fewer than 3 runs', async () => {
     stub({ stats: () => statsOf([quality('2026-10-20', 3, 200, 14, 0.925), quality('2026-10-27', 2, 100, 15.8, 0.952)]) })
     await mount()
-    for (const label of ['Free-type 7-day average', 'First-try accuracy']) {
+    for (const label of ['7-day average', 'First-try accuracy']) {
       const t = tile(label)
       expect(within(t).getByText('—')).toBeTruthy()
       expect(within(t).getByText('not enough data yet')).toBeTruthy()
@@ -329,7 +330,7 @@ describe('Progress tiles', () => {
   it('shows a value but no change when only the earlier window has fewer than 3 runs', async () => {
     stub({ stats: () => statsOf([quality('2026-10-20', 2, 200, 14, 0.925), quality('2026-10-27', 3, 100, 15.8, 0.952)]) })
     await mount()
-    const t = tile('Free-type 7-day average')
+    const t = tile('7-day average')
     expect(within(t).getByText('15.8 wpm')).toBeTruthy()
     expect(within(t).queryByText('not enough data yet')).toBeNull()
     expect(within(t).queryByText(/vs the 7 days before/)).toBeNull()
@@ -338,8 +339,8 @@ describe('Progress tiles', () => {
   it('treats a window with 3 runs but no words as no data', async () => {
     stub({ stats: () => statsOf([quality('2026-10-20', 3, 200, 14, 0.925), quality('2026-10-27', 3, 0, null, null)]) })
     await mount()
-    expect(within(tile('Free-type 7-day average')).getByText('—')).toBeTruthy()
-    expect(within(tile('Free-type 7-day average')).getByText('not enough data yet')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('—')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('not enough data yet')).toBeTruthy()
     expect(within(tile('First-try accuracy')).getByText('—')).toBeTruthy()
   })
 
@@ -352,7 +353,7 @@ describe('Progress tiles', () => {
         ]),
     })
     await mount()
-    expect(within(tile('Free-type 7-day average')).getByText('12.5 wpm')).toBeTruthy() // (10*300 + 20*100) / 400
+    expect(within(tile('7-day average')).getByText('12.5 wpm')).toBeTruthy() // (10*300 + 20*100) / 400
     expect(within(tile('First-try accuracy')).getByText('80.0%')).toBeTruthy() // (0.9*300 + 0.5*100) / 400
   })
 
@@ -387,7 +388,7 @@ describe('Progress tiles', () => {
         ]),
     })
     await mount()
-    const wpm = tile('Free-type 7-day average')
+    const wpm = tile('7-day average')
     expect(within(wpm).getByText('35.0 wpm')).toBeTruthy()
     expect(within(wpm).getByText('+20.0 wpm vs the 7 days before')).toBeTruthy()
     const accuracy = tile('First-try accuracy')
@@ -412,19 +413,39 @@ describe('Progress tiles', () => {
   })
 })
 
-describe('Progress tile label follows the mode', () => {
+describe('Progress scopes follow the mode', () => {
+  const scopeOf = (name: string): string | null => {
+    const heading = screen.getAllByRole('heading', { level: 2 }).find((h) => h.textContent === name)!
+    return heading.parentElement!.querySelector('.panel__scope')?.textContent ?? null
+  }
+  const tileScope = (label: string): string | null => tile(label).querySelector('.tile__scope')?.textContent ?? null
+
   it.each([
-    ['Free type', 'Free-type 7-day average'],
-    ['Drills and tests', 'Drills and tests 7-day average'],
-    ['Everything', '7-day average'],
-  ])('with %s the label is %s', async (button, label) => {
+    ['Free type', 'free type'],
+    ['Drills and tests', 'drills and tests'],
+    ['Everything', 'all modes'],
+  ])('with %s every panel and tile that follows the mode says %s, in its muted style', async (button, scope) => {
     stub()
     await mount()
     click(button)
     await flush()
-    expect(screen.getByText(label)).toBeTruthy()
     const labels = screen.getAllByRole('article').map((a) => a.querySelector('.tile__name')!.textContent)
-    expect(labels).toEqual(['This week', 'Strokes this week', label, 'First-try accuracy'])
+    expect(labels).toEqual(['This week', 'Strokes this week', '7-day average', 'First-try accuracy'])
+    expect([tileScope('7-day average'), tileScope('First-try accuracy')]).toEqual([scope, scope])
+    expect(
+      [scopeOf('Wpm by day'), scopeOf('Accuracy and consistency'), scopeOf('Rhythm: how steady you type')],
+    ).toEqual([scope, scope, scope])
+    // the scope is not said twice: the titles and labels carry no mode of their own
+    expect(screen.queryByText(/^Free-type|^Drills and tests (wpm|7-day)/)).toBeNull()
+  })
+
+  it('leaves the panels that always cover all modes with their own scope', async () => {
+    stub()
+    await mount()
+    click('Drills and tests')
+    await flush()
+    expect(tileScope('This week')).toBe('all modes')
+    expect(scopeOf('Practice time per week')).toBe('all modes')
   })
 })
 
@@ -512,14 +533,14 @@ describe('Progress stale responses', () => {
     await flush()
     click('3 months')
     await flush()
-    expect(within(tile('Free-type 7-day average')).getByText('22.0 wpm')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('22.0 wpm')).toBeTruthy()
     expect(within(tile('This week')).getByText('30 min')).toBeTruthy()
     // the 4-week answers come in late
     old.stats.resolve(statsOf(QUALITY))
     old.days.resolve(DAYS)
     await flush()
     expect(calls(fn, '/api/stats')).toHaveLength(2)
-    expect(within(tile('Free-type 7-day average')).getByText('22.0 wpm')).toBeTruthy()
+    expect(within(tile('7-day average')).getByText('22.0 wpm')).toBeTruthy()
     expect(within(tile('This week')).getByText('30 min')).toBeTruthy()
     expect(screen.queryByText('15.4 wpm')).toBeNull()
     expect(screen.queryByText('4 h 36 min')).toBeNull()
@@ -564,7 +585,7 @@ describe('Progress chart panels', () => {
     stub()
     await mount()
     expect(titles()).toEqual([
-      'Free-type wpm by day',
+      'Wpm by day',
       'Accuracy and consistency',
       'Rhythm: how steady you type',
       'Practice time per week',
@@ -573,7 +594,7 @@ describe('Progress chart panels', () => {
       'Practice, all modes', // the chapter ladder has no panel without chapter tests
     ])
     const tiles = screen.getByRole('list', { name: 'Headline figures' })
-    const wpm = screen.getByRole('heading', { name: 'Free-type wpm by day' })
+    const wpm = screen.getByRole('heading', { name: 'Wpm by day' })
     expect(tiles.compareDocumentPosition(wpm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
@@ -639,17 +660,6 @@ describe('Progress chart panels', () => {
     expect(screen.getByRole('img', { name: 'Week of Oct 26: 4 h 36 min, 11,284 strokes, so far' })).toBeTruthy()
   })
 
-  it('follows the mode in the wpm title', async () => {
-    stub()
-    await mount()
-    click('Drills and tests')
-    await flush()
-    expect(titles()[0]).toBe('Drills and tests wpm by day')
-    click('Everything')
-    await flush()
-    expect(titles()[0]).toBe('Wpm by day')
-  })
-
   it('shows no panels for an empty archive', async () => {
     stub({ stats: () => statsOf([], { allTimeStrokes: 0 }), days: () => [] })
     await mount()
@@ -690,7 +700,7 @@ describe('Progress key, mix-up, ladder and year panels', () => {
     stub({ stats: () => statsOf(QUALITY, { keys, mixups }) })
     await mount()
     expect(titles()).toEqual([
-      'Free-type wpm by day',
+      'Wpm by day',
       'Accuracy and consistency',
       'Rhythm: how steady you type',
       'Practice time per week',

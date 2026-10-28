@@ -1,5 +1,4 @@
 import type { JSX } from 'preact'
-import type { StatsMode } from '../../../server/stats.ts'
 import { linePath, num, scaleLinear, shortDate } from '../../core/chartmath.ts'
 import { addDays, dayLabel } from '../../core/days.ts'
 import { enough, rangeBounds } from '../../core/progressview.ts'
@@ -18,10 +17,11 @@ import {
   XLabels,
 } from './Chart.tsx'
 import type { Margins } from './Chart.tsx'
+import { MODE_SCOPES } from './Tiles.tsx'
 import type { ReadyData } from './Tiles.tsx'
 
-const SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes' }
 const TITLE = 'Accuracy and consistency'
+const CHAPTER_LINE = 'Chapter tests show each word three times, so their steadiness reads lower than free type. Compare like with like.'
 const LINE = 'Line: first-try accuracy per day. Bars: how steady your stroke timing was (taller is steadier).'
 
 // Room on the right for the steadiness axis.
@@ -39,7 +39,7 @@ const percent = (accuracy: number): string => `${(accuracy * 100).toFixed(1)}%`
 /** Panel 3: the day's first-try accuracy as a line, its steadiness as bars, and the 14-day spread of the steadiness. */
 export function AccuracyConsistency({ data }: { data: ReadyData }): JSX.Element {
   const { stats, mode } = data
-  const head = { id: 'progress-accuracy', title: TITLE, scope: SCOPES[mode], line: LINE }
+  const head = { id: 'progress-accuracy', title: TITLE, scope: MODE_SCOPES[mode], line: LINE }
   if (stats.days.length === 0) {
     return (
       <Panel {...head}>
@@ -180,6 +180,7 @@ function Chart({
       </ChartSvg>
       {floor === 80 && <p class="panel__note">Accuracy axis: 80% to 100%.</p>}
       {bandText !== null && <p class="panel__note">{bandText}</p>}
+      {data.mode !== 'free' && <p class="panel__note">{CHAPTER_LINE}</p>}
       <DataTable
         caption={`${head.title}: first-try accuracy and steadiness for each day you finished runs.`}
         head={['Day', 'Accuracy', 'Steadiness', 'Runs']}

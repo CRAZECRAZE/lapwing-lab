@@ -156,7 +156,7 @@ export function Ladder(): JSX.Element | null {
                     {text}
                   </span>
                 ))}
-                {shortfalls(best, mark, verdict).length === 0 && `needs ${markText(mark)}`}
+                {shortfalls(best, mark, verdict).length === 0 && `${verdict === 'met' ? 'mark:' : 'needs'} ${markText(mark)}`}
                 {other && ' · the most accurate run is below the mark, but another run passed'}
               </span>
             </li>

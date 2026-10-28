@@ -29,6 +29,28 @@ const openNumbers = (details: Element): void => {
 }
 const stripNumbers = (c: Element): Element => c.querySelector('.rhythm__strip details')!
 
+const CHAPTER_NOTE =
+  "A chapter test shows each word three times in a row. The pause before a word's first showing includes reading time, and the stalls and the steadiness count it, so compare this score with other chapter tests, not with free type."
+
+describe('RhythmView: the chapter-test note', () => {
+  it('explains the three showings under the four figures of a chapter test', () => {
+    const { container } = view(even(60), testRow({ mode: 'chapter-test' }))
+    const note = Array.from(container.querySelectorAll('p')).filter((p) => p.textContent === CHAPTER_NOTE)
+    expect(note).toHaveLength(1)
+    const figures = container.querySelector('.rhythm__figures')!
+    expect(figures.compareDocumentPosition(note[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(note[0].compareDocumentPosition(container.querySelector('.rhythm__strip')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('is not shown for a free run or any other mode', () => {
+    for (const mode of ['free', 'section', 'stage0'] as const) {
+      const { container, unmount } = view(even(60), testRow({ mode }))
+      expect(container.textContent).not.toContain('shows each word three times')
+      unmount()
+    }
+  })
+})
+
 describe('RhythmView: the four figures', () => {
   it('scores an even run as steady, with no stalls and a typical gap of 0.60 s', () => {
     const { container } = view(even(60))

@@ -201,6 +201,20 @@ describe('AccuracyConsistency title, explanation and empty states', () => {
     }
   })
 
+  it('says under the chart that chapter tests read lower, in drills and everything modes only', () => {
+    const text = 'Chapter tests show each word three times, so their steadiness reads lower than free type. Compare like with like.'
+    for (const mode of ['drills', 'all'] as const) {
+      const { container } = render(<AccuracyConsistency data={ready({ days: DAYS, mode })} />)
+      const notes = Array.from(container.querySelectorAll('p')).filter((p) => p.textContent === text)
+      expect(notes, mode).toHaveLength(1)
+      expect(notes[0].classList.contains('panel__note')).toBe(true)
+      expect(container.querySelector('svg')!.compareDocumentPosition(notes[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      cleanup()
+    }
+    const free = render(<AccuracyConsistency data={ready({ days: DAYS, mode: 'free' })} />)
+    expect(free.container.textContent).not.toContain('Chapter tests show each word three times')
+  })
+
   it('explains the line and the bars in one plain line', () => {
     render(<AccuracyConsistency data={ready({ days: DAYS })} />)
     expect(

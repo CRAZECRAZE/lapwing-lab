@@ -186,11 +186,12 @@ describe('WpmByDay numbers table', () => {
 })
 
 describe('WpmByDay title, explanation and empty states', () => {
-  it('is a labelled section with an h2 whose title follows the mode', () => {
-    const titles = { free: 'Free-type wpm by day', drills: 'Drills and tests wpm by day', all: 'Wpm by day' } as const
+  it('is a labelled section with an h2 with a muted suffix that follows the mode', () => {
+    const scope = { free: 'free type', drills: 'drills and tests', all: 'all modes' } as const
     for (const mode of ['free', 'drills', 'all'] as const) {
       const { container } = render(<WpmByDay data={ready({ days: THREE, mode })} />)
-      const heading = screen.getByRole('heading', { level: 2, name: titles[mode] })
+      const heading = screen.getByRole('heading', { level: 2, name: 'Wpm by day' })
+      expect(container.querySelector('.panel__scope')!.textContent).toBe(scope[mode])
       const section = container.querySelector('section')!
       expect(section.getAttribute('aria-labelledby')).toBe(heading.id)
       cleanup()
@@ -207,6 +208,7 @@ describe('WpmByDay title, explanation and empty states', () => {
     const { container } = render(<WpmByDay data={ready({ days })} />)
     expect(screen.getByText('—')).toBeTruthy()
     expect(screen.getByText('not enough data yet')).toBeTruthy()
+    expect(container.querySelector('.panel__scope')!.textContent).toBe('free type')
     expect(container.querySelector('svg')).toBeNull()
     expect(container.querySelector('table')).toBeNull()
   })
@@ -221,6 +223,7 @@ describe('WpmByDay title, explanation and empty states', () => {
   it('says there are no finished runs when there are no days', () => {
     const { container } = render(<WpmByDay data={ready({ days: [] })} />)
     expect(screen.getByText('No finished runs in this range yet.')).toBeTruthy()
+    expect(container.querySelector('.panel__scope')!.textContent).toBe('free type')
     expect(container.querySelector('svg')).toBeNull()
   })
 })

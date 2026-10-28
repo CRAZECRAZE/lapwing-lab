@@ -65,11 +65,8 @@ function decimalChange(diff: number, unit: string): string {
   return `${signed(diff, text)} ${unit} vs the 7 days before`
 }
 
-export function modeLabel(mode: StatsMode): string {
-  if (mode === 'free') return 'Free-type 7-day average'
-  if (mode === 'drills') return 'Drills and tests 7-day average'
-  return '7-day average'
-}
+/** The muted scope of a figure that follows the mode switch. */
+export const MODE_SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes' }
 
 type TileProps = {
   id: string
@@ -141,7 +138,8 @@ export function Tiles({ data }: { data: ReadyData }): JSX.Element {
       />
       <Tile
         id="wpm"
-        label={modeLabel(mode)}
+        label="7-day average"
+        scope={MODE_SCOPES[mode]}
         value={wpmNow === null ? '—' : `${wpmNow.toFixed(1)} wpm`}
         note={wpmNow === null ? missing : undefined}
         change={wpmDiff === null ? null : decimalChange(wpmDiff, 'wpm')}
@@ -149,6 +147,7 @@ export function Tiles({ data }: { data: ReadyData }): JSX.Element {
       <Tile
         id="accuracy"
         label="First-try accuracy"
+        scope={MODE_SCOPES[mode]}
         value={accuracyNow === null ? '—' : `${(accuracyNow * 100).toFixed(1)}%`}
         note={accuracyNow === null ? missing : undefined}
         change={accuracyDiff === null ? null : decimalChange(accuracyDiff * 100, 'points')}
