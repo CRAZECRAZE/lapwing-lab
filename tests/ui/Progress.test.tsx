@@ -70,12 +70,16 @@ const QUALITY: DayQuality[] = [
 ]
 
 type Params = URLSearchParams
-type Spec = { stats?: (p: Params) => unknown; days?: (p: Params) => unknown }
+type Spec = { stats?: (p: Params) => unknown; days?: (p: Params) => unknown; tests?: (url: URL) => unknown }
 
 /** Stubs fetch for the two routes. A handler may return a Response, a promise, or the JSON body itself. */
 function stub(spec: Spec = {}): ReturnType<typeof vi.fn> {
   const fn = vi.fn(async (input: string) => {
     const url = new URL(input, 'http://localhost')
+    if (url.pathname.startsWith('/api/tests')) {
+      const found = await (spec.tests ?? (() => []))(url)
+      return found instanceof Response ? found : new Response(JSON.stringify(found), { status: 200 })
+    }
     const handler = url.pathname === '/api/stats' ? (spec.stats ?? (() => statsOf(QUALITY))) : (spec.days ?? (() => DAYS))
     const body = await handler(url.searchParams)
     return body instanceof Response ? body : new Response(JSON.stringify(body), { status: 200 })
@@ -434,6 +438,7 @@ describe('Progress loading, failure and empty states', () => {
     expect(screen.queryByRole('list', { name: 'Headline figures' })).toBeNull()
     gate.resolve(statsOf(QUALITY))
     await flush()
+    await flush() // the rhythm panel asks for its runs once the page is in
     expect(screen.queryByText('Loading…')).toBeNull()
     expect(screen.getByRole('list', { name: 'Headline figures' })).toBeTruthy()
   })
@@ -562,6 +567,7 @@ describe('Progress chart panels', () => {
     expect(titles()).toEqual([
       'Free-type wpm by day',
       'Accuracy and consistency',
+      'Rhythm: how steady you type',
       'Practice time per week',
       'Weakest keys',
       'Mix-ups',
@@ -570,6 +576,28 @@ describe('Progress chart panels', () => {
     const tiles = screen.getByRole('list', { name: 'Headline figures' })
     const wpm = screen.getByRole('heading', { name: 'Free-type wpm by day' })
     expect(tiles.compareDocumentPosition(wpm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('puts the rhythm of the newest finished run of the mode between accuracy and practice time', async () => {
+    const at = new Date(2026, 9, 27, 14, 5).getTime()
+    const strokes = Array.from({ length: 30 }, (_, i) => ({
+      testId: 7, tsMs: at + i * 600, prompt: 'w', expected: ['SAP'], pressedLevers: [], pressedMask: 0, correct: true, latencyMs: 600, attemptNo: 1,
+    }))
+    const row = { id: 7, sessionId: 1, startedAt: at, endedAt: at + 60000, mode: 'free', chapter: null, section: null, itemCount: 30, wpm: 20, accuracy: 0.9, meta: { elapsedMs: 18000 } }
+    const fn = stub({
+      tests: (url) => (url.pathname === '/api/tests' ? [{ ...row, strokeCount: 30, firstStrokeAt: at, lastStrokeAt: at + 18000 }] : { test: row, strokes }),
+    })
+    await mount()
+    await flush() // the runs
+    await flush() // the strokes of the newest
+    const heading = screen.getByRole('heading', { name: 'Rhythm: how steady you type' })
+    const accuracy = screen.getByRole('heading', { name: 'Accuracy and consistency' })
+    const weekly = screen.getByRole('heading', { name: 'Practice time per week' })
+    expect(accuracy.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(heading.compareDocumentPosition(weekly) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(heading.closest('section')!.querySelectorAll('rect.rhythm__bar')).toHaveLength(30)
+    expect(heading.closest('section')!.textContent).toContain('Oct 27, 14:05 · Free type · 20.0 wpm')
+    expect(allCalls(fn, '/api/tests/7')).toHaveLength(1)
   })
 
   it('draws the dots of the days practiced and the weeks of the range from the fetched data', async () => {
@@ -633,6 +661,7 @@ describe('Progress key, mix-up, ladder and year panels', () => {
     expect(titles()).toEqual([
       'Free-type wpm by day',
       'Accuracy and consistency',
+      'Rhythm: how steady you type',
       'Practice time per week',
       'Weakest keys',
       'Mix-ups',

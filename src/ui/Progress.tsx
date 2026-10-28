@@ -9,6 +9,7 @@ import type { YearDays } from './progress/Heatmap.tsx'
 import { HeatmapPanel, useYearDays } from './progress/Heatmap.tsx'
 import { Ladder } from './progress/Ladder.tsx'
 import { Mixups } from './progress/Mixups.tsx'
+import { RhythmPanel } from './progress/RhythmPanel.tsx'
 import { Tiles } from './progress/Tiles.tsx'
 import type { ReadyData } from './progress/Tiles.tsx'
 import { useProgressData } from './progress/useProgressData.ts'
@@ -93,6 +94,7 @@ function Panels({ data, year }: { data: ReadyData; year: YearDays }): JSX.Elemen
       <Tiles data={data} />
       <WpmByDay data={data} />
       <AccuracyConsistency data={data} />
+      <RhythmPanel data={data} />
       <WeeklyBars data={data} />
       <WeakKeys data={data} />
       <Mixups data={data} />

@@ -57,9 +57,26 @@ export function NotEnough(): JSX.Element {
 }
 
 /** The drawing: scales with its container. A group with a summary label, around the points a keyboard can reach. */
-export function ChartSvg({ label, children }: { label: string; children: ComponentChildren }): JSX.Element {
+export function ChartSvg({
+  label,
+  children,
+  width,
+}: {
+  label: string
+  children: ComponentChildren
+  /** A drawing wider than the standard one is shown at that many pixels (1 unit is 1 px), not scaled down to fit. */
+  width?: number
+}): JSX.Element {
+  const wide = width !== undefined && width > VIEW_W
   return (
-    <svg class="chart" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" role="group" aria-label={label}>
+    <svg
+      class="chart"
+      viewBox={`0 0 ${wide ? num(width) : VIEW_W} ${VIEW_H}`}
+      width={wide ? num(width) : '100%'}
+      style={wide ? { maxWidth: 'none', marginInline: 0 } : undefined}
+      role="group"
+      aria-label={label}
+    >
       {children}
     </svg>
   )
@@ -102,11 +119,11 @@ export function XLabels({ labels, y }: { labels: { x: number; text: string }[]; 
 }
 
 /** A hover and focus note for a dot or bar: two short lines in a box near the point, kept inside the drawing. */
-export function Tip({ x, y, lines }: { x: number; y: number; lines: string[] }): JSX.Element {
+export function Tip({ x, y, lines, width = VIEW_W }: { x: number; y: number; lines: string[]; width?: number }): JSX.Element {
   const longest = Math.max(...lines.map((l) => l.length))
   const w = longest * 7.4 + 16
   const h = lines.length * 18 + 8
-  const left = Math.min(Math.max(num(x) - w / 2, 2), VIEW_W - w - 2)
+  const left = Math.min(Math.max(num(x) - w / 2, 2), width - w - 2)
   const above = num(y) - h - 10
   const top = above >= 2 ? above : num(y) + 12
   return (
@@ -172,49 +189,56 @@ export function DataTable({
   head,
   rows,
   foot,
+  lazy = false,
 }: {
   caption: string
   head: string[]
   rows: { key: string; cells: string[] }[]
   foot?: string
+  /** Builds the table only once the summary has been opened (for hundreds of rows). */
+  lazy?: boolean
 }): JSX.Element {
-  return (
-    <details class="chart__numbers">
-      <summary>Show the numbers</summary>
-      <table class="chart__table">
-        <caption>{caption}</caption>
-        <thead>
-          <tr>
-            {head.map((h) => (
-              <th key={h} scope="col">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key}>
-              {r.cells.map((c, i) =>
-                i === 0 ? (
-                  <th key={i} scope="row">
-                    {c}
-                  </th>
-                ) : (
-                  <td key={i}>{c}</td>
-                ),
-              )}
-            </tr>
+  const [opened, setOpened] = useState(false)
+  const table = (): JSX.Element => (
+    <table class="chart__table">
+      <caption>{caption}</caption>
+      <thead>
+        <tr>
+          {head.map((h) => (
+            <th key={h} scope="col">
+              {h}
+            </th>
           ))}
-        </tbody>
-        {foot !== undefined && (
-          <tfoot>
-            <tr>
-              <td colSpan={head.length}>{foot}</td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key}>
+            {r.cells.map((c, i) =>
+              i === 0 ? (
+                <th key={i} scope="row">
+                  {c}
+                </th>
+              ) : (
+                <td key={i}>{c}</td>
+              ),
+            )}
+          </tr>
+        ))}
+      </tbody>
+      {foot !== undefined && (
+        <tfoot>
+          <tr>
+            <td colSpan={head.length}>{foot}</td>
+          </tr>
+        </tfoot>
+      )}
+    </table>
+  )
+  return (
+    <details class="chart__numbers" onToggle={lazy ? (e) => setOpened((e.currentTarget as HTMLDetailsElement).open) : undefined}>
+      <summary>Show the numbers</summary>
+      {(!lazy || opened) && table()}
     </details>
   )
 }

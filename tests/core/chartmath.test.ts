@@ -13,6 +13,7 @@ import {
   num,
   scaleLinear,
   shortDate,
+  stripCeiling,
   ticks,
   textWidth,
   tickDuration,
@@ -252,5 +253,27 @@ describe('label fitting', () => {
     expect(labelsThatFit(480, 88, 6)).toBe(4)
     expect(labelsThatFit(100, 88, 6)).toBe(2)
     expect(labelsThatFit(NaN, 88, 6)).toBe(2)
+  })
+})
+
+describe('stripCeiling', () => {
+  it('is the longest gap when no gap is out of proportion', () => {
+    expect(stripCeiling([600, 700, 800, 900, 1000])).toBe(1000)
+    expect(stripCeiling([0, 0, 0])).toBe(0)
+    expect(stripCeiling([])).toBe(0)
+  })
+
+  it('is 3 times the 95th percentile when one gap is far above the rest', () => {
+    const gaps = [...Array.from({ length: 59 }, () => 600), 9000]
+    expect(stripCeiling(gaps)).toBe(1800)
+  })
+
+  it('does not cap when the slowest few are a real share of the run', () => {
+    const gaps = [...Array.from({ length: 55 }, () => 600), ...Array.from({ length: 5 }, () => 5000)]
+    expect(stripCeiling(gaps)).toBe(5000)
+  })
+
+  it('ignores gaps that are not finite or are negative', () => {
+    expect(stripCeiling([600, Number.NaN, -5, Number.POSITIVE_INFINITY, 800])).toBe(800)
   })
 })

@@ -5,6 +5,7 @@ import { getTest } from '../api.ts'
 import { formatDuration } from '../core/days.ts'
 import { describeTest, misses, slowest } from '../core/review.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { RhythmView } from './progress/RhythmView.tsx'
 import { wasAbandoned } from './TestList.tsx'
 import './history.css'
 
@@ -92,6 +93,15 @@ export function TestDetail({ id }: { id: number }): JSX.Element {
           <dd>{practiced === null ? '—' : formatDuration(practiced)}</dd>
         </div>
       </dl>
+
+      <section class="detail__section">
+        <h2 class="detail__heading">Rhythm</h2>
+        {finished && !wasAbandoned(test.meta) ? (
+          <RhythmView test={test} strokes={strokes} />
+        ) : (
+          <p class="history__status">Rhythm is shown for finished runs.</p>
+        )}
+      </section>
 
       <section class="detail__section">
         <h2 class="detail__heading">Misses</h2>

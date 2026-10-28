@@ -161,3 +161,17 @@ export function labelsThatFit(room: number, width: number, most: number): number
   const fit = Number.isFinite(room) && Number.isFinite(width) ? Math.floor(room / (width + 12)) : 2
   return Math.max(2, Math.min(most, fit))
 }
+
+/**
+ * The tallest pause a rhythm strip draws, in ms: the longest gap, but no more than 3 times the 95th percentile, so
+ * that one huge gap does not flatten every other bar. Gaps that are not finite or are negative count as 0; none gives 0.
+ */
+export function stripCeiling(gapsMs: readonly number[]): number {
+  const sorted = gapsMs.map((g) => (Number.isFinite(g) && g > 0 ? g : 0)).sort((a, b) => a - b)
+  if (sorted.length === 0) return 0
+  const pos = (sorted.length - 1) * 0.95
+  const lo = Math.floor(pos)
+  const hi = Math.ceil(pos)
+  const p95 = sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
+  return Math.min(sorted[sorted.length - 1], 3 * p95)
+}

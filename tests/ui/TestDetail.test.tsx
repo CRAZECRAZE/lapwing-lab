@@ -128,4 +128,46 @@ describe('TestDetail', () => {
     fireEvent.click(await screen.findByRole('link', { name: /History/ }))
     expect(location.pathname).toBe('/history')
   })
+
+  describe('rhythm', () => {
+    const evenRun = (n: number): StrokeRecord[] => Array.from({ length: n }, (_, i) => stroke(at(9, 5, i), 'sap', { latencyMs: 1000 }))
+
+    it('shows a Rhythm section for a finished run, right after the stats and before the misses', async () => {
+      get.mockResolvedValue({ test: row({ meta: { elapsedMs: 30_000 } }), strokes: evenRun(30) })
+      const { container } = render(<TestDetail id={5} />)
+      const heading = await screen.findByRole('heading', { level: 2, name: 'Rhythm' })
+      const section = heading.parentElement!
+      expect(within(section).getByText('Steadiness')).toBeTruthy()
+      expect(within(section).getByText('Stalls')).toBeTruthy()
+      expect(section.querySelectorAll('.rhythm__strip rect.rhythm__bar')).toHaveLength(30)
+      const stats = container.querySelector('.detail__stats')!
+      const misses = screen.getByRole('heading', { level: 2, name: 'Misses' })
+      expect(stats.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(heading.compareDocumentPosition(misses) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.queryByText('Rhythm is shown for finished runs.')).toBeNull()
+    })
+
+    it('says rhythm is shown for finished runs when the run was left early', async () => {
+      get.mockResolvedValue({ test: row({ meta: { abandoned: true } }), strokes: evenRun(30) })
+      render(<TestDetail id={5} />)
+      const heading = await screen.findByRole('heading', { level: 2, name: 'Rhythm' })
+      expect(within(heading.parentElement!).getByText('Rhythm is shown for finished runs.')).toBeTruthy()
+      expect(document.querySelector('.rhythm')).toBeNull()
+    })
+
+    it('says rhythm is shown for finished runs when the run is unfinished', async () => {
+      get.mockResolvedValue({ test: row({ endedAt: null, accuracy: null, wpm: null, meta: null }), strokes: evenRun(30) })
+      render(<TestDetail id={5} />)
+      const heading = await screen.findByRole('heading', { level: 2, name: 'Rhythm' })
+      expect(within(heading.parentElement!).getByText('Rhythm is shown for finished runs.')).toBeTruthy()
+      expect(document.querySelector('.rhythm')).toBeNull()
+    })
+
+    it('says there are no strokes for a finished run without any', async () => {
+      get.mockResolvedValue({ test: row(), strokes: [] })
+      render(<TestDetail id={5} />)
+      const heading = await screen.findByRole('heading', { level: 2, name: 'Rhythm' })
+      expect(within(heading.parentElement!).getByText('No strokes recorded for this run.')).toBeTruthy()
+    })
+  })
 })

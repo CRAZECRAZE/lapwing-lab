@@ -722,3 +722,151 @@
 .weak__board .panel__note {
   max-width: 22rem;
 }
+
+/* Panel 4 and the History page: the rhythm of one run. The stall red is the keyboard's miss red. */
+
+.rhythm {
+  --stall: #e0645c;
+  margin-top: 0.5rem;
+}
+
+.rhythm__figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.rhythm__figure {
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--raised);
+}
+
+.rhythm__figure dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.rhythm__figure dd {
+  margin: 0;
+}
+
+.rhythm__value {
+  margin-top: 0.2rem;
+  color: var(--heading);
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.rhythm__meaning {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.rhythm__sub {
+  margin: 1.25rem 0 0;
+  color: var(--heading);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* a long run is wider than the box and scrolls inside it */
+.rhythm__scroll {
+  margin-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.rhythm__bar {
+  fill: var(--muted);
+  fill-opacity: 0.7;
+}
+
+.rhythm__bar--stall {
+  fill: var(--stall);
+  fill-opacity: 1;
+}
+
+.rhythm__break {
+  stroke: var(--muted);
+  stroke-linecap: butt;
+}
+
+.rhythm__capmark {
+  stroke: var(--heading);
+  stroke-width: 2;
+}
+
+.rhythm__typical {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.rhythm__typical-label {
+  fill: var(--heading);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rhythm__axis {
+  font-size: 13px;
+}
+
+.rhythm__qrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1.5rem;
+}
+
+.rhythm__qchart {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.rhythm__qside {
+  flex: 1 1 14rem;
+}
+
+.rhythm__qvalue {
+  fill: var(--heading);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rhythm__pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.rhythm__select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.rhythm__select:focus-visible,
+.rhythm__open:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.rhythm__open {
+  color: var(--link);
+}

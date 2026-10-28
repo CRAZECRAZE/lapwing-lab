@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
+import { completedWords } from '../src/core/words.ts'
 import type { Lever } from '../src/core/uni.ts'
 import type { SlotMask } from '../src/core/steno.ts'
 
@@ -178,19 +179,6 @@ function parseJson(text: unknown): unknown {
 function metaObject(text: unknown): Record<string, unknown> {
   const v = parseJson(text)
   return v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
-}
-
-// Completed words of a finished run (plan ruling R1); 0 when no source is usable.
-function completedWords(wpm: number | null, accuracy: number | null, meta: Record<string, unknown>): number {
-  const elapsed = meta.elapsedMs
-  if (typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed > 0 && wpm !== null && Number.isFinite(wpm)) {
-    return Math.round((wpm * elapsed) / 60000)
-  }
-  const firstTry = meta.firstTryCorrect
-  if (accuracy !== null && accuracy > 0 && typeof firstTry === 'number' && Number.isFinite(firstTry) && firstTry >= 0) {
-    return Math.round(firstTry / accuracy)
-  }
-  return 0
 }
 
 function measure(name: string, v: number, max = Number.MAX_SAFE_INTEGER): number {
