@@ -204,6 +204,16 @@ describe('buildDictionary', () => {
     expect(cardOf(out, 'Defense')!.r[0].b).toEqual(label)
   })
 
+  it('adds no book-only row when a case-variant card already has the outline', () => {
+    const files = empty()
+    files.main = { KAT: 'Cat', KA: 'cat' }
+    const out = buildDictionary(input({ files, lists: [list('l', 5, [['cat', ['KAT']]])] }))
+    expect(out.cards).toEqual([
+      { t: 'Cat', r: [{ o: 'KAT', b: [{ chapter: 5, source: 'practice' }] }] },
+      { t: 'cat', r: [{ o: 'KA' }] },
+    ])
+  })
+
   it('never labels by outline alone', () => {
     const files = empty()
     files.main = { KAT: 'cat', KITN: 'kitten' }
