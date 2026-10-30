@@ -4,6 +4,7 @@ import type { KeyStat } from '../../core/keystats.ts'
 import { periodText } from '../../core/progressview.ts'
 import { SLOTS } from '../../core/steno.ts'
 import type { Slot } from '../../core/steno.ts'
+import { AppLink } from '../AppLink.tsx'
 import { Board } from '../Board.tsx'
 import { DataTable, Panel } from './Chart.tsx'
 import type { ReadyData } from './Tiles.tsx'
@@ -98,6 +99,9 @@ export function WeakKeys({ data }: { data: ReadyData }): JSX.Element {
         head={['Key', 'Needed', 'Missed', 'Rate']}
         rows={rows}
       />
+      <p class="panel__drill">
+        <AppLink href="/practice/fixup/patterns">Drill these</AppLink>
+      </p>
     </Panel>
   )
 }

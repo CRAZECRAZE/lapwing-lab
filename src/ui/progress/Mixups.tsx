@@ -1,6 +1,7 @@
 import type { JSX } from 'preact'
 import { MIN_MIXUP_COUNT } from '../../core/keystats.ts'
 import { periodText } from '../../core/progressview.ts'
+import { AppLink } from '../AppLink.tsx'
 import { DataTable, Panel } from './Chart.tsx'
 import type { ReadyData } from './Tiles.tsx'
 import { thousands } from './Tiles.tsx'
@@ -36,6 +37,9 @@ export function Mixups({ data }: { data: ReadyData }): JSX.Element {
           />
         </>
       )}
+      <p class="panel__drill">
+        <AppLink href="/practice/fixup/patterns">Drill these</AppLink>
+      </p>
     </Panel>
   )
 }

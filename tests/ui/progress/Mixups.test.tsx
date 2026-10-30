@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/preact'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MIN_MIXUP_COUNT } from '../../../src/core/keystats.ts'
 import type { Mixup } from '../../../src/core/keystats.ts'
@@ -86,5 +86,29 @@ describe('Mixups', () => {
     const { container } = show([m('-P', '-B', Number.NaN), m('-F', '-R', Number.POSITIVE_INFINITY), m('-L', '-G', 4)])
     expect(badNumbers(container)).toEqual([])
     expect(items(container)).toEqual(['-L instead of -G · 4 times'])
+  })
+})
+
+describe('Mixups: Drill these', () => {
+  const drill = (): HTMLElement => screen.getByRole('link', { name: 'Drill these' })
+
+  it('links to the pattern fix-up page', () => {
+    render(<Mixups data={ready({ mixups: [] })} />)
+    expect(drill().getAttribute('href')).toBe('/practice/fixup/patterns')
+    expect(screen.getByText('no repeated mix-ups yet')).toBeTruthy()
+  })
+
+  it('is also there when the panel has data', () => {
+    render(<Mixups data={ready({ mixups: [m('-P', '-B', 9)] })} />)
+    expect(drill().getAttribute('href')).toBe('/practice/fixup/patterns')
+    expect(screen.queryByText('no repeated mix-ups yet')).toBeNull()
+  })
+
+  it('is in the panel, and navigates on a plain click', () => {
+    history.replaceState(null, '', '/progress')
+    const { container } = render(<Mixups data={ready({ mixups: [] })} />)
+    expect(container.querySelector('section')!.contains(drill())).toBe(true)
+    expect(fireEvent.click(drill())).toBe(false)
+    expect(location.pathname).toBe('/practice/fixup/patterns')
   })
 })

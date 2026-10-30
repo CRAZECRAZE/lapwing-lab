@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/preact'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact'
 import { afterEach, describe, expect, it } from 'vitest'
 import { HEAT_FULL_RATE } from '../../../src/ui/progress/WeakKeys.tsx'
 import { MIN_KEY_PRESSES } from '../../../src/core/keystats.ts'
@@ -208,4 +208,28 @@ describe('WeakKeys: no NaN or Infinity', () => {
       expect(badNumbers(container)).toEqual([])
     })
   }
+})
+
+describe('WeakKeys: Drill these', () => {
+  const drill = (): HTMLElement => screen.getByRole('link', { name: 'Drill these' })
+
+  it('links to the pattern fix-up page', () => {
+    render(<WeakKeys data={ready({ keys: [] })} />)
+    expect(drill().getAttribute('href')).toBe('/practice/fixup/patterns')
+    expect(screen.getByText('not enough data yet')).toBeTruthy()
+  })
+
+  it('is also there when the panel has data', () => {
+    render(<WeakKeys data={ready({ keys: [k('-F', 66, 14)] })} />)
+    expect(drill().getAttribute('href')).toBe('/practice/fixup/patterns')
+    expect(screen.queryByText('not enough data yet')).toBeNull()
+  })
+
+  it('is in the panel, and navigates on a plain click', () => {
+    history.replaceState(null, '', '/progress')
+    const { container } = render(<WeakKeys data={ready({ keys: [] })} />)
+    expect(container.querySelector('section')!.contains(drill())).toBe(true)
+    expect(fireEvent.click(drill())).toBe(false)
+    expect(location.pathname).toBe('/practice/fixup/patterns')
+  })
 })

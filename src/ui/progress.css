@@ -1000,3 +1000,12 @@
   outline: 2px solid var(--left);
   outline-offset: 2px;
 }
+
+.panel__drill {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.panel__drill a {
+  color: var(--link);
+}

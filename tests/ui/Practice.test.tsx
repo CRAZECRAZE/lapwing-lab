@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
 import type { ProgressMark, TestRow } from '../../server/archive.ts'
+import type { FixupLists } from '../../src/core/fixup.ts'
 import { chapterStates } from '../../src/core/progress.ts'
 import type { ResultsByMode } from '../../src/core/progress.ts'
 import type { Progress } from '../../src/state/progress.tsx'
@@ -14,9 +15,18 @@ vi.mock('../../src/api.ts', () => ({
   getStats: vi.fn(async () => Promise.reject(new Error('offline'))),
   getSettings: vi.fn(async () => ({ plateauSnoozedUntil: null })),
   putSettings: vi.fn(),
+  getFixup: vi.fn(),
 }))
 const api = await import('../../src/api.ts')
 const getLastTest = vi.mocked(api.getLastTest)
+const getFixup = vi.mocked(api.getFixup)
+
+const lists = (words: number, patterns: number): FixupLists => ({
+  from: '2026-10-02',
+  to: '2026-10-30',
+  words: Array.from({ length: words }, (_, i) => ({ word: `w${i}` }) as unknown as FixupLists['words'][number]),
+  patterns: Array.from({ length: patterns }, (_, i) => ({ id: `missing:p${i}` }) as unknown as FixupLists['patterns'][number]),
+})
 
 // The Practice tab reads chapter progress through `useProgress`; each test hands it a fake value.
 const fake = vi.hoisted(() => ({ value: null as Progress | null }))
@@ -73,6 +83,7 @@ function stubIndex(reply: unknown) {
 beforeEach(() => {
   history.replaceState(null, '', '/practice')
   fake.value = progress('ready')
+  getFixup.mockReset().mockResolvedValue(lists(0, 0))
   getLastTest.mockReset().mockImplementation(async (mode, section) => {
     if (mode === 'free' && section === 'pseudo/words-25') return row({ accuracy: 0.92, wpm: 41.2 })
     if (mode === 'free' && section === 'ch-8/words-25') return row({ accuracy: 0.81, wpm: 30.6 })
@@ -394,6 +405,78 @@ describe('Practice', () => {
       render(<Practice />)
       expect(screen.getByRole('region', { name: 'Free type' })).toBeTruthy()
       expect(screen.getByRole('region', { name: 'Chapter 4 drills' })).toBeTruthy()
+    })
+  })
+
+  describe('Fix-up card', () => {
+    const card = (): HTMLElement => screen.getByRole('region', { name: 'Fix-up' })
+
+    it('sits between Where you are and Free type', () => {
+      stubIndex(INDEX)
+      render(<Practice />)
+      const names = [...document.querySelectorAll('.practice > section')].map((s) => s.getAttribute('aria-label') ?? s.querySelector('h2')?.textContent)
+      expect(names.slice(0, 3)).toEqual(['Where you are', 'Fix-up', 'Free type'])
+      expect(within(card()).getByRole('heading', { name: 'Fix-up' })).toBeTruthy()
+      expect(card().classList.contains('practice__box')).toBe(true)
+    })
+
+    it('shows the counts from the fix-up lists, with a link to the page', async () => {
+      getFixup.mockResolvedValue(lists(3, 2))
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(await within(card()).findByText('3 words, 2 patterns to fix')).toBeTruthy()
+      const go = within(card()).getByRole('link')
+      expect(go.getAttribute('href')).toBe('/practice/fixup')
+      expect(fireEvent.click(go)).toBe(false)
+      expect(location.pathname).toBe('/practice/fixup')
+    })
+
+    it('uses singular nouns for one', async () => {
+      getFixup.mockResolvedValue(lists(1, 0))
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(await within(card()).findByText('1 word, 0 patterns to fix')).toBeTruthy()
+      cleanup()
+      getFixup.mockResolvedValue(lists(0, 1))
+      render(<Practice />)
+      expect(await within(card()).findByText('0 words, 1 pattern to fix')).toBeTruthy()
+    })
+
+    it('says nothing to fix with empty lists, and still links to the page', async () => {
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(await within(card()).findByText('Nothing to fix right now.')).toBeTruthy()
+      expect(within(card()).queryByText(/to fix$/)).toBeNull()
+      expect(within(card()).getByRole('link').getAttribute('href')).toBe('/practice/fixup')
+    })
+
+    it('shows neither numbers nor an error while loading', () => {
+      getFixup.mockReturnValue(new Promise(() => {}))
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(card().textContent).not.toMatch(/\d/)
+      expect(within(card()).queryByText('Nothing to fix right now.')).toBeNull()
+      expect(within(card()).queryByRole('alert')).toBeNull()
+      expect(within(card()).getByRole('link').getAttribute('href')).toBe('/practice/fixup')
+    })
+
+    it('shows only the link when the fetch fails', async () => {
+      getFixup.mockRejectedValue(new Error('offline'))
+      stubIndex(INDEX)
+      render(<Practice />)
+      await waitFor(() => expect(getFixup).toHaveBeenCalled())
+      await new Promise((r) => setTimeout(r, 10))
+      expect(card().textContent).not.toMatch(/\d/)
+      expect(within(card()).queryByText('Nothing to fix right now.')).toBeNull()
+      expect(within(card()).queryByRole('alert')).toBeNull()
+      expect(within(card()).getByRole('link').getAttribute('href')).toBe('/practice/fixup')
+    })
+
+    it('is shown even when progress has not loaded', () => {
+      fake.value = progress('loading')
+      stubIndex(INDEX)
+      render(<Practice />)
+      expect(card()).toBeTruthy()
     })
   })
 })

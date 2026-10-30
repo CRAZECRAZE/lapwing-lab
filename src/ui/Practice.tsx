@@ -16,8 +16,10 @@ import {
 import type { FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useProgress } from '../state/progress.tsx'
+import { AppLink } from './AppLink.tsx'
 import { ChapterPanel } from './ChapterPanel.tsx'
 import { Stage0Panel } from './Stage0Panel.tsx'
+import { useFixup } from './useFixup.ts'
 import './practice.css'
 
 /** The quiet "last time" text for one free-type combination. */
@@ -187,12 +189,35 @@ function WhereYouAre(): JSX.Element | null {
   )
 }
 
-/** The Practice tab: where you are, free type, then the Chapter 4 drills. */
+const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+/** The fix-up card: how much there is to fix, and the way in. Numbers only once the lists have loaded. */
+function FixupCard(): JSX.Element {
+  const fixup = useFixup()
+  const lists = fixup.status === 'ready' ? fixup.lists : null
+  const empty = lists !== null && lists.words.length === 0 && lists.patterns.length === 0
+  return (
+    <section class="practice__box fixup-card" aria-labelledby="fixup-card-heading">
+      <h2 id="fixup-card-heading" class="practice__heading">Fix-up</h2>
+      {lists !== null && (
+        <p class="fixup-card__count">
+          {empty ? 'Nothing to fix right now.' : `${plural(lists.words.length, 'word')}, ${plural(lists.patterns.length, 'pattern')} to fix`}
+        </p>
+      )}
+      <p class="fixup-card__go">
+        <AppLink href="/practice/fixup">Open fix-up</AppLink>
+      </p>
+    </section>
+  )
+}
+
+/** The Practice tab: where you are, fix-up, free type, then the Chapter 4 drills. */
 export function Practice(): JSX.Element {
   return (
     <div class="practice">
       <h1 class="practice__title">Practice</h1>
       <WhereYouAre />
+      <FixupCard />
       <FreeType />
       {/* The panel brings its own heading ("Practice — Stage 0"); the region name says where it sits. */}
       <section class="practice__drills" aria-label="Chapter 4 drills">
