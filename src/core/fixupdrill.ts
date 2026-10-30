@@ -33,6 +33,8 @@ export class FixupSession implements DrillRun {
   private inner: DrillSession | null = null
   private streak = 0
   private showings = 0
+  /** Showings of the current target, so each target's items start again at items[0]. */
+  private targetShowings = 0
   private clean = 0
   private fixed: string[] = []
   private capped = false
@@ -88,6 +90,7 @@ export class FixupSession implements DrillRun {
       this.streak = 0
     } else if (result.kind === 'correct') {
       this.showings++
+      this.targetShowings++
       if (result.firstTry) {
         this.clean++
         this.streak++
@@ -98,8 +101,9 @@ export class FixupSession implements DrillRun {
         this.fixed.push(this.targets[this.position].id)
         this.position++
         this.streak = 0
+        this.targetShowings = 0
       }
-      if (this.showings >= FIXUP_MAX_SHOWINGS) this.capped = true
+      if (this.showings >= FIXUP_MAX_SHOWINGS && this.position < this.total) this.capped = true
     }
     return result
   }
@@ -120,7 +124,7 @@ export class FixupSession implements DrillRun {
   private session(): DrillSession {
     if (this.inner === null) {
       const { items } = this.targets[this.position]
-      this.inner = new DrillSession([items[this.showings % items.length]], this.clock)
+      this.inner = new DrillSession([items[this.targetShowings % items.length]], this.clock)
     }
     return this.inner
   }

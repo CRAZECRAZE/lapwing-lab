@@ -74,6 +74,22 @@ describe('FixupSession focus rule', () => {
     expect(s.current?.prompt).toBe('tre')
   })
 
+  it('starts each target at its first item', () => {
+    const s = new FixupSession([
+      target('a', word('one', 'WUPB'), word('two', 'TWO'), word('tre', 'TRE')),
+      target('b', word('fou', 'TPOU'), word('fiv', 'TPAOEUF'), word('six', 'SEUBGS')),
+    ])
+    const strokes = ['WUPB', 'TWO', 'TRE']
+    for (let i = 0; i < FIXED_STREAK; i++) s.submit(press(strokes[i % 3]))
+    expect(s.fixedIds()).toEqual(['a'])
+    const seen: string[] = []
+    for (const stroke of ['TPOU', 'TPAOEUF', 'SEUBGS', 'TPOU']) {
+      seen.push(s.current?.prompt ?? '')
+      s.submit(press(stroke))
+    }
+    expect(seen).toEqual(['fou', 'fiv', 'six', 'fou'])
+  })
+
   it('keeps showing the same item after a miss until it is typed', () => {
     const s = new FixupSession([target('a', word('one', 'WUPB'), word('two', 'TWO'))])
     s.submit(press('WUPB'))
@@ -129,6 +145,19 @@ describe('FixupSession focus rule', () => {
     expect(s.fixedIds()).toEqual([])
     expect(s.submit(press('KAT'))).toEqual({ kind: 'ignored' })
     expect(s.stats()).toMatchObject({ completed: 500, firstTryCorrect: 0, accuracy: 0 })
+  })
+
+  it('is not capped when the last target is fixed on the 500th showing', () => {
+    const s = new FixupSession([target('a', word('cat', 'KAT'))])
+    for (let i = 0; i < FIXUP_MAX_SHOWINGS - FIXED_STREAK; i++) {
+      s.submit(press('SAP'))
+      s.submit(press('KAT'))
+    }
+    expect(s.progress().showings).toBe(FIXUP_MAX_SHOWINGS - FIXED_STREAK)
+    typeTimes(s, 'KAT', FIXED_STREAK)
+    expect(s.finished).toBe(true)
+    expect(s.progress()).toMatchObject({ capped: false, showings: FIXUP_MAX_SHOWINGS, fixed: 1 })
+    expect(s.fixedIds()).toEqual(['a'])
   })
 
   it('is finished at once with no targets', () => {
