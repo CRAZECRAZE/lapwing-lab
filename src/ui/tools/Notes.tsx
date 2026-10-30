@@ -4,20 +4,12 @@ import { listNotes } from '../../api.ts'
 import { currentChapter } from '../../core/progress.ts'
 import { useProgress } from '../../state/progress.tsx'
 import type { Progress } from '../../state/progress.tsx'
-import { notesStore, useAutosave } from '../useAutosave.ts'
-import type { SaveStatus } from '../useAutosave.ts'
+import { notesStore, SAVE_STATUS_TEXT, useAutosave } from '../useAutosave.ts'
 import './notes.css'
 
 const CHAPTERS = Array.from({ length: 26 }, (_, i) => i + 1)
 /** Where the picker opens while the owner's current chapter is not known. */
 const FALLBACK_CHAPTER = 4
-
-const STATUS_TEXT: Record<SaveStatus, string> = {
-  saved: 'Saved',
-  pending: '',
-  saving: 'Saving…',
-  failed: 'Not saved — will retry',
-}
 
 /** The chapter the owner picked last, kept while the app is open so the next open starts there. */
 let lastPick: number | null = null
@@ -114,7 +106,7 @@ function NotesEditor({ chapter }: { chapter: number }): JSX.Element {
         )}
         {note.phase === 'ready' && (
           <span class={note.status === 'failed' ? 'notes__warn' : 'notes__muted'} aria-live="polite">
-            {STATUS_TEXT[note.status]}
+            {SAVE_STATUS_TEXT[note.status]}
           </span>
         )}
       </div>

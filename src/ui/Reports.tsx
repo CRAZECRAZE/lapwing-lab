@@ -3,25 +3,11 @@ import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { DayStat } from '../../server/archive.ts'
 import { getDays, listReports } from '../api.ts'
 import { isYearMonth } from '../core/dates.ts'
-import { addDays, formatDuration, localDate } from '../core/days.ts'
-import { daysBetween, thousands } from '../core/progressview.ts'
-import { monthBounds, monthKey, monthsBetween, monthTitle, practiceByMonth, previousMonth } from '../core/report.ts'
+import { formatDuration, localDate } from '../core/days.ts'
+import { thousands } from '../core/progressview.ts'
+import { monthKey, monthsBetween, monthTitle, practiceByMonth, reportsWindowStart } from '../core/report.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import './reports.css'
-
-/** The list looks back this many months before the current one (36 months in all). */
-const LOOKBACK_MONTHS = 35
-/** The server refuses a /api/days span longer than this (MAX_DAYS_SPAN in server/server.ts). */
-const MAX_DAYS_SPAN = 1100
-
-/** The first day of the month 35 months back, moved forward by whole months until the request is within the limit. */
-function listFrom(today: string): string {
-  let month = monthKey(today)
-  for (let i = 0; i < LOOKBACK_MONTHS; i++) month = previousMonth(month)
-  let from = monthBounds(month).from
-  while (daysBetween(from, today) > MAX_DAYS_SPAN) from = addDays(monthBounds(monthKey(from)).to, 1)
-  return from
-}
 
 type Row = { month: string; activeMs: number; strokes: number; note: boolean }
 type Loaded = { key: string } & ({ status: 'error' } | { status: 'ready'; rows: Row[] })
@@ -75,7 +61,7 @@ export function Reports({ today: given }: { today?: string }): JSX.Element {
     let live = true
     const mine = ++latest.current
     const current = (): boolean => live && latest.current === mine
-    Promise.all([getDays(listFrom(today), today), listReports()]).then(
+    Promise.all([getDays(reportsWindowStart(today), today), listReports()]).then(
       ([days, reports]) => {
         if (!current()) return
         const noted = new Set(reports.map((r) => r.month).filter((m) => isYearMonth(m)))

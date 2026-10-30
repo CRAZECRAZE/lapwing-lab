@@ -17,7 +17,7 @@ export { thousands }
 /** The muted scope of a figure that follows the mode switch. */
 export const MODE_SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes' }
 
-type TileProps = {
+export type TileProps = {
   id: string
   label: string
   value: string
@@ -28,7 +28,7 @@ type TileProps = {
   change?: string | null
 }
 
-function Tile({ id, label, value, scope, note, change: changeText }: TileProps): JSX.Element {
+export function Tile({ id, label, value, scope, note, change: changeText }: TileProps): JSX.Element {
   return (
     <li class="progress__tile-item">
       <article class="tile" aria-labelledby={`tile-${id}`}>

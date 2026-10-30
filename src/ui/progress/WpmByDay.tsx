@@ -27,13 +27,19 @@ const LINE = 'The average wpm of the runs you finished each day, weighted by wor
 const TREND_DAYS = 3
 const TREND_WINDOW = 7
 
+/** The first and last day of the axis, inclusive. */
+export type Domain = { from: string; to: string }
+
 type PanelHead = { id: string; title: string; scope: string; line: string }
 type Dot = { date: string; value: number; runs: number; words: number }
 
 const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
 
-/** Panel 2: one dot per day practiced (the day's wpm), a line through them, and a dashed 7-day trend from 3 days. */
-export function WpmByDay({ data }: { data: ReadyData }): JSX.Element {
+/**
+ * Panel 2: one dot per day practiced (the day's wpm), a line through them, and a dashed 7-day trend from 3 days.
+ * The axis runs over the range ending today, unless `domain` gives its first and last day (a month report draws one month).
+ */
+export function WpmByDay({ data, domain }: { data: ReadyData; domain?: Domain }): JSX.Element {
   const { stats, mode } = data
   const head = { id: 'progress-wpm', title: TITLE, scope: MODE_SCOPES[mode], line: LINE }
   const runs = stats.days.reduce((sum, d) => sum + d.runs, 0)
@@ -57,17 +63,18 @@ export function WpmByDay({ data }: { data: ReadyData }): JSX.Element {
       </Panel>
     )
   }
-  return <Chart data={data} head={head} dots={dots} />
+  return <Chart data={data} head={head} dots={dots} domain={domain} />
 }
 
-function Chart({ data, head, dots }: { data: ReadyData; head: PanelHead; dots: Dot[] }): JSX.Element {
+function Chart({ data, head, dots, domain }: { data: ReadyData; head: PanelHead; dots: Dot[]; domain?: Domain }): JSX.Element {
   const { range, today } = data
   const { active, props: point } = useChartPoints(dots.length)
-  const { from, to } = rangeBounds(range, today)
+  const { from, to } = domain ?? rangeBounds(range, today)
   const box = boxOf(MARGINS)
   const dates = dots.map((d) => d.date)
   const manyYears = spansYears(dates)
-  const { start, end } = dayDomain(range, from, to, dates)
+  // a given domain is a fixed window: the axis starts on its first day, as for a fixed range, not on the first dot as for all time
+  const { start, end } = dayDomain(domain ? '4w' : range, from, to, dates)
   const axis = dayAxis(start, end, box, manyYears)
 
   // The axis starts at 0 and ends on the highest wpm rounded up, so a dot twice as fast is twice as high

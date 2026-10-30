@@ -5,15 +5,8 @@ import { listJournal, listTests } from '../api.ts'
 import { addDays, dayLabel, formatDuration, localDate } from '../core/days.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { TestList } from './TestList.tsx'
-import { journalStore, useAutosave, type SaveStatus } from './useAutosave.ts'
+import { journalStore, SAVE_STATUS_TEXT, useAutosave } from './useAutosave.ts'
 import './journal.css'
-
-const STATUS_TEXT: Record<SaveStatus, string> = {
-  saved: 'Saved',
-  pending: '',
-  saving: 'Saving…',
-  failed: 'Not saved — will retry',
-}
 
 /** True for a real calendar day in `YYYY-MM-DD` form (same rule as the server). */
 export function isCalendarDate(s: string): boolean {
@@ -133,7 +126,7 @@ export function Journal({ date: given }: { date?: string }): JSX.Element {
           )}
           {note.phase === 'ready' && (
             <span class={note.status === 'failed' ? 'journal__warn' : 'journal__muted'} aria-live="polite">
-              {STATUS_TEXT[note.status]}
+              {SAVE_STATUS_TEXT[note.status]}
             </span>
           )}
         </div>

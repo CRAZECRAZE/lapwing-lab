@@ -278,3 +278,43 @@ describe('WpmByDay date labels', () => {
     }
   })
 })
+
+describe('WpmByDay domain override', () => {
+  const SEPT = [q('2026-09-01', 3, 90, 17), q('2026-09-15', 2, 60, 8), q('2026-09-30', 3, 90, 14)]
+  // the drawing is 560 wide with margins 46 left and 20 right, and the days are inset by 10 at both ends
+  const FIRST_X = 46 + 10
+  const LAST_X = 560 - 20 - 10
+
+  it('draws the given first and last day at the two ends of the axis', () => {
+    const { container } = render(
+      <WpmByDay data={ready({ days: SEPT })} domain={{ from: '2026-09-01', to: '2026-09-30' }} />,
+    )
+    const xs = dotsOf(container).map(cx)
+    expect(xs).toHaveLength(3)
+    expect(xs[0]).toBe(FIRST_X)
+    expect(xs[2]).toBe(LAST_X)
+    expect(xs[1]).toBeGreaterThan(FIRST_X)
+    expect(xs[1]).toBeLessThan(LAST_X)
+  })
+
+  it('leaves room for the empty ends of a domain wider than the data', () => {
+    const { container } = render(
+      <WpmByDay data={ready({ days: [q('2026-09-15', 3, 90, 8)] })} domain={{ from: '2026-09-01', to: '2026-09-30' }} />,
+    )
+    const x = cx(dotsOf(container)[0])
+    expect(x).toBeGreaterThan(FIRST_X)
+    expect(x).toBeLessThan(LAST_X)
+  })
+
+  it('keeps the table, the one tab stop and the default behaviour without the prop', () => {
+    const withDomain = render(
+      <WpmByDay data={ready({ days: SEPT })} domain={{ from: '2026-09-01', to: '2026-09-30' }} />,
+    )
+    expect(withDomain.getByText('Show the numbers')).toBeTruthy()
+    expect(dotsOf(withDomain.container).map((g) => g.getAttribute('tabindex'))).toEqual(['0', '-1', '-1'])
+    cleanup()
+    // no override: the axis runs from the range start (or the first day) to today, as before
+    const plain = render(<WpmByDay data={ready({ days: SEPT })} />)
+    expect(cx(dotsOf(plain.container)[2])).toBeLessThan(LAST_X)
+  })
+})

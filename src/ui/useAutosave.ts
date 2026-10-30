@@ -5,6 +5,14 @@ import { isYearMonth } from '../core/dates.ts'
 export type LoadPhase = 'loading' | 'error' | 'ready'
 export type SaveStatus = 'saved' | 'pending' | 'saving' | 'failed'
 
+/** The words for the save status beside a note; a pending change shows nothing yet. */
+export const SAVE_STATUS_TEXT: Record<SaveStatus, string> = {
+  saved: 'Saved',
+  pending: '',
+  saving: 'Saving…',
+  failed: 'Not saved — will retry',
+}
+
 const DEBOUNCE_MS = 800
 const RETRY_MS = 5000
 /** How long a failing save keeps retrying after its view has closed (about 120 tries). */

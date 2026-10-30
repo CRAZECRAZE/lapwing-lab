@@ -9,6 +9,7 @@ import { resultOf } from './progress.ts'
 import type { ResultsByMode } from './progress.ts'
 import {
   change,
+  daysBetween,
   decimalChange,
   enough,
   medianInt,
@@ -84,17 +85,39 @@ export function isMonthComplete(month: string, today: string): boolean {
   return today >= monthBounds(month).to
 }
 
-/** The practice of each month that has any: a day counts when it has strokes or active time. */
+/** A day counts as practice when it has strokes or active time. */
+export function hasPractice(day: DayStat): boolean {
+  return day.strokes > 0 || day.activeMs > 0
+}
+
+/** The practice of each month that has any (see `hasPractice`). */
 export function practiceByMonth(days: readonly DayStat[]): Map<string, { activeMs: number; strokes: number }> {
   const months = new Map<string, { activeMs: number; strokes: number }>()
   for (const d of days) {
-    if (!(d.strokes > 0 || d.activeMs > 0)) continue
+    if (!hasPractice(d)) continue
     const total = months.get(monthKey(d.date)) ?? { activeMs: 0, strokes: 0 }
     total.activeMs += d.activeMs
     total.strokes += d.strokes
     months.set(monthKey(d.date), total)
   }
   return months
+}
+
+/** The reports pages look back this many months before the current one (36 months in all). */
+const LOOKBACK_MONTHS = 35
+/** The server refuses a /api/days span longer than this (MAX_DAYS_SPAN in server/server.ts). */
+const MAX_DAYS_SPAN = 1100
+
+/**
+ * Where the reports pages start asking for days: the first day of the month 35 months before `today`'s, moved forward
+ * by whole months until the request from there to `today` is within the server's limit.
+ */
+export function reportsWindowStart(today: string): string {
+  let month = monthKey(today)
+  for (let i = 0; i < LOOKBACK_MONTHS; i++) month = previousMonth(month)
+  let from = monthBounds(month).from
+  while (daysBetween(from, today) > MAX_DAYS_SPAN) from = addDays(monthBounds(monthKey(from)).to, 1)
+  return from
 }
 
 /** `2026-10` -> `October`. */

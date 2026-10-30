@@ -5,6 +5,7 @@ import type { DayQuality } from '../../server/stats.ts'
 import type { ResultsByMode } from '../../src/core/progress.ts'
 import {
   chapterPassDates,
+  hasPractice,
   isMonthComplete,
   monthBounds,
   monthKey,
@@ -12,6 +13,7 @@ import {
   monthsBetween,
   monthTitle,
   previousMonth,
+  reportsWindowStart,
   reportTiles,
 } from '../../src/core/report.ts'
 import type { ReportTilesInput } from '../../src/core/report.ts'
@@ -351,5 +353,29 @@ describe('reportTiles: finite output', () => {
     for (const i of [input(), odd, { ...odd, firstMonth: false }]) {
       for (const text of allText(reportTiles(i))) expect(text).not.toMatch(/NaN|Infinity/)
     }
+  })
+})
+
+describe('reportsWindowStart', () => {
+  it('is the first day of the month 35 months before the current one', () => {
+    expect(reportsWindowStart('2026-10-28')).toBe('2023-11-01')
+    expect(reportsWindowStart('2026-01-01')).toBe('2023-02-01')
+  })
+
+  it('never reaches back more than 1,100 days, and always starts on the first of a month', () => {
+    for (let t = Date.UTC(2024, 0, 1); t < Date.UTC(2029, 0, 1); t += 11 * 86400000) {
+      const today = new Date(t).toISOString().slice(0, 10)
+      const from = reportsWindowStart(today)
+      expect(from.endsWith('-01')).toBe(true)
+      expect((t - Date.parse(from)) / 86400000).toBeLessThanOrEqual(1100)
+    }
+  })
+})
+
+describe('hasPractice', () => {
+  it('is true for a day with strokes or active time, false for neither', () => {
+    expect(hasPractice({ date: '2026-10-01', tests: 1, strokes: 5, activeMs: 0 })).toBe(true)
+    expect(hasPractice({ date: '2026-10-01', tests: 1, strokes: 0, activeMs: 100 })).toBe(true)
+    expect(hasPractice({ date: '2026-10-01', tests: 1, strokes: 0, activeMs: 0 })).toBe(false)
   })
 })
