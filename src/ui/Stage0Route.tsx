@@ -95,7 +95,7 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
   const rowDrill = ROW_DRILLS.find((d) => d.id === id)
   const [words, setWords] = useState<Words>({ status: 'loading' })
   const [visibility, pick] = useBoardVisibility()
-  const [ghostChoice, pickGhost] = useGhostChoice()
+  const [ghostChoice, pickGhost, ghostReady] = useGhostChoice()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
 
@@ -125,7 +125,8 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
     [drill, run],
   )
 
-  const ghost = useGhost('stage0', known ? id : null, ghostChoice, run)
+  const logTest = { mode: 'stage0', chapter: 4, section: id }
+  const ghost = useGhost(logTest.mode, known ? id : null, ghostChoice, run, ghostReady)
 
   if (!known) return <Message>No such drill. Pick one from Chapter 4.</Message>
   if (!rowDrill && words.status === 'loading') return <p class="page__status">Loading…</p>
@@ -157,7 +158,7 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
         kind="stroke"
         items={attempt.items}
         logger={attempt.logger}
-        logTest={{ mode: 'stage0', chapter: 4, section: id }}
+        logTest={logTest}
         passMark={drill.passMark}
         boardVisibility={visibility}
         ghost={ghost}

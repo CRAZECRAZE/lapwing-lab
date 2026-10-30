@@ -13,8 +13,10 @@ const best: Ghost = { testId: 1, endedAt: 100, wpm: 40, completions: [1000, 2000
 const last: Ghost = { testId: 2, endedAt: 200, wpm: 30, completions: [1500, 3000, 4500, 6000, 7500] }
 
 let seen: ReturnType<typeof useGhost> = null
-function Probe(p: { mode: string; section: string | null; choice: GhostChoice; attempt: number }) {
-  seen = useGhost(p.mode, p.section, p.choice, p.attempt)
+const renders: ReturnType<typeof useGhost>[] = []
+function Probe(p: { mode: string; section: string | null; choice: GhostChoice; attempt: number; ready?: boolean }) {
+  seen = useGhost(p.mode, p.section, p.choice, p.attempt, p.ready ?? true)
+  renders.push(seen)
   return null
 }
 const mount = async (props: Parameters<typeof Probe>[0]) => {
@@ -25,6 +27,7 @@ const mount = async (props: Parameters<typeof Probe>[0]) => {
 
 beforeEach(() => {
   seen = null
+  renders.length = 0
   getGhosts.mockReset().mockResolvedValue({ best, last })
 })
 afterEach(cleanup)
@@ -84,6 +87,25 @@ describe('useGhost', () => {
     expect(seen).toBeNull()
     await act(async () => arrive({ best: last, last }))
     expect(seen).toEqual({ ...last, label: 'Best' })
+  })
+
+  it('asks nothing and shows nothing until the choice is ready, then asks once', async () => {
+    const view = await mount({ mode: 'free', section: 's', choice: 'best', attempt: 0, ready: false })
+    expect(seen).toBeNull()
+    expect(getGhosts).not.toHaveBeenCalled()
+    view.rerender(<Probe mode="free" section="s" choice="last" attempt={0} ready />)
+    await act(async () => {})
+    expect(getGhosts).toHaveBeenCalledTimes(1)
+    expect(seen).toEqual({ ...last, label: 'Last' })
+  })
+
+  it('shows no ghost of the old attempt on the first render of a new one', async () => {
+    const view = await mount({ mode: 'free', section: 's', choice: 'best', attempt: 0 })
+    expect(seen).not.toBeNull()
+    getGhosts.mockReturnValue(new Promise(() => {}))
+    const before = renders.length
+    view.rerender(<Probe mode="free" section="s" choice="best" attempt={1} />)
+    expect(renders[before]).toBeNull()
   })
 
   it('ignores an answer that arrives after a newer question', async () => {

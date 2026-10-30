@@ -112,15 +112,49 @@ describe('DrillRunner ghost', () => {
     expect(card.querySelector('.ghost__note')).toBeNull()
   })
 
-  it('asks again for Again, and the run just finished can be its ghost', async () => {
-    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+  it('keeps the raced ghost on the card, and Again races whatever is best by then', async () => {
+    const newer = { ...GHOST_RUN, testId: 8, endedAt: Date.now() - 3 * 86_400_000 }
+    getGhosts.mockResolvedValueOnce({ best: GHOST_RUN, last: null }).mockResolvedValueOnce({ best: newer, last: null })
     const rig = await mountRig(runner())
+    await waitFor(() => expect(ghostLine()).toMatch(/^Ghost \(best, today\)/))
     rig.stroke(SAP)
     rig.stroke(SAP)
-    await screen.findByRole('region', { name: 'Result' })
+    const card = await screen.findByRole('region', { name: 'Result' })
     expect(getGhosts).toHaveBeenCalledTimes(1) // the card keeps the ghost the run raced
+    expect(card.querySelector('.ghost__note')!.textContent).toMatch(/^Best run \(today\)/)
     fireEvent.click(screen.getByRole('button', { name: 'Again' }))
-    await waitFor(() => expect(getGhosts).toHaveBeenCalledTimes(2))
+    expect(ghostLine()).toBeNull() // never the old attempt's ghost, not even for a frame
+    await waitFor(() => expect(ghostLine()).toMatch(/^Ghost \(best, 3 days ago\)/))
+    expect(getGhosts).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['off', 'last'] as const)('waits for the stored choice (%s) before asking or drawing a ghost', async (stored) => {
+    let arrive!: (s: Awaited<ReturnType<typeof getSettings>>) => void
+    getSettings.mockReturnValue(new Promise((resolve) => (arrive = resolve)))
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: { ...GHOST_RUN, testId: 9 } })
+    await mountRig(runner())
+    await act(async () => {})
+    expect(getGhosts).not.toHaveBeenCalled()
+    expect(ghostLine()).toBeNull()
+    await act(async () =>
+      arrive({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: stored }),
+    )
+    if (stored === 'off') {
+      expect(getGhosts).not.toHaveBeenCalled()
+      expect(ghostLine()).toBeNull()
+    } else {
+      await waitFor(() => expect(ghostLine()).toMatch(/^Ghost \(last, today\)/))
+      expect(getGhosts).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('still races the default ghost when the settings cannot be read', async () => {
+    // The board and hint pickers read the settings too (and do not mind a failure); only the ghost's read fails.
+    const ok = await getSettings()
+    getSettings.mockResolvedValueOnce(ok).mockResolvedValueOnce(ok).mockRejectedValue(new Error('down'))
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    await mountRig(runner())
+    await waitFor(() => expect(ghostLine()).toMatch(/^Ghost \(best, today\)/))
   })
 
   it('shows no ghost with the picker on off, and saves the pick', async () => {

@@ -138,6 +138,21 @@ async function mount(source: string, mode: string, withDock = false): Promise<Ri
 }
 
 describe('FreeRoute ghost', () => {
+  it('does not ask for a ghost until the stored choice is known, and not at all when it is off', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    let arrive!: (s: Awaited<ReturnType<typeof getSettings>>) => void
+    getSettings.mockReturnValue(new Promise((resolve) => (arrive = resolve)))
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    await mount('pseudo', 'words-25')
+    await act(async () => {})
+    expect(getGhosts).not.toHaveBeenCalled()
+    await act(async () =>
+      arrive({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'off' }),
+    )
+    expect(getGhosts).not.toHaveBeenCalled()
+    expect(document.querySelector('.ghost')).toBeNull()
+  })
+
   it('asks for the ghost of the free section and has a Ghost picker next to the others', async () => {
     stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
     await mount('pseudo', 'words-25')

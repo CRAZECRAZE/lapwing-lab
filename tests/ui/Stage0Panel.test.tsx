@@ -211,6 +211,16 @@ async function mountRoute(
 }
 
 describe('Stage 0 drill route ghost', () => {
+  it('does not ask for a ghost when the stored choice is off', async () => {
+    const rig = await mountRoute('pseudo-extra-1', {
+      '/content/stage0.json': TINY,
+      'GET /api/settings': { boardVisibility: 'always', hints: 'miss', ghost: 'off' },
+    })
+    await act(async () => {})
+    expect(rig.server.calls.some((c) => c.url.startsWith('/api/ghost'))).toBe(false)
+    expect(document.querySelector('.ghost')).toBeNull()
+  })
+
   const GHOST_RUN = { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] }
   const url = 'GET /api/ghost?mode=stage0&section=pseudo-extra-1'
 

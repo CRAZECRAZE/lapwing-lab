@@ -95,11 +95,11 @@ export function DrillRunner(props: DrillRunnerProps): JSX.Element {
   const progress = useProgress()
   const [visibility, pick] = useBoardVisibility()
   const [hints, pickHints] = useHints()
-  const [ghostChoice, pickGhost] = useGhostChoice()
+  const [ghostChoice, pickGhost, ghostReady] = useGhostChoice()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
 
-  const ghost = useGhost(logTest.mode, logTest.section, ghostChoice, run)
+  const ghost = useGhost(logTest.mode, logTest.section, ghostChoice, run, ghostReady)
 
   // A new attempt gets a new logger and fresh items. The Drill starts the logger at the first stroke.
   const attempt = useMemo(() => ({ logger: createTestLogger(), items: props.items() }), [run])

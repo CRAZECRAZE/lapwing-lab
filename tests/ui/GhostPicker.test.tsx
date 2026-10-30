@@ -13,15 +13,17 @@ const getSettings = vi.mocked(api.getSettings)
 const putSettings = vi.mocked(api.putSettings)
 
 function Probe() {
-  const [ghost, pick] = useGhostChoice()
+  const [ghost, pick, ready] = useGhostChoice()
   return (
     <div>
       <output data-testid="ghost">{ghost}</output>
+      <output data-testid="ready">{String(ready)}</output>
       <GhostPicker value={ghost} onPick={pick} />
     </div>
   )
 }
 
+const isReady = (): string => screen.getByTestId('ready').textContent!
 const value = (): string => screen.getByTestId('ghost').textContent!
 const stored = (ghost: Settings['ghost']): Settings => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost })
 
@@ -74,6 +76,32 @@ describe('useGhostChoice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'off' }))
     await act(async () => arrive(stored('last')))
     expect(value()).toBe('off')
+  })
+
+  it('is ready when the stored value arrives, not before', async () => {
+    let arrive!: (s: Settings) => void
+    getSettings.mockReturnValue(new Promise<Settings>((resolve) => (arrive = resolve)))
+    render(<Probe />)
+    expect(isReady()).toBe('false')
+    await act(async () => arrive(stored('off')))
+    expect(isReady()).toBe('true')
+    expect(value()).toBe('off')
+  })
+
+  it('is ready when the read fails, with the default choice', async () => {
+    getSettings.mockRejectedValue(new Error('down'))
+    render(<Probe />)
+    expect(isReady()).toBe('false')
+    await act(async () => {})
+    expect(isReady()).toBe('true')
+    expect(value()).toBe('best')
+  })
+
+  it('is ready once the owner picks, before the stored value arrives', async () => {
+    getSettings.mockReturnValue(new Promise<Settings>(() => {}))
+    render(<Probe />)
+    fireEvent.click(screen.getByRole('button', { name: 'last' }))
+    expect(isReady()).toBe('true')
   })
 
   it('swallows a failed save and a failed read', async () => {

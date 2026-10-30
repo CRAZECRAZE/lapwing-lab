@@ -5,11 +5,11 @@ import type { PracticeList } from '../../scripts/lib/practice.ts'
 import type { Stage0Words } from '../../scripts/lib/stage0.ts'
 import { createTestLogger } from '../api.ts'
 import type { DrillItem } from '../core/drill.ts'
+import type { ActiveGhost } from '../core/ghost.ts'
 import { PSEUDO_SOURCE, buildFreeItems, describeFree, itemCountFor, listIdsFor, parseMode, parseSource, poolFor } from '../freetype/free.ts'
 import type { FreeMode, FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useDockDrillMarker } from '../state/dock.tsx'
-import type { ActiveGhost } from '../core/ghost.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
 import { GhostNote } from './GhostLine.tsx'
@@ -120,7 +120,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
   const [data, setData] = useState<Data>({ status: 'loading' })
   const [visibility, pick] = useBoardVisibility()
   const [hints, pickHints] = useHints()
-  const [ghostChoice, pickGhost] = useGhostChoice()
+  const [ghostChoice, pickGhost, ghostReady] = useGhostChoice()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
 
@@ -136,7 +136,11 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
     }
   }, [sourceId, modeId])
 
-  const ghost = useGhost('free', mode && data.status === 'ready' ? `${data.source.id}/${mode.id}` : null, ghostChoice, run)
+  const logTest =
+    mode && data.status === 'ready'
+      ? { mode: 'free', chapter: data.source.chapter, section: `${data.source.id}/${mode.id}` }
+      : null
+  const ghost = useGhost('free', logTest?.section ?? null, ghostChoice, run, ghostReady)
 
   // A new attempt gets a new logger and fresh items. The Drill starts the logger at the first stroke.
   const attempt = useMemo(
@@ -153,11 +157,10 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
   if (data.status === 'error') {
     return <Message>Couldn't load the word lists. Check that the Lapwing Lab server is still running, then try again.</Message>
   }
-  if (!attempt) return <Message>This source has no words to practise yet. Pick another on the Practice tab.</Message>
+  if (!attempt || !logTest) return <Message>This source has no words to practise yet. Pick another on the Practice tab.</Message>
 
   const { source } = data
-  const section = `${source.id}/${mode.id}`
-  const title = describeFree(section)
+  const title = describeFree(logTest.section)
 
   if (result) {
     return (
@@ -186,7 +189,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
         kind={source.kind}
         items={attempt.items}
         logger={attempt.logger}
-        logTest={{ mode: 'free', chapter: source.chapter, section }}
+        logTest={logTest}
         boardVisibility={visibility}
         hints={hints}
         ghost={ghost}
