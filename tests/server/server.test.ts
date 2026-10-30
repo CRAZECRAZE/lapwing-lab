@@ -377,6 +377,10 @@ describe('archive API', () => {
       ['/api/tests', { sessionId: 1, startedAt: 1, mode: 'm', chapter: null, section: 5, itemCount: 1 }],
       ['/api/settings', { boardVisibility: 'sideways' }],
       ['/api/settings', { hints: 'nope' }],
+      ['/api/settings', { plateauSnoozedUntil: '2026-02-30' }],
+      ['/api/settings', { plateauSnoozedUntil: 5 }],
+      ['/api/settings', { reportSeen: '2026-13' }],
+      ['/api/settings', { reportSeen: 202610 }],
       ['/api/settings', '[]'],
     ]
     for (const [path, body] of cases) {
@@ -462,20 +466,35 @@ describe('archive API', () => {
   })
 
   it('serves and updates settings', async () => {
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
     const put = await call('PUT', '/api/settings', { boardVisibility: 'hover' })
-    expect(await put.json()).toEqual({ boardVisibility: 'hover', hints: 'miss' })
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    expect(await put.json()).toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
   })
 
   it('stores hints on their own, keeps the board setting, and an empty PUT returns the current values', async () => {
     await call('PUT', '/api/settings', { boardVisibility: 'hidden' })
     const put = await call('PUT', '/api/settings', { hints: 'always' })
-    expect(await put.json()).toEqual({ boardVisibility: 'hidden', hints: 'always' })
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hidden', hints: 'always' })
-    expect(await (await call('PUT', '/api/settings', {})).json()).toEqual({ boardVisibility: 'hidden', hints: 'always' })
+    expect(await put.json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await (await call('PUT', '/api/settings', {})).json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
     const both = await call('PUT', '/api/settings', { boardVisibility: 'always', hints: 'miss' })
-    expect(await both.json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
+    expect(await both.json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+  })
+
+  it('stores, keeps and clears the snooze and the last report seen', async () => {
+    await call('PUT', '/api/settings', { hints: 'always' })
+    const put = await call('PUT', '/api/settings', { plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' })
+    const both = { boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' }
+    expect(await put.json()).toEqual(both)
+    expect(await (await call('GET', '/api/settings')).json()).toEqual(both)
+    const cleared = await call('PUT', '/api/settings', { plateauSnoozedUntil: null })
+    expect(await cleared.json()).toEqual({ ...both, plateauSnoozedUntil: null })
+    const file = join(dataDir, 'settings.json')
+    const before = readFileSync(file, 'utf8')
+    expect((await call('PUT', '/api/settings', { reportSeen: '2026-13' })).status).toBe(400)
+    expect((await call('PUT', '/api/settings', { hints: 'miss', plateauSnoozedUntil: 'tomorrow' })).status).toBe(400)
+    expect(readFileSync(file, 'utf8')).toBe(before)
   })
 
   it('400s an invalid hints value and leaves the file unchanged', async () => {
@@ -498,7 +517,7 @@ describe('archive API', () => {
   it('falls back to defaults when settings.json is corrupt', async () => {
     mkdirSync(dataDir, { recursive: true })
     writeFileSync(join(dataDir, 'settings.json'), '{oops')
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
   })
 
   async function finishedRun(mode: string, section: string, meta: unknown, accuracy = 0.9, wpm = 20): Promise<number> {

@@ -37,8 +37,8 @@ beforeEach(() => {
     loggers.push(logger)
     return logger
   })
-  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss' })
-  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', ...s }))
+  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ...s }))
   // Chapter 4 passed and Chapter 5 overridden: 5 and 6 are open.
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([{ chapter: 5, kind: 'override', at: 1 }])

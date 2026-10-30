@@ -6,7 +6,7 @@ import type { StatsMode, StatsResponse } from '../server/stats.ts'
 
 type FetchFn = typeof fetch
 
-const DEFAULT_SETTINGS: Settings = { boardVisibility: 'always', hints: 'miss' }
+const DEFAULT_SETTINGS: Settings = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
 
 // Resolved lazily so tests (and browsers) never see a detached `fetch`.
 const defaultFetch: FetchFn = (input, init) => fetch(input, init)
@@ -165,6 +165,13 @@ export async function getLastTest(mode: string, section: string, fetchFn: FetchF
   }
 }
 
+// A YYYY-MM-DD that names a real day (2026-02-30 does not). Mirrors server/settings.ts, which the client may only import types from.
+function isRealDate(v: unknown): v is string {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
+  const d = new Date(`${v}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v
+}
+
 // Falls back to the defaults when the server is unreachable or answers nonsense, one field at a time.
 export async function getSettings(fetchFn: FetchFn = defaultFetch): Promise<Settings> {
   const settings = { ...DEFAULT_SETTINGS }
@@ -174,6 +181,10 @@ export async function getSettings(fetchFn: FetchFn = defaultFetch): Promise<Sett
     if (v === 'always' || v === 'hover' || v === 'hidden') settings.boardVisibility = v
     const h = s?.hints
     if (h === 'miss' || h === 'always') settings.hints = h
+    const snooze = s?.plateauSnoozedUntil
+    if (isRealDate(snooze)) settings.plateauSnoozedUntil = snooze
+    const seen = s?.reportSeen
+    if (typeof seen === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(seen)) settings.reportSeen = seen
   } catch {
     // keep the defaults
   }

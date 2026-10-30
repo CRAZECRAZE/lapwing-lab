@@ -391,25 +391,25 @@ describe('GET timeouts', () => {
 
 describe('settings', () => {
   it('round-trips through GET and PUT', async () => {
-    let stored = { boardVisibility: 'always', hints: 'miss' }
+    let stored = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
     const { calls, fetch } = fakeFetch((c) => {
       if (c.method === 'PUT') stored = { ...stored, ...(c.body as object) }
       return json(stored)
     })
-    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'miss' })
-    await expect(putSettings({ boardVisibility: 'hover' }, fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss' })
-    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss' })
+    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    await expect(putSettings({ boardVisibility: 'hover' }, fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
     expect(calls[1]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { boardVisibility: 'hover' } })
   })
 
   it('putSettings sends only the patch', async () => {
-    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'always' }))
-    await expect(putSettings({ hints: 'always' }, fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'always' })
+    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null }))
+    await expect(putSettings({ hints: 'always' }, fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
     expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { hints: 'always' } })
   })
 
   it('getSettings falls back to defaults on failure or a bad body', async () => {
-    const defaults = { boardVisibility: 'always', hints: 'miss' }
+    const defaults = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
     await expect(getSettings(fakeFetch(() => new Error('down')).fetch)).resolves.toEqual(defaults)
     await expect(getSettings(fakeFetch(() => json({ error: 'x' }, 500)).fetch)).resolves.toEqual(defaults)
     await expect(getSettings(fakeFetch(() => json(null)).fetch)).resolves.toEqual(defaults)
@@ -420,15 +420,46 @@ describe('settings', () => {
     await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'hover', hints: 'nope' })).fetch)).resolves.toEqual({
       boardVisibility: 'hover',
       hints: 'miss',
+      plateauSnoozedUntil: null,
+      reportSeen: null,
     })
     await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'nope', hints: 'always' })).fetch)).resolves.toEqual({
       boardVisibility: 'always',
       hints: 'always',
+      plateauSnoozedUntil: null,
+      reportSeen: null,
     })
     await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'hidden' })).fetch)).resolves.toEqual({
       boardVisibility: 'hidden',
       hints: 'miss',
+      plateauSnoozedUntil: null,
+      reportSeen: null,
     })
+  })
+
+  it('getSettings passes valid snooze and report values through and falls back per field', async () => {
+    const full = { boardVisibility: 'hover', hints: 'always', plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' }
+    await expect(getSettings(fakeFetch(() => json(full)).fetch)).resolves.toEqual(full)
+    for (const bad of ['2026-02-30', '2026-13-01', 'tomorrow', '2026-11', 7, {}, '']) {
+      await expect(
+        getSettings(fakeFetch(() => json({ ...full, plateauSnoozedUntil: bad })).fetch),
+      ).resolves.toEqual({ ...full, plateauSnoozedUntil: null })
+    }
+    for (const bad of ['2026-13', '2026-00', '2026-1', '2026-10-01', 7, {}, '']) {
+      await expect(getSettings(fakeFetch(() => json({ ...full, reportSeen: bad })).fetch)).resolves.toEqual({
+        ...full,
+        reportSeen: null,
+      })
+    }
+    await expect(
+      getSettings(fakeFetch(() => json({ boardVisibility: 'hidden', plateauSnoozedUntil: null, reportSeen: '2026-09' })).fetch),
+    ).resolves.toEqual({ boardVisibility: 'hidden', hints: 'miss', plateauSnoozedUntil: null, reportSeen: '2026-09' })
+  })
+
+  it('putSettings sends a null patch value to clear a field', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }))
+    await putSettings({ plateauSnoozedUntil: null }, fetch)
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { plateauSnoozedUntil: null } })
   })
 
   it('putSettings rejects on failure so callers can react', async () => {

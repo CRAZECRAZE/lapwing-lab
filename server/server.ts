@@ -10,7 +10,7 @@ import { MissingRowError, openArchive } from './archive.ts'
 import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
-import { readSettings, writeSettings } from './settings.ts'
+import { isIsoDate, isYearMonth, readSettings, writeSettings } from './settings.ts'
 import { buildStats, emptyStats, STATS_MODES } from './stats.ts'
 import type { StatsMode } from './stats.ts'
 
@@ -290,6 +290,12 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     }
     const hints = body.hints
     if (hints !== undefined && hints !== 'miss' && hints !== 'always') bad('hints', 'one of miss, always')
+    const snooze = body.plateauSnoozedUntil
+    if (snooze !== undefined && snooze !== null && !isIsoDate(snooze)) {
+      bad('plateauSnoozedUntil', 'a date as YYYY-MM-DD or null')
+    }
+    const seen = body.reportSeen
+    if (seen !== undefined && seen !== null && !isYearMonth(seen)) bad('reportSeen', 'a month as YYYY-MM or null')
     ctx.ensureDataDir()
     sendJson(
       res,
@@ -297,6 +303,8 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
       writeSettings(ctx.settingsFile, {
         ...(vis === undefined ? {} : { boardVisibility: vis }),
         ...(hints === undefined ? {} : { hints }),
+        ...(snooze === undefined ? {} : { plateauSnoozedUntil: snooze }),
+        ...(seen === undefined ? {} : { reportSeen: seen }),
       }),
     )
     return

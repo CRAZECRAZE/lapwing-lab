@@ -23,7 +23,7 @@ function Probe() {
 }
 
 const value = (): string => screen.getByTestId('hints').textContent!
-const stored = (hints: Settings['hints']): Settings => ({ boardVisibility: 'always', hints })
+const stored = (hints: Settings['hints']): Settings => ({ boardVisibility: 'always', hints, plateauSnoozedUntil: null, reportSeen: null })
 
 beforeEach(() => {
   getSettings.mockReset().mockResolvedValue(stored('miss'))
