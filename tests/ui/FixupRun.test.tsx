@@ -11,6 +11,7 @@ vi.mock('../../src/api.ts', () => ({
   createTestLogger: vi.fn(),
   getSettings: vi.fn(),
   putSettings: vi.fn(),
+  getGhosts: vi.fn(),
   getResults: vi.fn(),
   getProgress: vi.fn(),
   getFixup: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('../../src/api.ts', () => ({
 const api = await import('../../src/api.ts')
 const createTestLogger = vi.mocked(api.createTestLogger)
 const getSettings = vi.mocked(api.getSettings)
+const getGhosts = vi.mocked(api.getGhosts)
 const getResults = vi.mocked(api.getResults)
 const getProgress = vi.mocked(api.getProgress)
 const getFixup = vi.mocked(api.getFixup)
@@ -73,6 +75,7 @@ beforeEach(() => {
     return logger
   })
   getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+  getGhosts.mockReset().mockResolvedValue({ best: null, last: null })
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([])
   getFixup.mockReset().mockResolvedValue(lists([word('sap', 'SAP'), word('tap', 'TAP')], [pattern('-P')]))
@@ -98,6 +101,21 @@ function ten(rig: Rig, bytes: number[] = SAP): void {
 }
 /** Types whichever word is on screen. */
 const typeCurrent = (rig: Rig): void => rig.stroke(BYTES[prompt()!])
+
+describe('FixupRun ghost', () => {
+  it('runs without a ghost: nothing asked, nothing drawn', async () => {
+    getGhosts.mockResolvedValue({
+      best: { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] },
+      last: null,
+    })
+    const rig = await mountRun()
+    await screen.findByText('0 clean in a row')
+    rig.stroke(SAP)
+    expect(getGhosts).not.toHaveBeenCalled()
+    expect(document.querySelector('.ghost')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Ghost' })).toBeNull()
+  })
+})
 
 describe('FixupRun words', () => {
   it('starts on the first pick with empty dots', async () => {

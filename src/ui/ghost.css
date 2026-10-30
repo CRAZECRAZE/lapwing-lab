@@ -1,0 +1,43 @@
+/* Ghost: one quiet line and two thin tracks under the drill status, and a note on the result card */
+
+.ghost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ghost__text {
+  margin: 0;
+}
+
+.ghost__track {
+  width: min(20rem, 80%);
+  height: 0.25rem;
+  border-radius: 0.125rem;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.ghost__fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.ghost__fill--ghost {
+  background: var(--muted);
+}
+
+.ghost__fill--you {
+  background: var(--left);
+}
+
+.ghost__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}

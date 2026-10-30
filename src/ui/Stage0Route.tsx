@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import type { Stage0Words } from '../../scripts/lib/stage0.ts'
 import { createTestLogger } from '../api.ts'
 import { formatAccuracy, formatWpm } from '../core/format.ts'
+import type { ActiveGhost } from '../core/ghost.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useDockDrillMarker } from '../state/dock.tsx'
 import { useProgress } from '../state/progress.tsx'
@@ -10,7 +11,10 @@ import { ROW_DRILLS, STAGE0_INFO, buildStage0Drills, itemsForRun } from '../stag
 import type { Stage0Drill } from '../stage0/lists.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
+import { GhostNote } from './GhostLine.tsx'
+import { GhostPicker, useGhostChoice } from './GhostPicker.tsx'
 import { QuickNote } from './QuickNote.tsx'
+import { useGhost } from './useGhost.ts'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 
 const CHAPTER_HREF = '/page/ch04'
@@ -46,7 +50,17 @@ const clock = (ms: number): string => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
-function Summary({ drill, result, onAgain }: { drill: Stage0Drill; result: DrillResult; onAgain(): void }): JSX.Element {
+function Summary({
+  drill,
+  result,
+  ghost,
+  onAgain,
+}: {
+  drill: Stage0Drill
+  result: DrillResult
+  ghost: ActiveGhost | null
+  onAgain(): void
+}): JSX.Element {
   const { stats, passed } = result
   return (
     <section class="stage0-run stage0-summary" aria-label="Result">
@@ -62,6 +76,7 @@ function Summary({ drill, result, onAgain }: { drill: Stage0Drill; result: Drill
         <div><dt>Speed</dt><dd>{formatWpm(stats.wpm)}</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
+      <GhostNote ghost={ghost} stats={stats} />
       <QuickNote title={drill.title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
       <div class="stage0-summary__actions">
         <button type="button" class="stage0-button" onClick={onAgain}>Again</button>
@@ -80,6 +95,7 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
   const rowDrill = ROW_DRILLS.find((d) => d.id === id)
   const [words, setWords] = useState<Words>({ status: 'loading' })
   const [visibility, pick] = useBoardVisibility()
+  const [ghostChoice, pickGhost] = useGhostChoice()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
 
@@ -109,6 +125,8 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
     [drill, run],
   )
 
+  const ghost = useGhost('stage0', known ? id : null, ghostChoice, run)
+
   if (!known) return <Message>No such drill. Pick one from Chapter 4.</Message>
   if (!rowDrill && words.status === 'loading') return <p class="page__status">Loading…</p>
   if (!drill || !attempt) return <Message>Couldn't load the word lists. Check that the Lapwing Lab server is still running, then try again.</Message>
@@ -118,6 +136,7 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
       <Summary
         drill={drill}
         result={result}
+        ghost={ghost}
         onAgain={() => {
           setResult(null)
           setRun((n) => n + 1)
@@ -128,7 +147,10 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
 
   return (
     <div class="stage0-run">
-      <VisibilityPicker value={visibility} onPick={pick} />
+      <div class="stage0-pickers">
+        <VisibilityPicker value={visibility} onPick={pick} />
+        <GhostPicker value={ghostChoice} onPick={pickGhost} />
+      </div>
       <Drill
         key={run}
         title={drill.title}
@@ -138,6 +160,7 @@ export function Stage0Route({ id }: { id: string }): JSX.Element {
         logTest={{ mode: 'stage0', chapter: 4, section: id }}
         passMark={drill.passMark}
         boardVisibility={visibility}
+        ghost={ghost}
         onDone={(done) => {
           setResult(done)
           // A finished run may clear Chapter 4's gate.

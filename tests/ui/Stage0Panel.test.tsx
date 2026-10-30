@@ -210,6 +210,34 @@ async function mountRoute(
   }
 }
 
+describe('Stage 0 drill route ghost', () => {
+  const GHOST_RUN = { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] }
+  const url = 'GET /api/ghost?mode=stage0&section=pseudo-extra-1'
+
+  it('asks for the ghost of the drill, has a Ghost picker and shows nothing when there is none', async () => {
+    const rig = await mountRoute('pseudo-extra-1', { '/content/stage0.json': TINY, [url]: { best: null, last: null } })
+    await waitFor(() => expect(rig.server.count('GET', '/api/ghost?mode=stage0&section=pseudo-extra-1')).toBe(1))
+    expect(screen.getByRole('group', { name: 'Ghost' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Board visibility' })).toBeTruthy()
+    expect(document.querySelector('.ghost')).toBeNull()
+  })
+
+  it('races the ghost and compares on the result card', async () => {
+    const rig = await mountRoute('pseudo-extra-1', { '/content/stage0.json': TINY, [url]: { best: GHOST_RUN, last: null } })
+    await waitFor(() => expect(document.querySelector('.ghost__text')!.textContent).toMatch(/^Ghost \(best, today\) 0 · You 0$/))
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')!.textContent).toBe('Best run (today) had 0 words by 0:00. You: 1 — 1 ahead.')
+  })
+
+  it('shows no note on the result card without a ghost', async () => {
+    const rig = await mountRoute('pseudo-extra-1')
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')).toBeNull()
+  })
+})
+
 describe('Stage 0 drill route', () => {
   it('runs a drill with the stored board visibility', async () => {
     await mountRoute('pseudo-test', { '/content/stage0.json': TINY, 'GET /api/settings': { boardVisibility: 'hidden', hints: 'miss' } })

@@ -10,6 +10,7 @@ vi.mock('../../src/api.ts', () => ({
   createTestLogger: vi.fn(),
   getSettings: vi.fn(),
   putSettings: vi.fn(),
+  getGhosts: vi.fn(),
   getLastTest: vi.fn(),
   appendJournal: vi.fn(),
   getResults: vi.fn(),
@@ -21,9 +22,12 @@ const api = await import('../../src/api.ts')
 const createTestLogger = vi.mocked(api.createTestLogger)
 const getSettings = vi.mocked(api.getSettings)
 const putSettings = vi.mocked(api.putSettings)
+const getGhosts = vi.mocked(api.getGhosts)
 const getResults = vi.mocked(api.getResults)
 const getProgress = vi.mocked(api.getProgress)
 const putMark = vi.mocked(api.putMark)
+
+const GHOST_RUN = { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] }
 
 let loggers: FakeLogger[] = []
 
@@ -39,6 +43,7 @@ beforeEach(() => {
   })
   getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best', ...s }))
+  getGhosts.mockReset().mockResolvedValue({ best: null, last: null })
   // Chapter 4 passed and Chapter 5 overridden: 5 and 6 are open.
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([{ chapter: 5, kind: 'override', at: 1 }])
@@ -52,6 +57,19 @@ afterEach(() => {
 })
 
 describe('ListDrillRoute', () => {
+  it('races the ghost of the section list and compares on the result card', async () => {
+    stubContent(CONTENT)
+    getSettings.mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'last' })
+    getGhosts.mockResolvedValue({ best: null, last: GHOST_RUN })
+    const rig = await mountRig(<ListDrillRoute listId="5-cvc" />)
+    await waitFor(() => expect(getGhosts).toHaveBeenCalledWith('section', '5-cvc'))
+    await waitFor(() => expect(document.querySelector('.ghost__text')!.textContent).toMatch(/^Ghost \(last, today\) 0 · You 0$/))
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')!.textContent).toBe('Last run (today) had 0 words by 0:00. You: 2 — 2 ahead.')
+  })
+
   it('runs every item of the list and logs it as a section drill of its chapter', async () => {
     const fetch = stubContent(CONTENT)
     const rig = await mountRig(<ListDrillRoute listId="5-cvc" />)

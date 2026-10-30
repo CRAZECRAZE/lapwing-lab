@@ -9,10 +9,14 @@ import { PSEUDO_SOURCE, buildFreeItems, describeFree, itemCountFor, listIdsFor, 
 import type { FreeMode, FreeSource } from '../freetype/free.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { useDockDrillMarker } from '../state/dock.tsx'
+import type { ActiveGhost } from '../core/ghost.ts'
 import { Drill } from './Drill.tsx'
 import type { DrillResult } from './Drill.tsx'
+import { GhostNote } from './GhostLine.tsx'
+import { GhostPicker, useGhostChoice } from './GhostPicker.tsx'
 import { HintPicker, useHints } from './HintPicker.tsx'
 import { QuickNote } from './QuickNote.tsx'
+import { useGhost } from './useGhost.ts'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 import './practice.css'
 
@@ -75,7 +79,17 @@ const clock = (ms: number): string => {
 }
 
 /** The card after a finished run. Kept as a column of parts so more can be added below the stats. */
-function FreeResult({ title, result, onAgain }: { title: string; result: DrillResult; onAgain(): void }): JSX.Element {
+function FreeResult({
+  title,
+  result,
+  ghost,
+  onAgain,
+}: {
+  title: string
+  result: DrillResult
+  ghost: ActiveGhost | null
+  onAgain(): void
+}): JSX.Element {
   const { stats, meta } = result
   const timedOut = (meta as { timedOut?: unknown } | null)?.timedOut === true
   return (
@@ -88,6 +102,7 @@ function FreeResult({ title, result, onAgain }: { title: string; result: DrillRe
         <div><dt>Words</dt><dd>{stats.completed}</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
+      <GhostNote ghost={ghost} stats={stats} />
       <QuickNote title={title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
       <div class="stage0-summary__actions">
         <button type="button" class="stage0-button" onClick={onAgain}>Again</button>
@@ -105,6 +120,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
   const [data, setData] = useState<Data>({ status: 'loading' })
   const [visibility, pick] = useBoardVisibility()
   const [hints, pickHints] = useHints()
+  const [ghostChoice, pickGhost] = useGhostChoice()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
 
@@ -119,6 +135,8 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
       live = false
     }
   }, [sourceId, modeId])
+
+  const ghost = useGhost('free', mode && data.status === 'ready' ? `${data.source.id}/${mode.id}` : null, ghostChoice, run)
 
   // A new attempt gets a new logger and fresh items. The Drill starts the logger at the first stroke.
   const attempt = useMemo(
@@ -146,6 +164,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
       <FreeResult
         title={title}
         result={result}
+        ghost={ghost}
         onAgain={() => {
           setResult(null)
           setRun((n) => n + 1)
@@ -159,6 +178,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
       <div class="stage0-pickers">
         <VisibilityPicker value={visibility} onPick={pick} />
         {source.kind === 'word' && <HintPicker value={hints} onPick={pickHints} />}
+        <GhostPicker value={ghostChoice} onPick={pickGhost} />
       </div>
       <Drill
         key={run}
@@ -169,6 +189,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
         logTest={{ mode: 'free', chapter: source.chapter, section }}
         boardVisibility={visibility}
         hints={hints}
+        ghost={ghost}
         view="flow"
         timeLimitMs={mode.seconds === undefined ? undefined : mode.seconds * 1000}
         onDone={setResult}

@@ -9,6 +9,7 @@ vi.mock('../../src/api.ts', () => ({
   createTestLogger: vi.fn(),
   getSettings: vi.fn(),
   putSettings: vi.fn(),
+  getGhosts: vi.fn(),
   getLastTest: vi.fn(),
   appendJournal: vi.fn(),
   getResults: vi.fn(),
@@ -20,6 +21,7 @@ const api = await import('../../src/api.ts')
 const createTestLogger = vi.mocked(api.createTestLogger)
 const getSettings = vi.mocked(api.getSettings)
 const putSettings = vi.mocked(api.putSettings)
+const getGhosts = vi.mocked(api.getGhosts)
 const getResults = vi.mocked(api.getResults)
 const getProgress = vi.mocked(api.getProgress)
 const putMark = vi.mocked(api.putMark)
@@ -39,6 +41,7 @@ beforeEach(() => {
   })
   getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best', ...s }))
+  getGhosts.mockReset().mockResolvedValue({ best: null, last: null })
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([])
   putMark.mockReset().mockResolvedValue({ chapter: 4, kind: 'override', at: 1 })
@@ -52,6 +55,7 @@ afterEach(() => {
 })
 
 const TOTAL = 135
+const GHOST_RUN = { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] }
 
 /** Strikes every prompt right: the first stroke at t=0, the last one `ms` later on the session clock. */
 function runAll(rig: Rig, ms: number): void {
@@ -176,5 +180,15 @@ describe('ChapterTestRoute', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(screen.getByRole('region', { name: 'Locked' })).toBeTruthy()
     expect(document.querySelector('.drill__prompt')).toBeNull()
+  })
+
+  it('races the ghost of the chapter test and compares on the result card', async () => {
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    const rig = await mountRig(<ChapterTestRoute chapter="5" />)
+    await waitFor(() => expect(getGhosts).toHaveBeenCalledWith('chapter-test', '5-test'))
+    await waitFor(() => expect(document.querySelector('.ghost__text')).not.toBeNull())
+    for (let i = 0; i < TOTAL; i++) rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')!.textContent).toMatch(/^Best run \(today\) had 0 words by 0:00\. You: 135 — 135 ahead\.$/)
   })
 })

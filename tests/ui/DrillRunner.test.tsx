@@ -13,6 +13,7 @@ vi.mock('../../src/api.ts', () => ({
   createTestLogger: vi.fn(),
   getSettings: vi.fn(),
   putSettings: vi.fn(),
+  getGhosts: vi.fn(),
   getLastTest: vi.fn(),
   appendJournal: vi.fn(),
   getResults: vi.fn(),
@@ -24,6 +25,7 @@ const api = await import('../../src/api.ts')
 const createTestLogger = vi.mocked(api.createTestLogger)
 const getSettings = vi.mocked(api.getSettings)
 const putSettings = vi.mocked(api.putSettings)
+const getGhosts = vi.mocked(api.getGhosts)
 const getResults = vi.mocked(api.getResults)
 const getProgress = vi.mocked(api.getProgress)
 const putMark = vi.mocked(api.putMark)
@@ -43,6 +45,7 @@ beforeEach(() => {
   })
   getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best', ...s }))
+  getGhosts.mockReset().mockResolvedValue({ best: null, last: null })
   // Chapter 4 is passed, so 5 is open and 6 is locked behind 5.
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([])
@@ -76,6 +79,80 @@ function runner(over: Partial<DrillRunnerProps> = {}) {
     />
   )
 }
+
+const GHOST_RUN = { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] }
+const ghostLine = (): string | null => document.querySelector('.ghost__text')?.textContent ?? null
+
+describe('DrillRunner ghost', () => {
+  it('asks for the ghost of the run\'s own mode and section, and has a Ghost picker', async () => {
+    await mountRig(runner())
+    await waitFor(() => expect(getGhosts).toHaveBeenCalledWith('chapter-test', '5-test'))
+    expect(screen.getByRole('group', { name: 'Ghost' })).toBeTruthy()
+    expect(ghostLine()).toBeNull() // nothing to race: nothing shown
+  })
+
+  it('races the ghost and says how the run compared on the result card, above the note', async () => {
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    const rig = await mountRig(runner())
+    await waitFor(() => expect(ghostLine()).toMatch(/^Ghost \(best, today\) 0 · You 0$/))
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    const note = card.querySelector('.ghost__note')!
+    expect(note.textContent).toBe('Best run (today) had 0 words by 0:00. You: 2 — 2 ahead.')
+    const quick = within(card).getByRole('button', { name: 'Add a note' })
+    expect(note.compareDocumentPosition(quick) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('has no note on the result card without a ghost', async () => {
+    const rig = await mountRig(runner())
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')).toBeNull()
+  })
+
+  it('asks again for Again, and the run just finished can be its ghost', async () => {
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    const rig = await mountRig(runner())
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    await screen.findByRole('region', { name: 'Result' })
+    expect(getGhosts).toHaveBeenCalledTimes(1) // the card keeps the ghost the run raced
+    fireEvent.click(screen.getByRole('button', { name: 'Again' }))
+    await waitFor(() => expect(getGhosts).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows no ghost with the picker on off, and saves the pick', async () => {
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    await mountRig(runner())
+    await waitFor(() => expect(ghostLine()).not.toBeNull())
+    fireEvent.click(within(screen.getByRole('group', { name: 'Ghost' })).getByRole('button', { name: 'off' }))
+    expect(putSettings).toHaveBeenCalledWith({ ghost: 'off' })
+    await waitFor(() => expect(ghostLine()).toBeNull())
+  })
+
+  it('does not hold the drill up for a ghost that never arrives, or one that fails', async () => {
+    getGhosts.mockReturnValue(new Promise(() => {}))
+    const rig = await mountRig(runner())
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    expect(await screen.findByRole('region', { name: 'Result' })).toBeTruthy()
+    cleanup()
+    getGhosts.mockRejectedValue(new Error('down'))
+    const again = await mountRig(runner())
+    again.stroke(SAP)
+    again.stroke(SAP)
+    expect(await screen.findByRole('region', { name: 'Result' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('passes no ghost when the run has no section', async () => {
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    await mountRig(runner({ logTest: { mode: 'section', chapter: 5, section: null } }))
+    expect(getGhosts).not.toHaveBeenCalled()
+  })
+})
 
 describe('DrillRunner', () => {
   it('runs a word drill with the board and hint pickers', async () => {

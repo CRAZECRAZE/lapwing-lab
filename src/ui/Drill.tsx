@@ -4,12 +4,14 @@ import type { Settings } from '../../server/settings.ts'
 import type { TestLogger } from '../api.ts'
 import { DrillSession } from '../core/drill.ts'
 import type { DrillItem, DrillKind, DrillRun, DrillStats } from '../core/drill.ts'
+import type { ActiveGhost } from '../core/ghost.ts'
 import { formatStroke, parseOutline, parseStroke, slotMask } from '../core/steno.ts'
 import type { Slot, SlotMask } from '../core/steno.ts'
 import type { RawStroke } from '../core/uni.ts'
 import { useDockDrillMarker, useDockOpen } from '../state/dock.tsx'
 import { useUni } from '../state/uni-context.tsx'
 import { Board } from './Board.tsx'
+import { GhostLine } from './GhostLine.tsx'
 import './drill.css'
 
 export type { DrillKind }
@@ -32,6 +34,8 @@ export type DrillProps = {
   view?: 'prompt' | 'flow'
   /** Ends the drill after this much session-clock time from the first judged stroke. */
   timeLimitMs?: number
+  /** An earlier run to race: a quiet line under the status, counting from the first judged stroke. */
+  ghost?: ActiveGhost | null
   /** Replaces the default `DrillSession` over `items` (e.g. a fix-up run); `items` still gives the item count. */
   makeSession?: (clock: () => number) => DrillRun
   /** Replaces the progress/accuracy line. */
@@ -125,6 +129,16 @@ export function Drill(props: DrillProps): JSX.Element {
 
   const timeLeft = (): number =>
     limit === undefined ? Infinity : limit - (startedAt.current === null ? 0 : clock() - startedAt.current)
+
+  // The ghost moves with the session clock, so it needs a redraw between strokes. A countdown already redraws.
+  const hasGhost = props.ghost != null
+  useEffect(() => {
+    if (!hasGhost || limit !== undefined) return
+    const tick = setInterval(() => {
+      if (started.current && !done.current) redraw(0)
+    }, COUNTDOWN_TICK_MS)
+    return () => clearInterval(tick)
+  }, [hasGhost])
 
   const root = useRef<HTMLElement>(null)
   const sink = useRef<HTMLTextAreaElement>(null)
@@ -401,6 +415,15 @@ export function Drill(props: DrillProps): JSX.Element {
         <p class="drill__stats">
           {progress} · acc {stats.completed > 0 ? `${Math.round(stats.accuracy * 100)}%` : '—'} · {Math.round(stats.wpm)} wpm
         </p>
+      )}
+      {props.ghost && (
+        <GhostLine
+          ghost={props.ghost}
+          you={stats.completed}
+          elapsedMs={startedAt.current === null ? 0 : clock() - startedAt.current}
+          total={limit === undefined ? session.total : null}
+          nowMs={Date.now()}
+        />
       )}
       <p class="drill__expected" aria-live="polite">
         {expectedText}

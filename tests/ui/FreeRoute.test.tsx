@@ -12,6 +12,7 @@ vi.mock('../../src/api.ts', () => ({
   createTestLogger: vi.fn(),
   getSettings: vi.fn(),
   putSettings: vi.fn(),
+  getGhosts: vi.fn(),
   getLastTest: vi.fn(),
   appendJournal: vi.fn(),
 }))
@@ -19,6 +20,7 @@ const api = await import('../../src/api.ts')
 const createTestLogger = vi.mocked(api.createTestLogger)
 const getSettings = vi.mocked(api.getSettings)
 const putSettings = vi.mocked(api.putSettings)
+const getGhosts = vi.mocked(api.getGhosts)
 
 type ReportListener = (e: { reportId: number; data: DataView }) => void
 
@@ -82,6 +84,8 @@ function stubContent(files: Record<string, unknown>) {
   return fn
 }
 
+const GHOST_RUN = { testId: 7, endedAt: Date.now(), wpm: 50, completions: [1000, 2000, 3000, 4000, 5000] }
+
 let loggers: FakeLogger[] = []
 
 beforeEach(() => {
@@ -96,6 +100,7 @@ beforeEach(() => {
   })
   getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best', ...s }))
+  getGhosts.mockReset().mockResolvedValue({ best: null, last: null })
 })
 
 afterEach(() => {
@@ -131,6 +136,34 @@ async function mount(source: string, mode: string, withDock = false): Promise<Ri
     },
   }
 }
+
+describe('FreeRoute ghost', () => {
+  it('asks for the ghost of the free section and has a Ghost picker next to the others', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    await mount('pseudo', 'words-25')
+    await waitFor(() => expect(getGhosts).toHaveBeenCalledWith('free', 'pseudo/words-25'))
+    expect(screen.getByRole('group', { name: 'Ghost' })).toBeTruthy()
+    expect(document.querySelector('.ghost')).toBeNull() // nothing to race
+  })
+
+  it('races the ghost and compares on the result card', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    getGhosts.mockResolvedValue({ best: GHOST_RUN, last: null })
+    const rig = await mount('pseudo', 'words-25')
+    await waitFor(() => expect(document.querySelector('.ghost__text')!.textContent).toMatch(/^Ghost \(best, today\) 0 · You 0$/))
+    for (let i = 0; i < 25; i++) rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')!.textContent).toBe('Best run (today) had 0 words by 0:00. You: 25 — 25 ahead.')
+  })
+
+  it('shows no note on the result card without a ghost', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    const rig = await mount('pseudo', 'words-25')
+    for (let i = 0; i < 25; i++) rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(card.querySelector('.ghost__note')).toBeNull()
+  })
+})
 
 describe('FreeRoute', () => {
   it('says so for an unknown mode, without fetching anything', async () => {

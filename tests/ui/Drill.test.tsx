@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TestLogger } from '../../src/api.ts'
 import type { DrillItem, DrillRun } from '../../src/core/drill.ts'
+import type { ActiveGhost } from '../../src/core/ghost.ts'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import { DockProvider, useDock } from '../../src/state/dock.tsx'
 import type { Dock } from '../../src/state/dock.tsx'
@@ -1544,5 +1545,87 @@ describe('Drill custom run, status slot and extra meta', () => {
     await mountDrill({ kind: 'stroke', items: [{ prompt: 'sap', outlines: ['SAP'], kind: 'word' }] })
     expect(document.querySelector('.drill__prompt')!.classList.contains('drill__prompt--word')).toBe(true)
     expect(document.querySelector('.key--target')).toBeNull()
+  })
+})
+
+describe('Drill ghost', () => {
+  const NOW = 1_000_000
+  const ghost: ActiveGhost = { testId: 1, endedAt: 0, wpm: 40, completions: [1000, 2000, 3000], label: 'Best' }
+  const six = Array.from({ length: 6 }, () => item('SAP', 'SAP'))
+  const line = (): string | undefined => document.querySelector('.ghost__text')?.textContent ?? undefined
+  const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+  const withGhost = { items: six, ghost }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+
+  it('shows nothing, and starts no redraw interval, without a ghost', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const rig = await mountDrill({ items: six })
+    rig.stroke(SAP)
+    expect(document.querySelector('.ghost')).toBeNull()
+    expect(setIntervalSpy.mock.calls.filter((c) => c[1] === 250)).toHaveLength(0)
+    setIntervalSpy.mockRestore()
+  })
+
+  it('counts the ghost from the first stroke and redraws without any stroke', async () => {
+    const rig = await mountDrill(withGhost)
+    expect(line()).toMatch(/^Ghost \(best, today\) 0 · You 0$/)
+    vi.setSystemTime(NOW + 5000) // time before the first stroke is not the ghost's
+    await wait(300)
+    expect(line()).toMatch(/ 0 · You 0$/)
+    rig.stroke(SAP)
+    expect(line()).toMatch(/ 0 · You 1$/)
+    vi.setSystemTime(NOW + 7500)
+    await waitFor(() => expect(line()).toMatch(/ 2 · You 1$/))
+    vi.setSystemTime(NOW + 9000)
+    await waitFor(() => expect(line()).toMatch(/ 3 · You 1$/))
+  })
+
+  it('sits under the status line, with two hidden tracks and no live region', async () => {
+    await mountDrill(withGhost)
+    const status = document.querySelector('.drill__stats')!
+    const ghostLine = document.querySelector('.ghost')!
+    expect(status.compareDocumentPosition(ghostLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ghostLine.querySelectorAll('.ghost__track[aria-hidden="true"]')).toHaveLength(2)
+    expect(ghostLine.closest('[aria-live]')).toBeNull()
+  })
+
+  it('freezes while a dock tool is open and resumes after', async () => {
+    const rig = await mountDrill(withGhost, { dock: true })
+    rig.stroke(SAP)
+    vi.setSystemTime(NOW + 500)
+    await wait(300)
+    expect(line()).toMatch(/ 0 · You 1$/)
+    act(() => rig.dock().open('lookup'))
+    vi.setSystemTime(NOW + 10_000) // a long pause
+    await wait(300)
+    expect(line()).toMatch(/ 0 · You 1$/)
+    act(() => rig.dock().close())
+    expect(line()).toMatch(/ 0 · You 1$/) // 500 ms of session time, not 10 s
+    vi.setSystemTime(NOW + 10_600)
+    await waitFor(() => expect(line()).toMatch(/ 1 · You 1$/))
+  })
+
+  it('stops redrawing once the run is finished', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP')], ghost })
+    rig.stroke(SAP)
+    await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+    const before = line()
+    vi.setSystemTime(NOW + 9000)
+    await wait(300)
+    expect(line()).toBe(before)
+  })
+
+  it('does not add a second redraw tick to a countdown', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const rig = await mountDrill({ ...withGhost, timeLimitMs: 60_000 })
+    rig.stroke(SAP)
+    expect(setIntervalSpy.mock.calls.filter((c) => c[1] === 250)).toHaveLength(1)
+    vi.setSystemTime(NOW + 2500)
+    await waitFor(() => expect(line()).toMatch(/ 2 · You 1$/))
+    setIntervalSpy.mockRestore()
   })
 })

@@ -3,15 +3,19 @@ import { useMemo, useState } from 'preact/hooks'
 import { createTestLogger } from '../api.ts'
 import type { DrillItem } from '../core/drill.ts'
 import { formatAccuracy, formatWpm } from '../core/format.ts'
+import type { ActiveGhost } from '../core/ghost.ts'
 import { navigate } from '../router.ts'
 import { useDockDrillMarker } from '../state/dock.tsx'
 import { useProgress } from '../state/progress.tsx'
 import { AppLink } from './AppLink.tsx'
 import { Drill } from './Drill.tsx'
 import type { DrillProps, DrillResult } from './Drill.tsx'
+import { GhostNote } from './GhostLine.tsx'
+import { GhostPicker, useGhostChoice } from './GhostPicker.tsx'
 import { HintPicker, useHints } from './HintPicker.tsx'
 import { LockedNotice } from './LockedNotice.tsx'
 import { QuickNote } from './QuickNote.tsx'
+import { useGhost } from './useGhost.ts'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 import './practice.css'
 
@@ -50,6 +54,7 @@ export const clock = (ms: number): string => {
 type ResultProps = {
   title: string
   result: DrillResult
+  ghost: ActiveGhost | null
   requirement?: string
   passMark?: DrillProps['passMark']
   backHref: string
@@ -58,7 +63,7 @@ type ResultProps = {
   onAgain(): void
 }
 
-function RunnerResult({ title, result, requirement, passMark, backHref, backLabel, nextHref, onAgain }: ResultProps): JSX.Element {
+function RunnerResult({ title, result, ghost, requirement, passMark, backHref, backLabel, nextHref, onAgain }: ResultProps): JSX.Element {
   const { stats, passed } = result
   return (
     <section class="stage0-run stage0-summary free-result" aria-label="Result">
@@ -71,6 +76,7 @@ function RunnerResult({ title, result, requirement, passMark, backHref, backLabe
         <div><dt>Words</dt><dd>{stats.completed}</dd></div>
         <div><dt>Time</dt><dd>{clock(stats.elapsedMs)}</dd></div>
       </dl>
+      <GhostNote ghost={ghost} stats={stats} />
       <QuickNote title={title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
       <div class="stage0-summary__actions runner__actions">
         <button type="button" class="stage0-button" onClick={onAgain}>Again</button>
@@ -89,8 +95,11 @@ export function DrillRunner(props: DrillRunnerProps): JSX.Element {
   const progress = useProgress()
   const [visibility, pick] = useBoardVisibility()
   const [hints, pickHints] = useHints()
+  const [ghostChoice, pickGhost] = useGhostChoice()
   const [run, setRun] = useState(0)
   const [result, setResult] = useState<DrillResult | null>(null)
+
+  const ghost = useGhost(logTest.mode, logTest.section, ghostChoice, run)
 
   // A new attempt gets a new logger and fresh items. The Drill starts the logger at the first stroke.
   const attempt = useMemo(() => ({ logger: createTestLogger(), items: props.items() }), [run])
@@ -102,6 +111,7 @@ export function DrillRunner(props: DrillRunnerProps): JSX.Element {
       <RunnerResult
         title={title}
         result={result}
+        ghost={ghost}
         requirement={requirement}
         passMark={passMark}
         backHref={backHref}
@@ -124,6 +134,7 @@ export function DrillRunner(props: DrillRunnerProps): JSX.Element {
       <div class="stage0-pickers">
         <VisibilityPicker value={visibility} onPick={pick} />
         <HintPicker value={hints} onPick={pickHints} />
+        <GhostPicker value={ghostChoice} onPick={pickGhost} />
       </div>
       {intro && <p class="runner__intro">{intro}</p>}
       <Drill
@@ -136,6 +147,7 @@ export function DrillRunner(props: DrillRunnerProps): JSX.Element {
         passMark={passMark}
         boardVisibility={visibility}
         hints={hints}
+        ghost={ghost}
         onDone={(done) => {
           setResult(done)
           // Only a finished run can change a gate; leaving early never reaches here.
