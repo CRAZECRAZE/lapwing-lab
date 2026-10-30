@@ -223,6 +223,16 @@ function dayNumber(date: string): number {
   return t.getTime() / MS_PER_DAY
 }
 
+// The from..to query of the ranged reads: both valid dates, from not after to, and at most MAX_DAYS_SPAN days apart.
+function parseRange(params: URLSearchParams): { from: string; to: string } {
+  const from = journalDate(params.get('from'), 'from')
+  const to = journalDate(params.get('to'), 'to')
+  const span = dayNumber(to) - dayNumber(from)
+  if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
+  if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
+  return { from, to }
+}
+
 // A chapter number from a path segment: digits only, 1-99.
 function chapterParam(raw: string): number {
   const v = Number(raw)
@@ -437,11 +447,7 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
   if (pathname === '/api/days') {
     if (method !== 'GET') allow(res, 'GET')
     const params = new URL(req.url ?? '/', 'http://localhost').searchParams
-    const from = journalDate(params.get('from'), 'from')
-    const to = journalDate(params.get('to'), 'to')
-    const span = dayNumber(to) - dayNumber(from)
-    if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
-    if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
+    const { from, to } = parseRange(params)
     sendJson(res, 200, ctx.existingArchive()?.dayStats(from, to) ?? [])
     return
   }
@@ -449,13 +455,9 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
   if (pathname === '/api/stats') {
     if (method !== 'GET') allow(res, 'GET')
     const params = new URL(req.url ?? '/', 'http://localhost').searchParams
-    const from = journalDate(params.get('from'), 'from')
-    const to = journalDate(params.get('to'), 'to')
+    const { from, to } = parseRange(params)
     const rawMode = params.get('mode') ?? 'free'
     const mode = (STATS_MODES as readonly string[]).includes(rawMode) ? (rawMode as StatsMode) : bad('mode', 'one of free, drills, all')
-    const span = dayNumber(to) - dayNumber(from)
-    if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
-    if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
     const archive = ctx.existingArchive()
     sendJson(res, 200, archive ? buildStats(archive, { from, to, mode }) : emptyStats({ from, to, mode }))
     return
@@ -464,11 +466,7 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
   if (pathname === '/api/fixup') {
     if (method !== 'GET') allow(res, 'GET')
     const params = new URL(req.url ?? '/', 'http://localhost').searchParams
-    const from = journalDate(params.get('from'), 'from')
-    const to = journalDate(params.get('to'), 'to')
-    const span = dayNumber(to) - dayNumber(from)
-    if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
-    if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
+    const { from, to } = parseRange(params)
     const archive = ctx.existingArchive()
     sendJson(res, 200, archive ? buildFixup(archive, { from, to }) : emptyFixup({ from, to }))
     return
