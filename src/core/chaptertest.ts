@@ -47,24 +47,32 @@ export function drillPassMark(
  * the item, `partial` and `miss` continue it. Item k (0-based) is a first showing when `k % repetitions === 0`. A row
  * whose expected outlines differ from the current item's starts a new item (the old one was left unfinished), and so
  * does a row whose outlines cannot be replayed (it counts as an item of one stroke).
+ *
+ * The live drill never logs an undo (a lone `*` after a partial stroke). Its rows say `correct` for a stroke that fits
+ * the word so far, so when the replay calls such a row a miss, the owner had taken strokes back: the item is rebuilt
+ * from the longest run of earlier strokes that lets the row fit (none at all, at the least) and the row is resubmitted.
  */
 export function firstShowings(
-  strokes: readonly { expected: string[]; pressedMask: number }[],
+  strokes: readonly { expected: string[]; pressedMask: number; correct: boolean }[],
   repetitions: number = CHAPTER_TEST.repetitions,
 ): boolean[] {
   const every = Math.max(1, Math.floor(repetitions) || 1)
   const flags: boolean[] = []
   let session: DrillSession | null = null
   let outlines: readonly string[] = []
+  let accepted: number[] = [] // the masks the replay took as partial strokes of the current item
   let item = -1
+  const fresh = (): DrillSession =>
+    new DrillSession([{ prompt: outlines.join(' '), outlines: [...outlines] }])
   for (const row of strokes) {
     const same =
       session !== null && row.expected.length === outlines.length && row.expected.every((o, i) => o === outlines[i])
     if (!same) {
       item++
       outlines = row.expected
+      accepted = []
       try {
-        session = new DrillSession([{ prompt: row.expected.join(' '), outlines: [...row.expected] }])
+        session = fresh()
       } catch {
         session = null
       }
@@ -72,7 +80,24 @@ export function firstShowings(
     flags.push(item % every === 0)
     if (session === null) continue
     const result = session.submit({ levers: [], mask: row.pressedMask })
-    if (result.kind === 'correct') session = null
+    if (result.kind === 'correct') {
+      session = null
+    } else if (result.kind === 'partial') {
+      accepted.push(row.pressedMask)
+    } else if (result.kind === 'miss') {
+      const before = accepted
+      accepted = []
+      if (!row.correct) continue
+      for (let keep = before.length - 1; keep >= 0; keep--) {
+        const attempt = fresh()
+        for (const mask of before.slice(0, keep)) attempt.submit({ levers: [], mask })
+        const again = attempt.submit({ levers: [], mask: row.pressedMask })
+        if (again.kind === 'miss') continue
+        session = again.kind === 'correct' ? null : attempt
+        if (again.kind === 'partial') accepted = [...before.slice(0, keep), row.pressedMask]
+        break
+      }
+    }
   }
   return flags
 }

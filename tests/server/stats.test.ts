@@ -311,6 +311,55 @@ describe('buildStats', () => {
       })
     })
 
+    describe('a chapter test with an undo', () => {
+      // 6 two-stroke words x 3 showings; the undo is on the second showing of the first word. It is never logged:
+      // the owner pressed the first stroke, `*`, then the first stroke again, so the log holds that stroke twice.
+      const WORDS = ['SAP/KAT', 'TPH/RAOE', 'PWAEU/HR-F', 'TKOG/SAP', 'KAT/TPH', 'RAOE/PWAEU']
+      function twoStrokeRun(a: Archive, undoOn: number | null): number {
+        const id = a.startTest({
+          sessionId: a.createSession(1000),
+          startedAt: start,
+          mode: 'chapter-test',
+          chapter: null,
+          section: null,
+          itemCount: WORDS.length * 3,
+        })
+        let ts = start
+        WORDS.forEach((w, wi) => {
+          for (let rep = 0; rep < 3; rep++) {
+            const strokes = w.split('/')
+            if (undoOn === wi && rep === 1) strokes.splice(1, 0, strokes[0])
+            strokes.forEach((s) => {
+              ts += rep === 0 ? 2000 : 500
+              a.addStroke({
+                testId: id,
+                tsMs: ts,
+                prompt: w.toLowerCase(),
+                expected: [w],
+                pressedLevers: [],
+                pressedMask: parseStroke(s),
+                correct: true,
+                latencyMs: 400,
+                attemptNo: 1,
+              })
+            })
+          }
+        })
+        a.finishTest(id, { endedAt: ts, wpm: 10, accuracy: 0.9, meta: { elapsedMs: 120000 } })
+        return id
+      }
+
+      it('has the same per-day steadiness as the run without the undo', () => {
+        const without = memory()
+        twoStrokeRun(without, null)
+        const withUndo = memory()
+        twoStrokeRun(withUndo, 0)
+        const expected = buildStats(without, { ...RANGE, mode: 'drills' }).days[0]?.steadiness
+        expect(expected).toBe(100) // the slow first showings are left out; the repeats are even
+        expect(buildStats(withUndo, { ...RANGE, mode: 'drills' }).days[0]?.steadiness).toBe(expected)
+      })
+    })
+
     it('uses only the runs of the chosen mode and skips left-early runs', () => {
       const a = memory()
       const mine = gapStamps(at(27, 8), swingy)

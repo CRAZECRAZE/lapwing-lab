@@ -48,10 +48,10 @@ function medianInt(values: number[]): number {
 
 /** First-showing flags for a chapter-test run's timings; null when a row lacks its outlines (then nothing is skipped). */
 function freshFlags(run: StrokeTiming[]): boolean[] | null {
-  const rows: { expected: string[]; pressedMask: number }[] = []
+  const rows: { expected: string[]; pressedMask: number; correct: boolean }[] = []
   for (const t of run) {
     if (t.expected === undefined || t.pressedMask === undefined) return null
-    rows.push({ expected: t.expected, pressedMask: t.pressedMask })
+    rows.push({ expected: t.expected, pressedMask: t.pressedMask, correct: t.correct })
   }
   return firstShowings(rows)
 }

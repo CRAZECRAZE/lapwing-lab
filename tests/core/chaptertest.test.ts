@@ -126,7 +126,11 @@ describe('drillPassMark', () => {
 describe('firstShowings', () => {
   const one = ['KAT']
   const two = ['KAT/PHREU']
-  const row = (expected: string[], stroke: string) => ({ expected, pressedMask: parseStroke(stroke) })
+  const row = (expected: string[], stroke: string, correct = true) => ({
+    expected,
+    pressedMask: parseStroke(stroke),
+    correct,
+  })
   /** The rows of one correct showing of a word. */
   const showing = (outlines: string[]) => outlines[0].split('/').map((s) => row(outlines, s))
 
@@ -145,7 +149,7 @@ describe('firstShowings', () => {
   it('keeps a miss and the retry inside the same showing', () => {
     const rows = [
       row(two, 'KAT'),
-      row(two, 'TKOG'), // a miss in the middle of the showing
+      row(two, 'TKOG', false), // a miss in the middle of the showing
       row(two, 'KAT'),
       row(two, 'PHREU'),
       ...showing(two),
@@ -176,7 +180,100 @@ describe('firstShowings', () => {
   })
 
   it('does not throw on rows that cannot be replayed', () => {
-    expect(firstShowings([{ expected: [], pressedMask: 1 }, { expected: ['not a stroke!'], pressedMask: 0 }])).toHaveLength(2)
+    // both rows are unreplayable: each counts as an item of one stroke (items 0 and 1 of 3)
+    expect(
+      firstShowings([
+        { expected: [], pressedMask: 1, correct: true },
+        { expected: ['not a stroke!'], pressedMask: 0, correct: true },
+      ]),
+    ).toEqual([true, false])
+  })
+
+  it('keeps a miss on a one-stroke word and its correct retry in the same showing', () => {
+    const flags = firstShowings([
+      row(one, 'TKOG', false),
+      row(one, 'KAT'),
+      ...showing(one),
+      ...showing(one),
+      ...showing(one),
+    ])
+    expect(flags).toEqual([true, true, false, false, true])
+  })
+
+  describe('after an undo that was never logged', () => {
+    // Live: KAT (partial), * (undo, not logged), KAT (partial), PHREU (correct). The log holds KAT, KAT, PHREU.
+    const catnip = (...undoAt: number[]) => {
+      const rows = []
+      for (let k = 0; k < 3; k++) {
+        rows.push(row(two, 'KAT'))
+        if (undoAt.includes(k)) rows.push(row(two, 'KAT'))
+        rows.push(row(two, 'PHREU'))
+      }
+      return rows
+    }
+    const clean = firstShowings(catnip())
+
+    it('has the clean run flag showings 1 only', () => {
+      expect(clean).toEqual([true, true, false, false, false, false])
+    })
+
+    it('flags a repeated partial stroke on the first showing like the run without the undo', () => {
+      const rows = catnip(0)
+      expect(firstShowings(rows)).toEqual([true, true, true, false, false, false, false])
+    })
+
+    it('stays in step through later words after an undo on the first showing', () => {
+      const words = [two, ['TKOG'], ['KAT']]
+      const rows = [
+        row(two, 'KAT'),
+        row(two, 'KAT'),
+        row(two, 'PHREU'),
+        ...showing(two),
+        ...showing(two),
+        ...[0, 1, 2].flatMap(() => showing(words[1])),
+        ...[0, 1, 2].flatMap(() => showing(words[2])),
+      ]
+      const flags = firstShowings(rows)
+      expect(flags).toEqual([
+        true, true, true, false, false, false, false,
+        true, false, false,
+        true, false, false,
+      ])
+    })
+
+    it('stays in step after an undo on a later showing', () => {
+      const rows = [...showing(two), row(two, 'KAT'), row(two, 'KAT'), row(two, 'PHREU'), ...showing(two), ...showing(['TKOG'])]
+      expect(firstShowings(rows)).toEqual([true, true, false, false, false, false, false, true])
+    })
+
+    it('gives the flags the live drill had for three words x three showings with one undo (6 of 13 were wrong)', () => {
+      const words = [two, ['TKOG'], ['KAT']]
+      const rows: ReturnType<typeof row>[] = []
+      const truth: boolean[] = []
+      words.forEach((w) =>
+        [0, 1, 2].forEach((k) => {
+          const strokes = w[0].split('/')
+          strokes.forEach((s, i) => {
+            rows.push(row(w, s))
+            truth.push(k === 0)
+            // the unlogged undo: the owner pressed the first stroke again after popping it
+            if (w === two && k === 0 && i === 0) {
+              rows.push(row(w, s))
+              truth.push(true)
+            }
+          })
+        }),
+      )
+      expect(rows).toHaveLength(13)
+      expect(firstShowings(rows)).toEqual(truth)
+    })
+
+    it('finds the stroke an undo went back to in a three-stroke word', () => {
+      const three = ['KAT/PHREU/TKOG']
+      // A, B, * (pops B), B, C is logged as A, B, B, C
+      const rows = [row(three, 'KAT'), row(three, 'PHREU'), row(three, 'PHREU'), row(three, 'TKOG'), ...showing(three)]
+      expect(firstShowings(rows)).toEqual([true, true, true, true, false, false, false])
+    })
   })
 
   it('gives [] for no strokes', () => {
