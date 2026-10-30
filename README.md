@@ -1,6 +1,6 @@
 # Lapwing Lab
 
-A private, offline, interactive version of the book *Lapwing for Beginners*, driven by your Uni v4. The whole book is readable in the app, its strokes light up on an on-screen board, and the Chapter 4 "Stage 0" drills, the section drills and chapter tests of the chapters after it, and free type run on your real keyboard and archive every stroke. Chapters ask to be cleared in order, and you can always override that. A history, a day calendar, a Progress page and a daily journal sit on top of that archive, and four quick-pull tools (lookup, key chart, briefs, notes) open beside whatever page you are on. It is not a replacement for Plover: it never sends strokes to Plover, never types text, and never touches Plover's config.
+A private, offline, interactive version of the book *Lapwing for Beginners*, driven by your Uni v4. The whole book is readable in the app, its strokes light up on an on-screen board, and the Chapter 4 "Stage 0" drills, the section drills and chapter tests of the chapters after it, and free type run on your real keyboard and archive every stroke. Chapters ask to be cleared in order, and you can always override that. A history, a day calendar, a Progress page and a daily journal sit on top of that archive, and four quick-pull tools (lookup, key chart, briefs, notes) open beside whatever page you are on. A run can race a ghost of an earlier run of the same drill, you can practise on text you paste or save, and a routine lists the day's practice with ticks that come from what you actually did. It is not a replacement for Plover: it never sends strokes to Plover, never types text, and never touches Plover's config.
 
 ## Requirements
 
@@ -42,6 +42,9 @@ The top bar has six tabs: **Book · Practice · History · Days · Progress · J
 - **Book** is the reader for all 33 pages of the book (Home, chapters, appendices, Glossary, Changes), with the book's images and videos served locally. Strokes in the text light up the keys on a board when you hover, focus or click them. While a stroke is shown in the board panel, pressing it on the Uni shows a ✓; for a multi-stroke outline, press the strokes in order starting from the first.
 - **Practice** has a **Where you are** panel (the chapter you are on, see below), **free type** and the Chapter 4 **Stage 0 drills**. Free type is a flowing line of words: 25 or 50 words, or 30 or 60 seconds, or choose **Custom** and type your own number of words (1 to 500) or seconds (5 to 600); Start stays off until the number is in range. A timed run starts counting on your first stroke. Stage 0 is six key-row drills (left bottom, right bottom, left top, right top, vowels, star), the 100-word layout test with the book's pass mark (90% accuracy within 10 minutes), and two extra practice lists. The board can be always visible, shown on hover, or hidden.
 - **Fix-up** is a page reached from a card on the Practice tab and from the Progress page (not a seventh tab). It lists the words and stroke patterns you miss most and drills the ones you tick slowly, one at a time, until each comes out clean ten times in a row (see "Fix-up drill" below).
+- **Real text** is a page reached from a card on the Practice tab. Paste a text, see how much of it the dictionary covers, then practise its words in order or save it (see "Real text" below).
+- **Routine** is a page reached from a card on the Practice tab: your own list of practice steps, ticked off as the matching runs finish today (see "Routines" below).
+- **Ghosts** are an earlier run's pace, shown in a run as a quiet line and two thin bars, with a **Ghost** picker of `best`, `last` or `off` (see "Ghosts" below).
 - **History** lists every test with accuracy and speed; open one to see its rhythm (see "Progress" below), its misses (what was required, what you pressed, which keys were missing or extra) and its slowest words.
 - **Days** is a month calendar shaded by how long you practiced each day, with totals; pick a day to see its tests and its journal note. Your current streak of consecutive days is shown in the status line as well.
 - **Progress** is the page that shows whether practice is working: speed and accuracy by day, how steady your typing is, how much you practice, which keys and mix-ups hold you back and how you stand against the book's chapter marks, with a Reports link to the month-end reports (see "Progress" and "Reports and the plateau notice" below).
@@ -53,7 +56,7 @@ For the chapter word lists, the **Hint** setting chooses when the keys a word ne
 
 "Time practiced" is approximate: for each test it is the time from the first stroke to the last, so pauses inside a test count and time before the first stroke does not.
 
-The full dictionary lookup and the Progress page (M6a) are done (see "The dictionary" and "Progress" below). The Progress page now has a plateau notice and a month-end report (M6b, see "Reports and the plateau notice" below). The fix-up drill is done too (M5b, see "Fix-up drill" below). What remains is the routine planner (M7); the order is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
+The full dictionary lookup and the Progress page (M6a) are done (see "The dictionary" and "Progress" below). The Progress page now has a plateau notice and a month-end report (M6b, see "Reports and the plateau notice" below). The fix-up drill is done too (M5b, see "Fix-up drill" below), and so are the ghosts, the real-text practice and the routine planner (M7, see "Ghosts", "Real text" and "Routines" below). The plan's milestones are all built; the order is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
 
 ## Chapter practice and gates
 
@@ -217,17 +220,63 @@ The **Fix-up** page turns the strokes you already got wrong into a short, slow d
 
 **What is written to `data/`.** Only the run itself (a `tests` row and its `strokes` in `steno.db`), as for any drill; and `settings.json` if you change the board or Hint picker. Opening the lists or the drill and leaving without a stroke writes nothing. The design is in `docs/superpowers/specs/2026-10-30-lapwing-lab-m5b-fixup-drill-design.md`; `docs/superpowers/m5b-checklist.md` lists what to check against your real history.
 
+## Ghosts
+
+A **ghost** is the pace of an earlier run of the same drill: the times, counted from that run's first stroke, at which it finished each word. It gives a run something to race. There is no timer, score or leaderboard.
+
+- **Where.** In free type, section list drills, chapter tests, the Stage 0 drills and real-text runs. Never in a fix-up run, which has no pace. A ghost comes from runs with the same mode and section: for free type that is the same words source and the same amount (25 words and 60 seconds of one source have separate ghosts), for a list drill or a chapter test the same list.
+- **Which run.** Of the 30 most recent finished runs of that mode and section that were not left early, those with fewer than 5 completed words are left out. **Best** is the one with the highest wpm (a tie goes to the later run), **Last** is the most recent. They can be the same run.
+- **The picker.** A **Ghost** picker (`best`, `last`, `off`) sits beside the board and Hint pickers on those screens. The default is `best`. It is stored as `ghost` in `data/settings.json`, so it is kept after a reload, and it applies to the next attempt.
+- **In a run.** One line under the status line, `Ghost (best, 3 days ago) 14 · You 12`, with two thin bars below it (the ghost, you). For a run with a fixed number of words the bars are scaled to that number; for a timed run, to the larger of the ghost's total and your count. The ghost starts moving at your first stroke and runs on the drill's own clock, so it stops while a dock tool is open or the board is unplugged. The line is not a live region, so screen readers do not read it out as it changes, and it has no sound.
+- **After a run.** The result card gets one line: `Best run (3 days ago) had 22 words by 0:41. You: 25 — 3 ahead.` It says how many words the ghost had by the time your run took, and ends `ahead`, `behind` or `level`.
+- **When there is none.** With no qualifying earlier run, with the picker on `off`, or when the ghost cannot be loaded, nothing is shown and the drill is unchanged. The ghost is asked for once per attempt, before it starts, so a finished run never races itself; **Again** asks again.
+- **Where it comes from.** `GET /api/ghost?mode=&section=` (read-only) replays the stroke rows of the earlier runs in `data/steno.db`, the way the fix-up drill does. Nothing new is stored for a ghost.
+- **Known limits.** The times are the wall-clock times of the old run's strokes, so a pause inside that run is inside the ghost's times and makes it slow. Unsaved real texts all log the section `text/pasted/<part>`, so the ghost for one of them can come from another unsaved text's same part. Both are listed in `docs/superpowers/m0-m1-followups.md`.
+
+## Real text
+
+The **Real text** card on the Practice tab opens `/practice/text`: a text box for pasting, a name box, **Check**, and the list of your saved texts. **Check** shows how much of the text the dictionary covers before anything is drilled. **Start** (to practise it without saving) and **Save** appear once at least one word can be stroked.
+
+- **Coverage.** `212 of 230 words can be stroked (92%)`, then `Numbers and symbols skipped: N`, then the words with no entry as `word ×count`, most frequent first and then alphabetical, the first 20 with `and N more` after them. The percentage is never 100 while a word is missing and never 0 while one can be stroked. Words with no entry are skipped in the drill: nothing is guessed or fingerspelled.
+- **Matching.** A word is the text between spaces with the punctuation around it removed; apostrophes and hyphens inside it stay, and a curly apostrophe counts as a straight one. It is looked up as written and then in lower case in the dictionary that Lookup reads (`content/build/dictionary.json`); the book's named keys and commands (the `from the book` cards) never match, and your own Plover dictionaries are never read. Every outline of the matching card is accepted, in the card's order. A hyphenated word with no entry of its own is tried as its parts, each of which becomes one word of the drill; if any part is unknown, the whole word is missing. A token with no letter in it (a number, a symbol) is skipped and counted.
+- **The drill.** The words come in the order of the text, not shuffled, in the flowing line, in **parts of 100 words** counted over the words that can be stroked. A 230-word text with every word in the dictionary has three parts (100, 100 and 30 words); the page says `Part 2 of 3` and `N words in this part`. The result card shows accuracy, speed, words and time, the ghost line, **Add a note**, **Next part** when there is one, **Again** and **Back to text**. The Ghost, board and Hint pickers work as in other drills.
+- **Saved and unsaved.** A text you do not save stays in memory: it opens at `/practice/text/run/pasted/1`, and reloading the page forgets it (the page says `There is no pasted text here.`). A saved text is the file `data/texts/<id>.json`, `{name, text}`. Its id is made from the name (lower-case letters and digits, dashes between, at most 40 characters, `-2`, `-3`… added if taken), so a text named `Pasted` is saved as `pasted-2`. At most 50 texts, 1 to 60 characters in a name, and 200,000 characters in a text. A saved text opens at part 1 from the list and **Delete** asks first (`Delete this text?`); your practice history stays. A saved text cannot be edited in place: delete it and save it again.
+- **In the archive.** A run is recorded as mode `text`, no chapter, section `text/<id>/<part>` (`<id>` is `pasted` for an unsaved text). History, Days and a run's own page name it `Text · <name> · part N` (`Text · pasted · part N` for an unsaved text, and the id in place of the name if the text has since been deleted). It counts in practice time, strokes, the key statistics and the speed figures of Progress with Mode `Everything`, not under `Free type` or `Drills and tests`.
+- **Files.** Only `data/texts/<id>.json` for a saved text, and the run itself. Pasting, checking and starting an unsaved text write nothing. The server checks an id before it touches the file system. The design is in `docs/superpowers/specs/2026-10-30-lapwing-lab-m7-routines-ghosts-text-design.md`; `docs/superpowers/m7-checklist.md` lists what to check on your own texts.
+
+## Routines
+
+A **routine** is your own ordered list of practice steps, with ticks that come from the runs you finish. The **Routine** card on the Practice tab shows the active routine's name and `N of M done today` (`No routine yet.` with a **Plan a routine** link when there is none) and opens `/practice/routine`.
+
+A step is one of four kinds, and it counts as done today when a finished run, not one left early, started on today's local date has the mode and section the step names:
+
+| Step | Start link | Done when today has a finished |
+| --- | --- | --- |
+| Section drill (a list id such as `05-…`) | `/drill/list/<id>` | `section` run of that list |
+| Free type (a source and one of the four preset amounts) | `/practice/free/<source>/<mode>` | `free` run with that source and amount |
+| Fix-up (words or patterns) | `/practice/fixup` or `/practice/fixup/patterns` | `fixup` run of that kind |
+| Real text (a saved text and a part from 1 to 99) | `/practice/text/run/<id>/<part>` | `text` run of that part |
+
+- **The page.** The active routine is a checklist: each step's line, a mark and a word (`Done`, `Next up`, `To do`, `Unavailable`), `2 of 4 done today`, and a **Start** link on every step that is not done. Below it are your routines, each with **Make active**, **Edit** and **Delete** (which asks first), and **New routine**.
+- **The editor.** A name of 1 to 40 characters and the steps with **Move up**, **Move down** and **Remove**, and an **Add a step** form: the kind, then its choices (the lists of the chapters you have reached, the Free type sources and the four preset amounts, Words or Patterns, a saved text and a part number). **Save** writes the whole set; **Cancel** drops what you changed. Up to 8 routines and 12 steps in each. The first routine saved becomes the active one; deleting the active routine leaves none active until you pick one. A text step needs a saved text.
+- **Ticks are not stored.** They are worked out from today's runs in the archive when the page is shown, so a routine done yesterday starts unticked today, and a step you did from the Book or Practice tab ticks as well. Steps that point at the same target tick together. The page reads today's runs once, when it opens.
+- **A step whose target is gone** (a text you deleted, a list or source that no longer exists) shows `Unavailable`, has no Start link, is never ticked and is skipped for `Next up`. Nothing else is affected.
+- **Back to routine.** A Start link carries `?from=routine`. The list-drill, free-type and text pages then say **Back to routine**, and Esc and the link lead to `/practice/routine`, where the ticks are read again. **Next part** keeps it. A fix-up step opens the Fix-up page as usual.
+- **Files.** Your routines are `data/routines.json`, `{routines: [{id, name, steps}], active}`, written whole on **Save** and created on the first save. A missing, unreadable or invalid file means no routines; the server checks the whole document before it writes it. A run started from a routine is an ordinary run. The design is in `docs/superpowers/specs/2026-10-30-lapwing-lab-m7-routines-ghosts-text-design.md`.
+
 ## Your data
 
 Everything the app writes lives in `data/`:
 
 - `steno.db`, a SQLite database (tables `sessions`, `tests`, `strokes`, and `progress_marks`, which holds only your read and override marks, one row per chapter)
-- `settings.json`, your settings: the board and hint choices, plus `plateauSnoozedUntil` (the date the plateau notice is snoozed until) and `reportSeen` (the last finished month whose report you opened)
+- `settings.json`, your settings: the board and hint choices, the ghost choice (`ghost`: `best`, `last` or `off`), plus `plateauSnoozedUntil` (the date the plateau notice is snoozed until) and `reportSeen` (the last finished month whose report you opened)
 - `journal/YYYY-MM-DD.md`, your notes: plain markdown, one file per local day
 - `notes/chNN.md`, your notes per chapter from the My notes tool: plain markdown, one file per chapter (1 to 26)
 - `reports/YYYY-MM.md`, your notes in the month-end reports: plain text, one file per month
+- `texts/<id>.json`, your saved real texts: `{name, text}`, one file per text (see "Real text")
+- `routines.json`, your routines and which one is active (see "Routines")
 
-Each is created on first save (the journal folder when you first write a journal note, the notes folder when you first type in My notes, the reports folder when you first type a report note), so `data/` does not exist until you first use a drill or change a setting, and on a fresh install merely opening a tab writes nothing. The first start after upgrading from an earlier version adds the empty `progress_marks` table to an existing `steno.db` in place (your tests and strokes are not changed), so copy `data/` first if you want a backup. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
+Each is created on first save (the journal folder when you first write a journal note, the notes folder when you first type in My notes, the reports folder when you first type a report note, the texts folder when you first save a text, `routines.json` when you first save a routine), so `data/` does not exist until you first use a drill or change a setting, and on a fresh install merely opening a tab writes nothing. The first start after upgrading from an earlier version adds the empty `progress_marks` table to an existing `steno.db` in place (your tests and strokes are not changed), so copy `data/` first if you want a backup. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
 
 Opening a drill and leaving without a stroke writes nothing. Leaving a drill early (Exit or Esc) keeps the strokes you already did and closes the test as left early: it shows in History as "Left early" with the partial numbers. A run left early is never shown as the last result on the Chapter 4 panel or the Practice tab. A test whose `ended_at` is still empty means the browser tab was closed mid-drill.
 
@@ -261,8 +310,8 @@ content/lapwing-book/   vendored book (generated; do not edit)
 content/lapwing-dictionary/   vendored official Lapwing dictionary (generated; do not edit)
 content/build/          generated pages and word lists (git-ignored)
 scripts/                content pipeline and dev runner
-server/                 HTTP server, SQLite archive, journal and chapter notes files, settings
-src/                    client: reader, board, drills, chapter tests and gates, free type, history, days, progress, journal, the dock tools, WebHID input
+server/                 HTTP server, SQLite archive, journal, chapter notes, saved texts and routines files, settings, ghosts
+src/                    client: reader, board, drills, chapter tests and gates, free type, real text, routines, ghosts, history, days, progress, journal, the dock tools, WebHID input
 tests/                  vitest suites
 docs/superpowers/       specs/ and plans/
 data/                   your data (git-ignored)

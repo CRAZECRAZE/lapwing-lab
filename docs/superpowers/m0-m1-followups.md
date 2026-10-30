@@ -183,3 +183,52 @@ Deferred from the M5b reviews (the fix-up drill). Nothing here blocks the Fix-up
 - **Pure core.** `rankPatterns` re-implements `keyStats`' one-for-one mix-up rule to find each pattern's last time (a drift would silently give `lastTsMs` 0 and `Last seen` a dash); no test asserts a mix-up's `lastTsMs`, the shared-status test runs one direction only, and a few lines (the sort comparator in `rankWords`, two in `rankPatterns`) are long. There is no `wordAttempts` test for an unlogged undo (`KAT`, `KAT`, `PHREU`).
 - **Server and route tests.** The 400 cases for `/api/fixup` with no archive do not assert that `data/` stays absent; the archive test hardcodes stroke ids 1 and 2; two test files have a similar `seedCat` helper. One stats test is titled as if it covers every mode's days but also asserts keys and time. `/api/stats` now checks the date range before the mode, so with both a bad span and a bad mode the 400 message names the span (the status is unchanged; nothing reads the text). There is no stale-response or tab-switch-mid-fetch test for the page, and no `App` test for the `fixup` route branch.
 - **Entry-point tests and CSS.** A `plural` helper in `Practice.tsx` duplicates the `times` helper in `Mixups.tsx`; the two `Drill these` link blocks are identical; the failed-fetch test waits for a real 10 ms timeout.
+
+## Left open by M7
+
+Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks use of M7. The first group is what the spec left out on purpose; the rest are limits and tidiness, by area.
+
+**Left out on purpose (the spec)**
+
+- Scheduling a routine by weekday or clock time, and reminders.
+- Importing text from a file or a URL (pasting is the only way in).
+- Re-ranking ghosts by length (a ghost is picked by wpm or by recency only).
+- Editing a saved text in place (delete it and save it again).
+- A stored "done" state for routine steps (ticks are worked out from the archive every time).
+
+**Ghosts**
+
+- Ghost times include the pauses of the old run: they come from the wall-clock times of its strokes, so a run with a long break in it makes a slow ghost. Known and accepted; the replay is the one the fix-up drill uses and nothing new is stored.
+- Unsaved texts all share the section `text/pasted/<part>`, so the ghost for an unsaved text's part comes from any earlier unsaved text's same part, not from the same text. (Found while writing the docs.)
+- A drill on a chapter that is still locked still asks for its ghost (a request that is harmless but not needed).
+- A result with 0 words still shows the ghost line.
+- A ghost that arrives late shifts the layout by a line.
+- The `m:ss` clock helper has four copies (`src/core/ghost.ts`, `FreeRoute`, `Stage0Route`, `DrillRunner`); one shared helper in `src/core/format.ts` would do.
+- A long template line in `compareToGhost` (`src/core/ghost.ts`) and a redundant empty-rows guard in `completionTimes`.
+- The branch of `ghostRuns` that skips a stroke whose `expected_json` is corrupt has no test. Its stroke-to-row mapping is a near copy (about 5 lines) of `fixupRowsInRange`. The section length limit counts UTF-16 units.
+- The `DrillRunner` test "still races the default ghost when the settings cannot be read" depends on the order in which the pickers call `getSettings`.
+
+**Real text**
+
+- A saved text's id drops accents (`Café` becomes `caf`), as the plan's test pins it.
+- A direct API `PUT` of the id `pasted` is still accepted by the server; only the page keeps that id for the unsaved text (a saved text named `Pasted` is saved as `pasted-2`). Reachable only by hand.
+- The `textIdFor` test cases named for the dash after the cut do not reach the re-trim path. `EDGE_PUNCTUATION` also trims combining marks at the edge of a word (harmless).
+- The text-id rule lives in four places (`server/texts.ts`, `src/api.ts`, `src/core/realtext.ts`, `src/core/routine.ts`); exporting `isTextId` and the 40-character limit from `src/core/realtext.ts` would leave one.
+- No test for a large multibyte `PUT` or a 413, and none for an empty text `PUT` through the API.
+- Prettier noise: the repo has no formatter config, so a formatter run rewrites unrelated lines.
+- `MAX_TEXTS` and `MAX_NAME_CHARS` are written twice (`src/ui/useSavedTexts.ts` and `server/texts.ts`).
+- A saved text's row in the list may show its id for a moment before the name (label flicker).
+- After a successful save the hint `Add a name to save it.` shows beside `Saved.` (cosmetic).
+
+**Routines**
+
+- `validateRoutineDoc` lets holes in a sparse array through `.map` (not reachable from JSON); no tests for `__proto__`, `Infinity` or unicode in names; a name's length counts UTF-16 units.
+- The literal `'pasted'` is written in `src/core/routine.ts` and again in `TextRun.tsx` and `Text.tsx` (a shared constant would do).
+- A fix-up step opens the Fix-up page, where the list still has to be started: one extra click.
+- The routines `PUT` turns any `Error` thrown by `validateRoutineDoc` into a 400 (a dedicated error class would be stricter), and its 400 tests do not try a `null` or string body.
+- A done step has no link, so there is no Again from the routine page.
+- The error messages of the list-drill page ignore `?from=routine` (they link to the chapter or the book).
+- The editor does not offer custom free-type amounts (only the four presets).
+- The routine page keeps today's date from when it opened, so a tab left open past midnight shows yesterday's ticks until reload (the same as `today` under M6a).
+- Only 200 tests of the day are read for the ticks.
+- `RoutineAddStep` and `FreeRoute` call `backTarget` more than once per render.
