@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import type { StrokeRecord, TestRow, TestSummary } from '../../../server/archive.ts'
 import type { StatsMode } from '../../../server/stats.ts'
 import { getTest, listTests } from '../../api.ts'
+import { countedInAll } from '../../core/runmodes.ts'
 import { wasAbandoned } from '../TestList.tsx'
 
 /** How many runs the picker offers. */
@@ -33,7 +34,7 @@ export function pickable(tests: readonly TestSummary[], mode: StatsMode): TestSu
       t.endedAt !== null &&
       !wasAbandoned(t.meta) &&
       t.strokeCount > 0 &&
-      (mode === 'all' || (mode === 'free' ? t.mode === 'free' : DRILL_MODES.includes(t.mode))),
+      (mode === 'all' ? countedInAll(t.mode) : mode === 'free' ? t.mode === 'free' : DRILL_MODES.includes(t.mode)),
   )
 }
 

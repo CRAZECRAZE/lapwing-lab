@@ -4,6 +4,7 @@ import type { StrokeRecord, TestRow } from '../../server/archive.ts'
 import { getTest } from '../api.ts'
 import { formatDuration } from '../core/days.ts'
 import { describeTest, misses, slowest } from '../core/review.ts'
+import { FIXUP_MODE } from '../core/runmodes.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { RhythmView } from './progress/RhythmView.tsx'
 import { wasAbandoned } from './TestList.tsx'
@@ -82,7 +83,7 @@ export function TestDetail({ id }: { id: number }): JSX.Element {
         </div>
         <div>
           <dt>Speed</dt>
-          <dd>{finished ? `${Math.round(test.wpm ?? 0)} wpm` : '—'}</dd>
+          <dd>{finished && test.mode !== FIXUP_MODE ? `${Math.round(test.wpm ?? 0)} wpm` : '—'}</dd>
         </div>
         <div>
           <dt>Strokes</dt>

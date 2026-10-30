@@ -129,6 +129,11 @@ describe('describeTest', () => {
     expect(describeTest({ mode: 'weird', section: 'x-1', chapter: null })).toBe('weird · x-1')
   })
 
+  it('names a fix-up run by its section', () => {
+    expect(describeTest({ mode: 'fixup', section: 'words', chapter: null })).toBe('Fix-up · words')
+    expect(describeTest({ mode: 'fixup', section: 'patterns', chapter: null })).toBe('Fix-up · patterns')
+  })
+
   it('names a free-type run by its source and mode', () => {
     expect(describeTest({ mode: 'free', section: 'pseudo/words-25', chapter: 4 })).toBe(
       'Free type · Chapter 4 pseudo-words · 25 words',

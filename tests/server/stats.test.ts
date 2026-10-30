@@ -131,6 +131,29 @@ describe('buildStats', () => {
     expect(dates('all')).toEqual(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24'])
   })
 
+  it('keeps fixup runs out of every mode\'s days, while their strokes and time still count', () => {
+    const a = memory()
+    run(a, { mode: 'free', stamps: [at(20, 10), at(20, 10, 0, 1)] })
+    run(a, { mode: 'fixup', wpm: 0, accuracy: 0.9, words: 0, stamps: [at(21, 10), at(21, 10, 0, 5)] })
+    const dates = (mode: StatsMode) => buildStats(a, { ...RANGE, mode }).days.map((d) => d.date)
+    expect(dates('all')).toEqual(['2026-10-20'])
+    expect(dates('drills')).toEqual([])
+    expect(dates('free')).toEqual(['2026-10-20'])
+    const all = buildStats(a, { ...RANGE, mode: 'all' })
+    expect(all.days).toEqual([expect.objectContaining({ date: '2026-10-20', runs: 1, words: 20, wpm: 10 })])
+    // the fixup strokes still feed the key statistics and the all-time count
+    expect(all.keys).toEqual([
+      { slot: 'S-', required: 4, missed: 0 },
+      { slot: 'A-', required: 4, missed: 0 },
+      { slot: '-P', required: 4, missed: 0 },
+    ])
+    expect(all.allTimeStrokes).toBe(4)
+    // the activity numbers (/api/days) count the run's strokes and time
+    expect(a.dayStats('2026-10-21', '2026-10-21')).toEqual([
+      { date: '2026-10-21', tests: 1, strokes: 2, activeMs: 5000 },
+    ])
+  })
+
   it('never lists left-early or unfinished runs in days', () => {
     const a = memory()
     run(a, { stamps: [at(26, 10)], meta: { abandoned: true } })

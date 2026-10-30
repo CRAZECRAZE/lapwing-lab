@@ -2,6 +2,7 @@ import type { StrokeRecord, TestRow } from '../../server/archive.ts'
 import { describeFree } from '../freetype/free.ts'
 import { STAGE0_INFO } from '../stage0/lists.ts'
 import { diffMasks } from './drill.ts'
+import { FIXUP_MODE } from './runmodes.ts'
 import { formatStroke, parseOutline } from './steno.ts'
 import type { Slot, SlotMask } from './steno.ts'
 
@@ -72,5 +73,6 @@ export function describeTest(t: Pick<TestRow, 'mode' | 'section' | 'chapter'>): 
     const name = describeFree(t.section)
     return name === t.section ? `Free type · ${t.section}` : name
   }
+  if (t.mode === FIXUP_MODE) return t.section === null ? 'Fix-up' : `Fix-up · ${t.section}`
   return t.section === null ? t.mode : `${t.mode} · ${t.section}`
 }

@@ -75,6 +75,19 @@ describe('TestDetail', () => {
     expect(within(rows[1]).getAllByRole('cell').map((c) => c.textContent)).toEqual(['sap', 'SAP', 'S-P', 'A-', '—'])
   })
 
+  it('shows a dash in the speed row of a fix-up run', async () => {
+    get.mockResolvedValue({
+      test: row({ mode: 'fixup', chapter: null, section: 'patterns', wpm: 0, accuracy: 0.9 }),
+      strokes: [stroke(at(9, 5), 'sap')],
+    })
+    render(<TestDetail id={5} />)
+    await screen.findByRole('heading', { name: 'Fix-up · patterns' })
+    const speed = Array.from(document.querySelectorAll('.detail__stats dt')).find((dt) => dt.textContent === 'Speed')!
+    expect(speed.nextElementSibling!.textContent).toBe('—')
+    expect(document.querySelector('.detail__stats')!.textContent).toContain('90%')
+    expect(document.body.textContent).not.toContain('0 wpm')
+  })
+
   it('says No misses. for a clean run', async () => {
     get.mockResolvedValue({ test: row(), strokes: [stroke(at(9, 5), 'sap')] })
     render(<TestDetail id={5} />)

@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import type { TestSummary } from '../../server/archive.ts'
 import { dayLabel, localDate } from '../core/days.ts'
 import { describeTest } from '../core/review.ts'
+import { FIXUP_MODE } from '../core/runmodes.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import './history.css'
 
@@ -41,7 +42,7 @@ export function TestList({ tests }: { tests: TestSummary[] }): JSX.Element {
               </span>
               <span class="tests__what">{describeTest(t)}</span>
               <span class="tests__result">
-                {finished ? `${Math.round((t.accuracy ?? 0) * 100)}% · ${Math.round(t.wpm ?? 0)} wpm` : 'Unfinished'}
+                {finished ? `${Math.round((t.accuracy ?? 0) * 100)}% · ${t.mode === FIXUP_MODE ? '—' : `${Math.round(t.wpm ?? 0)} wpm`}` : 'Unfinished'}
                 {wasAbandoned(t.meta) && <span class="tests__note"> · Left early</span>}
               </span>
               <span class="tests__strokes">{t.strokeCount} strokes</span>

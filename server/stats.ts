@@ -3,6 +3,7 @@
 import { runRhythm } from '../src/core/rhythm.ts'
 import { firstShowings } from '../src/core/chaptertest.ts'
 import { keyStats } from '../src/core/keystats.ts'
+import { countedInAll } from '../src/core/runmodes.ts'
 import type { KeyStat, Mixup } from '../src/core/keystats.ts'
 import type { Archive, StrokeTiming } from './archive.ts'
 
@@ -35,7 +36,7 @@ export const MAX_MIXUPS = 50
 const DRILL_MODES = ['stage0', 'section', 'chapter-test']
 
 function inMode(mode: StatsMode, runMode: string): boolean {
-  if (mode === 'all') return true
+  if (mode === 'all') return countedInAll(runMode)
   return mode === 'free' ? runMode === 'free' : DRILL_MODES.includes(runMode)
 }
 

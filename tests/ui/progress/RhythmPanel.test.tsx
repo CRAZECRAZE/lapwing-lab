@@ -198,6 +198,14 @@ describe('RhythmPanel', () => {
     expect(options().map((o) => Number(o.value))).toEqual(finished.slice(0, 20))
   })
 
+  it('leaves fix-up runs out of Everything', async () => {
+    serve([summary(9, { mode: 'fixup', chapter: null, section: 'words', wpm: 0 }), summary(8), summary(7)])
+    answerWithIdStrokes()
+    render(shown('all'))
+    await screen.findByLabelText('Run')
+    expect(options().map((o) => Number(o.value))).toEqual([8, 7])
+  })
+
   it('goes back to the newest run of the new mode when the mode changes, and asks again', async () => {
     serve(mixed())
     answerWithIdStrokes()

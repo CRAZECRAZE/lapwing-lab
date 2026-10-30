@@ -54,6 +54,15 @@ describe('History', () => {
     expect(screen.queryByText('Loading…')).toBeNull()
   })
 
+  it('shows the accuracy and a dash, never a speed, for a fix-up run', async () => {
+    list.mockResolvedValue([summary(4, { mode: 'fixup', chapter: null, section: 'words', wpm: 0, accuracy: 0.9 })])
+    render(<History />)
+    const [item] = await screen.findAllByRole('listitem')
+    expect(item.textContent).toContain('Fix-up · words')
+    expect(item.textContent).toContain('90% · —')
+    expect(item.textContent).not.toContain('wpm')
+  })
+
   it('links each row to its test and navigates on a plain click', async () => {
     list.mockResolvedValue([summary(7)])
     render(<History />)
