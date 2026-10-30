@@ -64,7 +64,8 @@ function Status({ session }: { session: FixupSession }): JSX.Element {
           <span key={i} class={i < p.streak ? 'fixup-run__dot fixup-run__dot--filled' : 'fixup-run__dot'} />
         ))}
       </div>
-      <p class="fixup-run__streak" aria-live="polite">{`${p.streak} clean in a row`}</p>
+      <p class="fixup-run__streak">{`${p.streak} clean in a row`}</p>
+      <p class="fixup-run__announce" aria-live="polite">{`${p.streak} clean in a row, item ${p.position} of ${p.total}`}</p>
     </div>
   )
 }

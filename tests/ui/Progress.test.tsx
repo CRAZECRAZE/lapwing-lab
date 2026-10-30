@@ -462,7 +462,7 @@ describe('Progress scopes follow the mode', () => {
   it.each([
     ['Free type', 'free type'],
     ['Drills and tests', 'drills and tests'],
-    ['Everything', 'all modes'],
+    ['Everything', 'all modes except fix-up'],
   ])('with %s every panel and tile that follows the mode says %s, in its muted style', async (button, scope) => {
     stub()
     await mount()

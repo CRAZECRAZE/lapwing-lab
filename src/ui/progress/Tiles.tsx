@@ -15,7 +15,7 @@ export type ReadyData = ProgressData & {
 export { thousands }
 
 /** The muted scope of a figure that follows the mode switch. */
-export const MODE_SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes' }
+export const MODE_SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes except fix-up' }
 
 export type TileProps = {
   id: string

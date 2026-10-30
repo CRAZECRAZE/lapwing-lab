@@ -112,6 +112,7 @@ button.fixup__start:disabled {
 /* Fix-up run: the status under the prompt and the result card */
 
 .fixup-run__status {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -131,6 +132,18 @@ button.fixup__start:disabled {
 .fixup-run__position,
 .fixup-run__streak {
   margin: 0;
+}
+
+/* Read aloud only: streak and item counter in one polite line. */
+.fixup-run__announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .fixup-run__dots {

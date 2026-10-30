@@ -187,7 +187,7 @@ describe('WpmByDay numbers table', () => {
 
 describe('WpmByDay title, explanation and empty states', () => {
   it('is a labelled section with an h2 with a muted suffix that follows the mode', () => {
-    const scope = { free: 'free type', drills: 'drills and tests', all: 'all modes' } as const
+    const scope = { free: 'free type', drills: 'drills and tests', all: 'all modes except fix-up' } as const
     for (const mode of ['free', 'drills', 'all'] as const) {
       const { container } = render(<WpmByDay data={ready({ days: THREE, mode })} />)
       const heading = screen.getByRole('heading', { level: 2, name: 'Wpm by day' })

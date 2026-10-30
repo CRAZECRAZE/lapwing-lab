@@ -191,7 +191,7 @@ describe('AccuracyConsistency labels and table', () => {
 
 describe('AccuracyConsistency title, explanation and empty states', () => {
   it('has the title, with a muted suffix that follows the mode', () => {
-    const scope = { free: 'free type', drills: 'drills and tests', all: 'all modes' } as const
+    const scope = { free: 'free type', drills: 'drills and tests', all: 'all modes except fix-up' } as const
     for (const mode of ['free', 'drills', 'all'] as const) {
       const { container } = render(<AccuracyConsistency data={ready({ days: DAYS, mode })} />)
       const heading = screen.getByRole('heading', { level: 2, name: 'Accuracy and consistency' })

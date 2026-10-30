@@ -91,6 +91,7 @@ const filled = (): number => document.querySelectorAll('.fixup-run__dot--filled'
 const stat = (card: HTMLElement, label: string): string => within(card).getByText(label).nextElementSibling?.textContent ?? ''
 const streakText = (): string => text('.fixup-run__streak')
 const position = (): string => text('.fixup-run__position')
+const announced = (): string => text('.fixup-run__announce')
 
 function ten(rig: Rig, bytes: number[] = SAP): void {
   for (let i = 0; i < 10; i++) rig.stroke(bytes)
@@ -106,7 +107,10 @@ describe('FixupRun words', () => {
     expect(filled()).toBe(0)
     expect(document.querySelectorAll('.fixup-run__dot')).toHaveLength(10)
     expect(document.querySelector('.fixup-run__dots')!.getAttribute('aria-hidden')).toBe('true')
-    expect(document.querySelector('.fixup-run__streak')!.getAttribute('aria-live')).toBe('polite')
+    // one polite live line carries streak and item counter; the visible lines are not live themselves
+    expect(document.querySelector('.fixup-run__announce')!.getAttribute('aria-live')).toBe('polite')
+    expect(document.querySelector('.fixup-run__streak')!.hasAttribute('aria-live')).toBe(false)
+    expect(announced()).toBe('0 clean in a row, item 1 of 2')
     expect(position()).toBe('Item 1 of 2 · 0 fixed')
     expect(text('.fixup-run__label')).toBe('sap')
     expect(document.body.textContent).not.toMatch(/wpm/i)
@@ -126,6 +130,15 @@ describe('FixupRun words', () => {
     expect(position()).toBe('Item 2 of 2 · 1 fixed')
     expect(streakText()).toBe('0 clean in a row')
     expect(filled()).toBe(0)
+  })
+
+  it('announces the streak and the item counter together, and the item when it moves on', async () => {
+    const rig = await mountRun()
+    await screen.findByText('0 clean in a row')
+    for (let k = 1; k < 10; k++) rig.stroke(SAP)
+    expect(announced()).toBe('9 clean in a row, item 1 of 2')
+    rig.stroke(SAP)
+    expect(announced()).toBe('0 clean in a row, item 2 of 2')
   })
 
   it('resets the dots on a miss and shows the right stroke', async () => {
