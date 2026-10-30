@@ -80,7 +80,7 @@ describe('RhythmView: the first bar, start', () => {
   it('does not count a start gap as a scored stroke when there are too few to score', () => {
     const { container } = view([3200, ...even(9)]) // 10 strokes, only 9 scored
     expect(figure(container, 'Steadiness')).toMatch(/^—/)
-    expect(container.textContent).toContain('Rhythm needs at least 10 strokes to be scored.')
+    expect(container.textContent).toContain('Rhythm needs at least 10 scored strokes.')
   })
 })
 
@@ -94,6 +94,23 @@ describe('RhythmView: chapter tests', () => {
     expect(figure(container, 'Stalls')).toMatch(/^0/)
     expect(container.querySelector('.rhythm__strip')!.textContent).toContain('0 stalls, 0 breaks')
     expect(figure(container, 'Typical gap')).toMatch(/^0\.40 s/)
+  })
+
+  it('draws first showings of 1.5 to 3 s at their true height, and still caps a 30 s start', () => {
+    // 20 words: the first showings take 1.5 to 3 s of reading, the repeats 0.5 s, and the run starts after 30 s
+    const gaps = Array.from({ length: 60 }, (_, i) => (i === 0 ? 30_000 : i % 3 === 0 ? 1500 + ((i / 3) * 79) % 1500 : 500))
+    const strokes = strokesOf(gaps).map((s, i) => {
+      const expected = [OUTLINES[Math.floor(i / 3) % OUTLINES.length]]
+      return { ...s, expected, pressedMask: parseStroke(expected[0]) }
+    })
+    const { container } = render(<RhythmView test={testRow({ mode: 'chapter-test' })} strokes={strokes} />)
+    const fresh = hits(container).filter((h) => h.querySelector('rect.rhythm__bar--fresh'))
+    expect(fresh).toHaveLength(19)
+    expect(fresh.filter((h) => h.querySelector('.rhythm__capmark'))).toHaveLength(0)
+    const heights = fresh.map((h) => Number(h.querySelector('rect.rhythm__bar--fresh')!.getAttribute('height')))
+    expect(new Set(heights.map((v) => Math.round(v))).size).toBeGreaterThan(5) // not all drawn at the ceiling
+    expect(strip(container).querySelectorAll('.rhythm__capmark')).toHaveLength(1)
+    expect(hits(container)[0].querySelector('.rhythm__capmark')).not.toBeNull()
   })
 
   it('says first showing in the table kind column and in the tooltip', () => {
@@ -174,18 +191,18 @@ describe('RhythmView: the four figures', () => {
     const { container } = view(even(6))
     expect(figure(container, 'Steadiness')).toMatch(/^—/)
     expect(figure(container, 'Steadiness')).toContain('not enough strokes to score')
-    expect(container.textContent).toContain('Rhythm needs at least 10 strokes to be scored.')
+    expect(container.textContent).toContain('Rhythm needs at least 10 scored strokes.')
   })
 
   it('does not show the too-few note for a scored run', () => {
     const { container } = view(even(60))
-    expect(container.textContent).not.toContain('Rhythm needs at least 10 strokes')
+    expect(container.textContent).not.toContain('Rhythm needs at least 10 scored strokes')
   })
 
   it('says why when a long enough run has no rhythm to score (all strokes at the same instant)', () => {
     const strokes = strokesOf(even(20)).map((s) => ({ ...s, tsMs: 5, latencyMs: 0 }))
     const { container } = render(<RhythmView test={testRow()} strokes={strokes} />)
-    expect(container.textContent).not.toContain('Rhythm needs at least 10 strokes')
+    expect(container.textContent).not.toContain('Rhythm needs at least 10 scored strokes')
     expect(container.textContent).toContain('Rhythm could not be scored for this run.')
     expect(badNumbers(container)).toEqual([])
   })

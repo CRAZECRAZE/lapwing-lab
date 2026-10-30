@@ -90,7 +90,7 @@ export function RhythmView({ test, strokes }: { test: RunInfo; strokes: readonly
       {rhythm.steadiness === null && (
         <p class="panel__note">
           {scoredGaps < RHYTHM_DEFAULTS.minGaps
-            ? 'Rhythm needs at least 10 strokes to be scored.'
+            ? 'Rhythm needs at least 10 scored strokes.'
             : 'Rhythm could not be scored for this run.'}
         </p>
       )}
@@ -141,10 +141,11 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
   const centre = (i: number): number => num(box.left + slot * (i + 0.5))
 
   // The scale: the tallest bar is the longest pause, but no more than 3 times the 95th percentile.
-  // The scale comes from the scored gaps: a long start or first-showing pause is capped (and marked) instead of squashing
-  // the rest. A run with no scored gap falls back to every gap that is not a break.
-  const scored = gaps.filter(isScored)
-  const topSeconds = niceMax(stripCeiling((scored.length > 0 ? scored : gaps.filter((g) => g.kind !== 'break')).map((g) => g.ms)) / 1000)
+  // The scale comes from every gap but the breaks and the start: the scored gaps and the first showings, so the reading
+  // time of a chapter test is drawn as it is. A long start pause is capped (and marked) instead of squashing the rest.
+  // A run with nothing else falls back to every gap that is not a break.
+  const forScale = gaps.filter((g) => g.kind !== 'break' && g.kind !== 'start')
+  const topSeconds = niceMax(stripCeiling((forScale.length > 0 ? forScale : gaps.filter((g) => g.kind !== 'break')).map((g) => g.ms)) / 1000)
   const y = scaleLinear([0, topSeconds], [box.bottom, box.top])
   const yOf = (ms: number): number => num(y(clamp(ms / 1000, 0, topSeconds)))
   const left = ticks(topSeconds).map((v) => ({ value: v, y: y(v), text: tickSeconds(v) }))

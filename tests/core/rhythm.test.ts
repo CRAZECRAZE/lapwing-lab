@@ -430,7 +430,7 @@ describe('runRhythm: start and fresh gaps', () => {
     expect(stalled.stalls).toBe(1)
   })
 
-  it('does not count a fresh gap over the break limit as a break, and adds no active time for it', () => {
+  it('makes a fresh gap over the break limit a break, with no active time', () => {
     const strokes: RhythmStroke[] = []
     let ts = T0
     ;[800, ...even(8, 500)].forEach((g, i) => {
@@ -440,10 +440,26 @@ describe('runRhythm: start and fresh gaps', () => {
     ts += 12_000
     strokes.push({ tsMs: ts, correct: true, latencyMs: 12_000, fresh: true })
     const r = runRhythm(strokes)
-    expect(r.gaps[9]).toEqual({ ms: 12_000, kind: 'fresh' })
-    expect(r.breaks).toBe(0)
+    expect(r.gaps[9]).toEqual({ ms: 12_000, kind: 'break' })
+    expect(r.breaks).toBe(1)
     expect(sum((r.quarters ?? []).map((q) => q.activeMs))).toBe(8 * 500)
     expect(sum((r.quarters ?? []).map((q) => q.correct))).toBe(10)
+  })
+
+  it('keeps a fresh gap of exactly the break limit fresh', () => {
+    const strokes = run([800, ...even(8, 500), 10_000]).map((s, i) => (i === 9 ? { ...s, fresh: true } : s))
+    const r = runRhythm(strokes)
+    expect(r.gaps[9]).toEqual({ ms: 10_000, kind: 'fresh' })
+    expect(r.breaks).toBe(0)
+  })
+
+  it('lets start win over break, and break win over fresh', () => {
+    const strokes = run([30_000, ...even(8, 500), 12_000]).map((s, i) => (i === 0 || i === 9 ? { ...s, fresh: true } : s))
+    const r = runRhythm(strokes)
+    expect(r.gaps[0]).toEqual({ ms: 30_000, kind: 'start' })
+    expect(r.gaps[9]).toEqual({ ms: 12_000, kind: 'break' })
+    expect(r.breaks).toBe(1)
+    expect(r.typicalGapMs).toBe(500)
   })
 
   it('adds a fresh gap at or under the break limit to the active time of the quarters', () => {
