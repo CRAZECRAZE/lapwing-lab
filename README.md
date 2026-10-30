@@ -331,6 +331,11 @@ dist/                   client build (git-ignored)
 
 ## License
 
-The vendored book content under `content/lapwing-book` is *Lapwing for Beginners* from `aerickt/lapwing-for-beginners`, licensed GPL-3.0, at the commit pinned in `content/lapwing-book/PINNED_COMMIT`. That is fine for a private repo; the GPL applies to content derived from it if this is ever published.
+Lapwing Lab is free software under the **GNU General Public License, version 3** (`GPL-3.0-only`); the full text is in `LICENSE`. Copyright (C) 2026 CRAZECRAZE.
 
-`steno-lessions` (AGPL) was used as reference only; no code from it is used. The vendored dictionary under `content/lapwing-dictionary` is the Lapwing dictionary from `aerickt/plover-lapwing-aio`, licensed MIT (the licence is in that folder), at the commit pinned in `content/lapwing-dictionary/PINNED_COMMIT`.
+It is built from, and ships with, two pieces of other people's work:
+
+- **The book.** The vendored content under `content/lapwing-book` is *Lapwing for Beginners*, from `aerickt/lapwing-for-beginners`, licensed GPL-3.0 (the licence is in that folder), at the commit pinned in `content/lapwing-book/PINNED_COMMIT`. The pages, drills and charts the app builds from it are derived from the book, which is why the whole project is released under the GPL too.
+- **The dictionary.** The vendored dictionary under `content/lapwing-dictionary` is the Lapwing dictionary from `aerickt/plover-lapwing-aio`, licensed MIT (the licence is in that folder), at the commit pinned in `content/lapwing-dictionary/PINNED_COMMIT`.
+
+`steno-lessions` (AGPL) was used as reference only; no code from it is used. Lapwing Lab is an independent project: it is not affiliated with, or endorsed by, Plover or the author of the book.
