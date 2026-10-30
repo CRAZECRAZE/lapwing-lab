@@ -134,6 +134,17 @@ describe('describeTest', () => {
     expect(describeTest({ mode: 'fixup', section: 'patterns', chapter: null })).toBe('Fix-up · patterns')
   })
 
+  it('names a real-text run by its text and part', () => {
+    expect(describeTest({ mode: 'text', section: 'text/pasted/2', chapter: null })).toBe('Text · pasted · part 2')
+    expect(describeTest({ mode: 'text', section: 'text/moby-dick/1', chapter: null })).toBe('Text · moby-dick · part 1')
+    const names = new Map([['moby-dick', 'Moby Dick']])
+    expect(describeTest({ mode: 'text', section: 'text/moby-dick/3', chapter: null }, names)).toBe('Text · Moby Dick · part 3')
+    expect(describeTest({ mode: 'text', section: 'text/other/3', chapter: null }, names)).toBe('Text · other · part 3')
+    expect(describeTest({ mode: 'text', section: 'text/pasted/2', chapter: null }, names)).toBe('Text · pasted · part 2')
+    expect(describeTest({ mode: 'text', section: null, chapter: null })).toBe('Text')
+    expect(describeTest({ mode: 'text', section: 'odd', chapter: null })).toBe('text · odd')
+  })
+
   it('names a free-type run by its source and mode', () => {
     expect(describeTest({ mode: 'free', section: 'pseudo/words-25', chapter: 4 })).toBe(
       'Free type · Chapter 4 pseudo-words · 25 words',

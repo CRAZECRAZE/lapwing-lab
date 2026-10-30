@@ -5,9 +5,10 @@ import type { StrokeRecord, TestRow } from '../../server/archive.ts'
 import { parseStroke } from '../../src/core/steno.ts'
 import { TestDetail } from '../../src/ui/TestDetail.tsx'
 
-vi.mock('../../src/api.ts', () => ({ listTests: vi.fn(), getTest: vi.fn() }))
-const { getTest } = await import('../../src/api.ts')
+vi.mock('../../src/api.ts', () => ({ listTests: vi.fn(), getTest: vi.fn(), listTexts: vi.fn() }))
+const { getTest, listTexts } = await import('../../src/api.ts')
 const get = vi.mocked(getTest)
+const texts = vi.mocked(listTexts)
 
 const at = (h: number, m: number, s = 0): number => new Date(2026, 9, 27, h, m, s).getTime()
 
@@ -42,7 +43,10 @@ function stroke(tsMs: number, prompt: string, over: Partial<StrokeRecord> & { pr
   }
 }
 
-beforeEach(() => get.mockReset())
+beforeEach(() => {
+  get.mockReset()
+  texts.mockReset().mockResolvedValue([])
+})
 afterEach(cleanup)
 
 describe('TestDetail', () => {
@@ -86,6 +90,18 @@ describe('TestDetail', () => {
     expect(speed.nextElementSibling!.textContent).toBe('—')
     expect(document.querySelector('.detail__stats')!.textContent).toContain('90%')
     expect(document.body.textContent).not.toContain('0 wpm')
+  })
+
+  it('titles a real-text run with the saved name and part, and shows its speed', async () => {
+    texts.mockResolvedValue([{ id: 'moby', name: 'Moby Dick', chars: 500 }])
+    get.mockResolvedValue({
+      test: row({ mode: 'text', chapter: null, section: 'text/moby/2', wpm: 33.3, accuracy: 0.9 }),
+      strokes: [stroke(at(9, 5), 'sap')],
+    })
+    render(<TestDetail id={5} />)
+    await screen.findByRole('heading', { name: 'Text · Moby Dick · part 2' })
+    const speed = Array.from(document.querySelectorAll('.detail__stats dt')).find((dt) => dt.textContent === 'Speed')!
+    expect(speed.nextElementSibling!.textContent).toBe('33 wpm')
   })
 
   it('says No misses. for a clean run', async () => {

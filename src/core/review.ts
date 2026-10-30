@@ -2,7 +2,7 @@ import type { StrokeRecord, TestRow } from '../../server/archive.ts'
 import { describeFree } from '../freetype/free.ts'
 import { STAGE0_INFO } from '../stage0/lists.ts'
 import { diffMasks } from './drill.ts'
-import { FIXUP_MODE } from './runmodes.ts'
+import { FIXUP_MODE, TEXT_MODE } from './runmodes.ts'
 import { formatStroke, parseOutline } from './steno.ts'
 import type { Slot, SlotMask } from './steno.ts'
 
@@ -62,8 +62,17 @@ export function slowest(strokes: readonly StrokeRecord[], n: number): { prompt: 
     .slice(0, n)
 }
 
-/** A short name for a test: the Chapter 4 drill's title, the free-type source and mode, or the mode and section. */
-export function describeTest(t: Pick<TestRow, 'mode' | 'section' | 'chapter'>): string {
+const TEXT_SECTION = /^text\/([^/]+)\/([1-9]\d*)$/
+
+/**
+ * A short name for a test: the Chapter 4 drill's title, the free-type source and mode, a real-text run's text and part
+ * (`textNames` maps a saved text's id to its name; an id without one, and `pasted`, are shown as they are), or the
+ * mode and section.
+ */
+export function describeTest(
+  t: Pick<TestRow, 'mode' | 'section' | 'chapter'>,
+  textNames?: ReadonlyMap<string, string>,
+): string {
   if (t.mode === 'stage0') {
     const title = STAGE0_INFO.find((info) => info.id === t.section)?.title
     return `Chapter 4 · ${title ?? t.section ?? 'Stage 0'}`
@@ -72,6 +81,11 @@ export function describeTest(t: Pick<TestRow, 'mode' | 'section' | 'chapter'>): 
     if (t.section === null) return 'Free type'
     const name = describeFree(t.section)
     return name === t.section ? `Free type · ${t.section}` : name
+  }
+  if (t.mode === TEXT_MODE) {
+    if (t.section === null) return 'Text'
+    const found = TEXT_SECTION.exec(t.section)
+    if (found) return `Text · ${textNames?.get(found[1]) ?? found[1]} · part ${found[2]}`
   }
   if (t.mode === FIXUP_MODE) return t.section === null ? 'Fix-up' : `Fix-up · ${t.section}`
   return t.section === null ? t.mode : `${t.mode} · ${t.section}`

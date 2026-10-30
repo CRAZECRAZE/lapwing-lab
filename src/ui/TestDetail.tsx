@@ -4,10 +4,11 @@ import type { StrokeRecord, TestRow } from '../../server/archive.ts'
 import { getTest } from '../api.ts'
 import { formatDuration } from '../core/days.ts'
 import { describeTest, misses, slowest } from '../core/review.ts'
-import { FIXUP_MODE } from '../core/runmodes.ts'
+import { FIXUP_MODE, TEXT_MODE } from '../core/runmodes.ts'
 import { isPlainClick, navigate } from '../router.ts'
 import { RhythmView } from './progress/RhythmView.tsx'
 import { wasAbandoned } from './TestList.tsx'
+import { useTextNames } from './useTextNames.ts'
 import './history.css'
 
 type Loaded =
@@ -21,6 +22,7 @@ const keys = (slots: readonly string[]): string => (slots.length > 0 ? slots.joi
 export function TestDetail({ id }: { id: number }): JSX.Element {
   const [state, setState] = useState<Loaded>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const textNames = useTextNames(state.status === 'ready' && state.test.mode === TEXT_MODE)
 
   useEffect(() => {
     let live = true
@@ -73,7 +75,7 @@ export function TestDetail({ id }: { id: number }): JSX.Element {
   return (
     <section class="history">
       {back}
-      <h1 class="history__heading">{describeTest(test)}</h1>
+      <h1 class="history__heading">{describeTest(test, textNames)}</h1>
       {!finished && <p class="history__note">Unfinished</p>}
       {wasAbandoned(test.meta) && <p class="history__note">Left early</p>}
       <dl class="detail__stats">

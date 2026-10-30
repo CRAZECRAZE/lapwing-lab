@@ -32,6 +32,20 @@ describe('parseRoute', () => {
     expect(parseRoute('/practice/fixup/other')).toEqual({ name: 'notfound' })
   })
 
+  it('parses the real-text page and its run routes', () => {
+    expect(parseRoute('/practice/text')).toEqual({ name: 'text' })
+    expect(parseRoute('/practice/text/')).toEqual({ name: 'text' })
+    expect(parseRoute('/practice/text/run/pasted/1')).toEqual({ name: 'text-run', id: 'pasted', part: 1 })
+    expect(parseRoute('/practice/text/run/my-text/12/')).toEqual({ name: 'text-run', id: 'my-text', part: 12 })
+    expect(parseRoute('/practice/text/run/x/0')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/text/run/x/abc')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/text/run/x/-1')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/text/run/x/')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/text/run/x')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/text/run//1')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/text/other')).toEqual({ name: 'notfound' })
+  })
+
   it('parses history and a single test', () => {
     expect(parseRoute('/history')).toEqual({ name: 'history' })
     expect(parseRoute('/history/')).toEqual({ name: 'history' })
@@ -102,6 +116,8 @@ describe('tabOf', () => {
     [{ name: 'fixup', tab: 'words' }, 'practice'],
     [{ name: 'fixup', tab: 'patterns' }, 'practice'],
     [{ name: 'fixup-run', kind: 'words' }, 'practice'],
+    [{ name: 'text' }, 'practice'],
+    [{ name: 'text-run', id: 'pasted', part: 1 }, 'practice'],
     [{ name: 'history' }, 'history'],
     [{ name: 'test', id: 1 }, 'history'],
     [{ name: 'days' }, 'days'],

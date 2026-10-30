@@ -3,8 +3,10 @@ import type { TestSummary } from '../../../server/archive.ts'
 import { shortDate } from '../../core/chartmath.ts'
 import { localDate } from '../../core/days.ts'
 import { describeTest } from '../../core/review.ts'
+import { TEXT_MODE } from '../../core/runmodes.ts'
 import { isPlainClick, navigate } from '../../router.ts'
 import { clockTime } from '../TestList.tsx'
+import { useTextNames } from '../useTextNames.ts'
 import { Panel, spansYears } from './Chart.tsx'
 import { RhythmView } from './RhythmView.tsx'
 import { MODE_SCOPES } from './Tiles.tsx'
@@ -17,9 +19,9 @@ const LINE =
   'How evenly you type inside one run: the pauses between strokes, the stalls, and the speed through the run. The day-by-day steadiness is in the chart above.'
 
 /** `Oct 28, 14:05 · Free type · 16.2 wpm` */
-function optionLabel(t: TestSummary, withYear: boolean): string {
+function optionLabel(t: TestSummary, withYear: boolean, textNames: ReadonlyMap<string, string>): string {
   const wpm = t.wpm === null || !Number.isFinite(t.wpm) ? '—' : `${t.wpm.toFixed(1)} wpm`
-  return `${shortDate(localDate(t.firstStrokeAt), withYear)}, ${clockTime(t.firstStrokeAt)} · ${describeTest(t)} · ${wpm}`
+  return `${shortDate(localDate(t.firstStrokeAt), withYear)}, ${clockTime(t.firstStrokeAt)} · ${describeTest(t, textNames)} · ${wpm}`
 }
 
 /**
@@ -28,6 +30,7 @@ function optionLabel(t: TestSummary, withYear: boolean): string {
  */
 export function RhythmPanel({ data, rhythm }: { data: ReadyData; rhythm: RhythmState }): JSX.Element {
   const { list, id, run } = rhythm
+  const textNames = useTextNames(list.status === 'ready' && list.runs.some((r) => r.mode === TEXT_MODE))
   const head = { id: 'progress-rhythm', title: TITLE, scope: MODE_SCOPES[data.mode], line: LINE }
   if (list.status === 'error') {
     return (
@@ -73,7 +76,7 @@ export function RhythmPanel({ data, rhythm }: { data: ReadyData; rhythm: RhythmS
         >
           {runs.map((r) => (
             <option key={r.id} value={String(r.id)} selected={r.id === id}>
-              {optionLabel(r, withYear)}
+              {optionLabel(r, withYear, textNames)}
             </option>
           ))}
         </select>

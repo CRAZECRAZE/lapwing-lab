@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TestSummary } from '../../server/archive.ts'
 import { History } from '../../src/ui/History.tsx'
 
-vi.mock('../../src/api.ts', () => ({ listTests: vi.fn(), getTest: vi.fn() }))
-const { listTests } = await import('../../src/api.ts')
+vi.mock('../../src/api.ts', () => ({ listTests: vi.fn(), getTest: vi.fn(), listTexts: vi.fn() }))
+const { listTests, listTexts } = await import('../../src/api.ts')
 const list = vi.mocked(listTests)
+const texts = vi.mocked(listTexts)
 
 const at = (h: number, m: number): number => new Date(2026, 9, 27, h, m).getTime()
 
@@ -32,6 +33,7 @@ function summary(id: number, over: Partial<TestSummary> = {}): TestSummary {
 
 beforeEach(() => {
   list.mockReset()
+  texts.mockReset().mockResolvedValue([])
   history.replaceState(null, '', '/history')
 })
 afterEach(cleanup)
@@ -61,6 +63,28 @@ describe('History', () => {
     expect(item.textContent).toContain('Fix-up · words')
     expect(item.textContent).toContain('90% · —')
     expect(item.textContent).not.toContain('wpm')
+  })
+
+  it('describes a real-text run by its saved name, or its id, with the speed shown', async () => {
+    texts.mockResolvedValue([{ id: 'moby', name: 'Moby Dick', chars: 500 }])
+    list.mockResolvedValue([
+      summary(6, { mode: 'text', chapter: null, section: 'text/moby/2', wpm: 33.3 }),
+      summary(5, { mode: 'text', chapter: null, section: 'text/pasted/1', wpm: 20 }),
+      summary(4, { mode: 'text', chapter: null, section: 'text/gone/3' }),
+    ])
+    render(<History />)
+    const items = await screen.findAllByRole('listitem')
+    await waitFor(() => expect(items[0].textContent).toContain('Text · Moby Dick · part 2'))
+    expect(items[0].textContent).toContain('33 wpm')
+    expect(items[1].textContent).toContain('Text · pasted · part 1')
+    expect(items[2].textContent).toContain('Text · gone · part 3')
+  })
+
+  it('does not ask for the saved texts when no row is a text run', async () => {
+    list.mockResolvedValue([summary(1)])
+    render(<History />)
+    await screen.findAllByRole('listitem')
+    expect(texts).not.toHaveBeenCalled()
   })
 
   it('links each row to its test and navigates on a plain click', async () => {

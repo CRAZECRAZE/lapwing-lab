@@ -1,0 +1,153 @@
+/* Real text: the page with its check result and saved texts, and the run's header */
+
+.text {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.text__box .page__status {
+  margin: 0 0 0.75rem;
+}
+
+.text__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0 0 0.9rem;
+}
+
+.text__label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.text__input,
+.text__name {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.text__input {
+  resize: vertical;
+}
+
+.text__input:focus-visible,
+.text__name:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.text__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+}
+
+.text__actions .stage0-button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.text__coverage {
+  margin: 0 0 0.9rem;
+}
+
+.text__line {
+  margin: 0 0 0.3rem;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.text__muted {
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.text__missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.2rem;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+}
+
+.text__saved {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.text__saved-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.text__saved-row a {
+  color: var(--link);
+}
+
+.text__saved-row .text__muted {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.text__link-button {
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.text__saved-row .text__link-button {
+  margin-left: auto;
+}
+
+.text__link-button:hover {
+  color: var(--heading);
+}
+
+.text__link-button:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* The run: which text and part, under the pickers. */
+.text-run__where {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem 1.2rem;
+  margin: 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.text-run__where p {
+  margin: 0;
+}
+
+.text-run__name {
+  color: var(--heading);
+}

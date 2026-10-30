@@ -408,6 +408,21 @@ describe('Practice', () => {
     })
   })
 
+  describe('Real text card', () => {
+    it('sits after Free type, with a link to the real-text page', () => {
+      stubIndex(INDEX)
+      render(<Practice />)
+      const card = screen.getByRole('region', { name: 'Real text' })
+      const names = [...document.querySelectorAll('.practice > section')].map((s) => s.getAttribute('aria-label') ?? s.querySelector('h2')?.textContent)
+      expect(names.indexOf('Real text')).toBe(names.indexOf('Free type') + 1)
+      expect(card.classList.contains('practice__box')).toBe(true)
+      const go = within(card).getByRole('link', { name: 'Open real text' })
+      expect(go.getAttribute('href')).toBe('/practice/text')
+      expect(fireEvent.click(go)).toBe(false)
+      expect(location.pathname).toBe('/practice/text')
+    })
+  })
+
   describe('Fix-up card', () => {
     const card = (): HTMLElement => screen.getByRole('region', { name: 'Fix-up' })
 

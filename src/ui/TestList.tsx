@@ -2,8 +2,9 @@ import type { JSX } from 'preact'
 import type { TestSummary } from '../../server/archive.ts'
 import { dayLabel, localDate } from '../core/days.ts'
 import { describeTest } from '../core/review.ts'
-import { FIXUP_MODE } from '../core/runmodes.ts'
+import { FIXUP_MODE, TEXT_MODE } from '../core/runmodes.ts'
 import { isPlainClick, navigate } from '../router.ts'
+import { useTextNames } from './useTextNames.ts'
 import './history.css'
 
 const pad = (n: number): string => String(n).padStart(2, '0')
@@ -20,6 +21,7 @@ export function wasAbandoned(meta: unknown): boolean {
 }
 
 export function TestList({ tests }: { tests: TestSummary[] }): JSX.Element {
+  const textNames = useTextNames(tests.some((t) => t.mode === TEXT_MODE))
   return (
     <ul class="tests">
       {tests.map((t) => {
@@ -40,7 +42,7 @@ export function TestList({ tests }: { tests: TestSummary[] }): JSX.Element {
                 <span class="tests__time">{clockTime(t.firstStrokeAt)}</span>
                 <span class="tests__date">{dayLabel(localDate(t.firstStrokeAt))}</span>
               </span>
-              <span class="tests__what">{describeTest(t)}</span>
+              <span class="tests__what">{describeTest(t, textNames)}</span>
               <span class="tests__result">
                 {finished ? `${Math.round((t.accuracy ?? 0) * 100)}% · ${t.mode === FIXUP_MODE ? '—' : `${Math.round(t.wpm ?? 0)} wpm`}` : 'Unfinished'}
                 {wasAbandoned(t.meta) && <span class="tests__note"> · Left early</span>}

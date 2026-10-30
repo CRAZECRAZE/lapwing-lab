@@ -20,6 +20,10 @@ beforeEach(() => {
         const word = (prompt: string) => ({ prompt, outlines: ['SAP'], kind: 'word', attempts: 9, misses: 3, rate: 0.3, lastTsMs: 1 })
         return new Response(JSON.stringify({ from: '', to: '', words: [word('one'), word('two')], patterns: [] }), { status: 200 })
       }
+      if (url === '/api/texts') return new Response('[{"id":"moby","name":"Moby Dick","chars":9}]', { status: 200 })
+      if (url === '/content/dictionary.json') {
+        return new Response('{"commit":"x","letters":{},"cards":[{"t":"sap","r":[{"o":"SAP"}]}]}', { status: 200 })
+      }
       if (url === '/api/reports') return new Response('[]', { status: 200 })
       if (url === '/api/journal') return new Response('[]', { status: 200 })
       if (url.startsWith('/api/journal/')) {
@@ -191,6 +195,23 @@ describe('App shell', () => {
     render(<App />)
     expect(await screen.findByText('No such test.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows the real-text page under the Practice tab', async () => {
+    history.replaceState(null, '', '/practice/text')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Real text' })).toBeTruthy()
+    expect(await screen.findByRole('link', { name: 'Moby Dick' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows the text run under the Practice tab, and again after a part change', async () => {
+    history.replaceState(null, '', '/practice/text/run/pasted/1')
+    render(<App />)
+    expect(await screen.findByText(/There is no pasted text here/)).toBeTruthy()
+    act(() => navigate('/practice/text/run/pasted/2'))
+    expect(await screen.findByRole('link', { name: 'Back to text' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
   })
 
   it('starts a fresh fix-up run when only the picks in the query change', async () => {

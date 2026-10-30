@@ -211,7 +211,20 @@ function FixupCard(): JSX.Element {
   )
 }
 
-/** The Practice tab: where you are, fix-up, free type, then the Chapter 4 drills. */
+/** The real-text card: a way to practise a text of your own. */
+function RealTextCard(): JSX.Element {
+  return (
+    <section class="practice__box fixup-card" aria-labelledby="real-text-heading">
+      <h2 id="real-text-heading" class="practice__heading">Real text</h2>
+      <p class="fixup-card__count">Practise words from a text you paste or save.</p>
+      <p class="fixup-card__go">
+        <AppLink href="/practice/text">Open real text</AppLink>
+      </p>
+    </section>
+  )
+}
+
+/** The Practice tab: where you are, fix-up, free type, real text, then the Chapter 4 drills. */
 export function Practice(): JSX.Element {
   return (
     <div class="practice">
@@ -219,6 +232,7 @@ export function Practice(): JSX.Element {
       <WhereYouAre />
       <FixupCard />
       <FreeType />
+      <RealTextCard />
       {/* The panel brings its own heading ("Practice — Stage 0"); the region name says where it sits. */}
       <section class="practice__drills" aria-label="Chapter 4 drills">
         <Stage0Panel />
