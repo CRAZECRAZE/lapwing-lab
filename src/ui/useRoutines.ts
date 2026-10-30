@@ -16,6 +16,14 @@ export type Routines = {
   reload(): void
 }
 
+/** A routine document the validator refused; its message is plain and is the one thing worth showing as it is. */
+export class RoutineInvalid extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RoutineInvalid'
+  }
+}
+
 /** The routines document, loaded once and again on `reload`; `save` replaces it on the server and then here. */
 export function useRoutines(): Routines {
   const [state, setState] = useState<{ status: Routines['status']; doc: RoutineDoc }>({
@@ -40,7 +48,12 @@ export function useRoutines(): Routines {
     ...state,
     async save(doc) {
       // The same check the server makes, so its plain message is what shows.
-      const clean = validateRoutineDoc(doc)
+      let clean: RoutineDoc
+      try {
+        clean = validateRoutineDoc(doc)
+      } catch (err) {
+        throw new RoutineInvalid(err instanceof Error ? err.message : 'The routines are not valid')
+      }
       await putRoutines(clean)
       setState({ status: 'ready', doc: clean })
     },
@@ -51,10 +64,10 @@ export function useRoutines(): Routines {
   }
 }
 
-/** A calm sentence for a failed save: the validator's own message, or a hint about the server. */
+/** A calm sentence for a failed save: the validator's own message, or else a hint about the server (never raw error text). */
 export function saveMessage(err: unknown): string {
   const lead = "Couldn't save the routines."
-  if (err instanceof Error && err.name !== 'HttpStatusError' && err.message !== '') return `${lead} ${err.message}`
+  if (err instanceof RoutineInvalid && err.message !== '') return `${lead} ${err.message}`
   return `${lead} Check that the Lapwing Lab server is still running, then try again.`
 }
 

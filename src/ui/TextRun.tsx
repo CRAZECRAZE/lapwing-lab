@@ -16,7 +16,7 @@ import { GhostNote } from './GhostLine.tsx'
 import { GhostPicker, useGhostChoice } from './GhostPicker.tsx'
 import { HintPicker, useHints } from './HintPicker.tsx'
 import { QuickNote } from './QuickNote.tsx'
-import { backTarget } from './backTarget.ts'
+import { backTarget, fromRoutine } from './backTarget.ts'
 import { useGhost } from './useGhost.ts'
 import { useTextLookup } from './useTextLookup.ts'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
@@ -147,7 +147,7 @@ function RunHost({ id, name, part, parts, items }: HostProps): JSX.Element {
         title={title}
         result={result}
         ghost={ghost}
-        nextHref={part < parts ? `/practice/text/run/${id}/${part + 1}` : null}
+        nextHref={part < parts ? `/practice/text/run/${id}/${part + 1}${fromRoutine() ? '?from=routine' : ''}` : null}
         onAgain={() => {
           setResult(null)
           setRun((n) => n + 1)

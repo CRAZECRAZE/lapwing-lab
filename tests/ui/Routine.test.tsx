@@ -6,7 +6,7 @@ import { validateRoutineDoc } from '../../src/core/routine.ts'
 import type { RoutineDoc } from '../../src/core/routine.ts'
 import type { Progress } from '../../src/state/progress.tsx'
 import { RoutinePage } from '../../src/ui/Routine.tsx'
-import { DOC, INDEX, STEPS, TEXTS, progress, testRow } from './helpers/routine-fixtures.ts'
+import { DOC, STEPS, TEXTS, progress, testRow } from './helpers/routine-fixtures.ts'
 
 vi.mock('../../src/api.ts', () => ({
   getRoutines: vi.fn(),
@@ -267,6 +267,42 @@ describe('RoutinePage planner', () => {
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull())
   })
 
+  it('does not make a new routine active when another one is', async () => {
+    render(<RoutinePage />)
+    await screen.findByText('1 of 4 done today')
+    fireEvent.click(screen.getByRole('button', { name: 'New routine' }))
+    fireEvent.input(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Warm up' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(putRoutines).toHaveBeenCalledTimes(1))
+    expect(savedDoc().active).toBe('morning')
+    expect(savedDoc().routines.map((r) => r.id)).toEqual(['morning', 'evening', 'warm-up'])
+  })
+
+  it('keeps the editor open with a calm hint when the save fails on the network', async () => {
+    putRoutines.mockRejectedValue(new TypeError('Failed to fetch'))
+    render(<RoutinePage />)
+    await screen.findByText('1 of 4 done today')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Evening' }))
+    fireEvent.input(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Night' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/server is still running/)
+    expect(alert.textContent).not.toMatch(/fetch/i)
+    expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Night')
+  })
+
+  it('keeps a list step of a chapter not yet reached available, with a Start link', async () => {
+    getRoutines.mockResolvedValue({
+      routines: [{ id: 'm', name: 'M', steps: [{ kind: 'list', listId: '20-far' }] }],
+      active: 'm',
+    })
+    render(<RoutinePage />)
+    expect(await screen.findByText('0 of 1 done today')).toBeTruthy()
+    const item = step('Section drill 20-far')
+    expect(within(item).getByText('Next up')).toBeTruthy()
+    expect(within(item).getByRole('link').getAttribute('href')).toBe('/drill/list/20-far?from=routine')
+  })
+
   it('saves a new routine at the end, and makes it active when none is', async () => {
     getRoutines.mockResolvedValue({ routines: [], active: null })
     render(<RoutinePage />)
@@ -284,6 +320,5 @@ describe('RoutinePage while progress loads', () => {
     render(<RoutinePage />)
     await waitFor(() => expect(getRoutines).toHaveBeenCalled())
     expect(screen.getByText('Loading…')).toBeTruthy()
-    expect(INDEX.length).toBeGreaterThan(0)
   })
 })

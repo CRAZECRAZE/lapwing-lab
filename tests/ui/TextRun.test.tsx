@@ -277,6 +277,16 @@ describe('TextRun opened from a routine', () => {
     expect(within(card).getByRole('link', { name: 'Back to routine' }).getAttribute('href')).toBe('/practice/routine')
   })
 
+  it('keeps the marker on Next part, and only then', async () => {
+    setPasted(WORDS_250)
+    const rig = await mount('pasted', 1)
+    for (let i = 0; i < 100; i++) rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(within(card).getByRole('link', { name: 'Next part' }).getAttribute('href')).toBe(
+      '/practice/text/run/pasted/2?from=routine',
+    )
+  })
+
   it('leads back to the routine from a message', async () => {
     getText.mockResolvedValue(null)
     await mount('nope', 1)

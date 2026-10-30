@@ -5,6 +5,7 @@ import { MAX_STEPS, validateRoutineDoc } from '../../src/core/routine.ts'
 import type { Routine } from '../../src/core/routine.ts'
 import type { Progress } from '../../src/state/progress.tsx'
 import { RoutineEditor } from '../../src/ui/RoutineEditor.tsx'
+import { RoutineInvalid } from '../../src/ui/useRoutines.ts'
 import { DOC, TEXTS, progress } from './helpers/routine-fixtures.ts'
 
 vi.mock('../../src/api.ts', () => ({ listTexts: vi.fn() }))
@@ -202,13 +203,27 @@ describe('RoutineEditor Save and Cancel', () => {
     expect(onSave.mock.calls[0][0]).toMatchObject({ id: 'evening', name: 'Night' })
   })
 
-  it('shows a failed save calmly and keeps the editor open with its work', async () => {
+  it("shows the validator's message calmly and keeps the editor open with its work", async () => {
     mount()
-    onSave.mockRejectedValue(new Error('A routine can have at most 12 steps'))
+    onSave.mockRejectedValue(new RoutineInvalid('A routine can have at most 12 steps'))
     name('Warm up')
     fireEvent.click(save())
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe("Couldn't save the routines. A routine can have at most 12 steps")
+    expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Warm up')
+    expect((save() as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('shows a calm hint, not the raw error text, when the save fails some other way', async () => {
+    mount()
+    onSave.mockRejectedValue(new TypeError('Failed to fetch'))
+    name('Warm up')
+    fireEvent.click(save())
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(
+      "Couldn't save the routines. Check that the Lapwing Lab server is still running, then try again.",
+    )
+    expect(alert.textContent).not.toMatch(/fetch/i)
     expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Warm up')
     expect((save() as HTMLButtonElement).disabled).toBe(false)
   })
