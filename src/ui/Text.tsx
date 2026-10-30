@@ -13,6 +13,8 @@ import './text.css'
 
 /** How many of the missing words are listed. */
 const MISSING_SHOWN = 20
+/** The id of the unsaved, in-memory text: no saved text may take it. */
+const PASTED_ID = 'pasted'
 
 /** What Check found for the text as it stood then. */
 type Checked =
@@ -94,12 +96,21 @@ export function Text(): JSX.Element {
   const canSave =
     trimmed.length >= 1 && trimmed.length <= MAX_NAME_CHARS && saved.status === 'ready' && !full && !saving
 
+  /** Why Save is disabled, when it is the owner's to know (the 50-text limit has its own note). */
+  const whyNot =
+    full || saving || canSave
+      ? null
+      : trimmed.length === 0
+        ? 'Add a name to save it.'
+        : trimmed.length > MAX_NAME_CHARS
+          ? `Names can be up to ${MAX_NAME_CHARS} characters.`
+          : saved.status === 'loading'
+            ? 'Waiting for your saved texts to load.'
+            : "Saving isn't available while your saved texts can't be loaded."
+
   const save = async (planned: { text: string }): Promise<void> => {
     if (!canSave || saved.status !== 'ready') return
-    const id = textIdFor(
-      trimmed,
-      saved.texts.map((t) => t.id),
-    )
+    const id = textIdFor(trimmed, [...saved.texts.map((t) => t.id), PASTED_ID])
     setSaving(true)
     setNote(null)
     try {
@@ -174,6 +185,7 @@ export function Text(): JSX.Element {
             </button>
           </div>
         )}
+        {whyNot && checked?.kind === 'plan' && checked.plan.covered > 0 && <p class="text__muted">{whyNot}</p>}
         {full && (
           <p class="text__muted">{`${MAX_SAVED_TEXTS} saved texts is the most that can be kept. Delete one to save another.`}</p>
         )}

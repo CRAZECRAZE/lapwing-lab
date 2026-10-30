@@ -1,5 +1,5 @@
 import type { JSX } from 'preact'
-import { useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { deleteText } from '../api.ts'
 import type { SavedTextSummary } from '../api.ts'
 import { AppLink } from './AppLink.tsx'
@@ -23,8 +23,12 @@ export function SavedTexts({
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
 
+  // A failure belongs to the list it happened on: a refreshed list or a new delete starts without it.
+  useEffect(() => setFailed(false), [saved])
+
   const confirm = async (text: SavedTextSummary): Promise<void> => {
     setBusy(true)
+    setFailed(false)
     try {
       await deleteText(text.id)
       onDeleted(text.id)
@@ -59,7 +63,10 @@ export function SavedTexts({
               type="button"
               class="text__link-button"
               aria-label={`Delete ${t.name}`}
-              onClick={() => setAsking(t)}
+              onClick={() => {
+                setFailed(false)
+                setAsking(t)
+              }}
             >
               Delete
             </button>

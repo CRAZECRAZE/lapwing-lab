@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_TEXT_CHARS } from '../../src/core/realtext.ts'
 import { getPasted, setPasted } from '../../src/state/pastedtext.ts'
@@ -111,8 +111,13 @@ describe('Text page: checking', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 
-  it('refuses text over the limit with a message', async () => {
+  it('refuses text over the limit with a message, and sends and opens nothing', async () => {
+    const push = vi.spyOn(history, 'pushState')
     await check('a'.repeat(MAX_TEXT_CHARS + 1))
+    expect(putText).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(location.pathname).toBe('/practice/text')
+    expect(getPasted()).toBe('')
     expect(screen.getByRole('alert').textContent).toMatch(/200,000/)
     expect(screen.queryByText(/can be stroked/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
@@ -179,6 +184,42 @@ describe('Text page: Start and Save', () => {
     expect(links.map((a) => a.getAttribute('href'))).toContain('/practice/text/run/my-text-2/1')
   })
 
+  it.each(['Pasted', 'pasted', ' PASTED '])('never saves a text named %j under the id pasted', async (name) => {
+    await check('sap tap')
+    await screen.findByRole('link', { name: 'Moby Dick' })
+    fireEvent.input(nameField(), { target: { value: name } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(putText).toHaveBeenCalledWith('pasted-2', { name: name.trim(), text: 'sap tap' }))
+    expect(putText.mock.calls.map((c) => c[0])).not.toContain('pasted')
+  })
+
+  it('says why Save is disabled: no name, a name that is too long, a list still loading or failed', async () => {
+    let arrive!: (v: typeof SAVED) => void
+    listTexts.mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    await check('sap tap')
+    await screen.findByText('2 of 2 words can be stroked (100%)')
+    fireEvent.input(nameField(), { target: { value: 'Mine' } })
+    expect(screen.getByText('Waiting for your saved texts to load.')).toBeTruthy()
+    await act(async () => arrive(SAVED))
+    expect(screen.queryByText('Waiting for your saved texts to load.')).toBeNull()
+    expect(screen.queryByText(/Add a name/)).toBeNull()
+    fireEvent.input(nameField(), { target: { value: '  ' } })
+    expect(screen.getByText('Add a name to save it.')).toBeTruthy()
+    fireEvent.input(nameField(), { target: { value: 'x'.repeat(61) } })
+    expect(screen.queryByText('Add a name to save it.')).toBeNull()
+    expect(screen.getByText('Names can be up to 60 characters.')).toBeTruthy()
+    fireEvent.input(nameField(), { target: { value: 'ok' } })
+    expect(screen.queryByText(/Names can be up to|Add a name/)).toBeNull()
+  })
+
+  it('says why Save is not available when the saved texts could not be loaded', async () => {
+    listTexts.mockRejectedValue(new Error('offline'))
+    await check('sap tap')
+    fireEvent.input(nameField(), { target: { value: 'Mine' } })
+    expect(await screen.findByText("Saving isn't available while your saved texts can't be loaded.")).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('says so calmly when the save fails, and keeps the text', async () => {
     putText.mockRejectedValue(new Error('offline'))
     await check('sap tap')
@@ -239,6 +280,18 @@ describe('Text page: saved texts', () => {
     expect((await screen.findByRole('alert')).textContent).toMatch(/Couldn't delete/)
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(screen.getByRole('link', { name: 'Moby Dick' })).toBeTruthy()
+  })
+
+  it('drops the delete-failure message when another delete starts', async () => {
+    deleteText.mockRejectedValue(new Error('offline'))
+    await mount()
+    await screen.findByRole('link', { name: 'Moby Dick' })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Moby Dick' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+    await screen.findByText(/Couldn't delete/)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete My text' }))
+    expect(screen.queryByText(/Couldn't delete/)).toBeNull()
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
   })
 
   it('shows a calm error when the list will not load, and Try again reloads it', async () => {
