@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseRoute, tabOf } from '../src/router.ts'
+import { isRunRoute, parseRoute, tabOf } from '../src/router.ts'
 import type { Route } from '../src/router.ts'
 
 describe('parseRoute', () => {
@@ -138,5 +138,38 @@ describe('tabOf', () => {
   ]
   it.each(cases)('maps %j to %s', (route, tab) => {
     expect(tabOf(route)).toBe(tab)
+  })
+})
+
+describe('isRunRoute', () => {
+  it('is true for the routes that run a drill, free type, a fix-up or a text', () => {
+    for (const route of [
+      { name: 'drill', id: 'stage0/x' },
+      { name: 'free', source: 'a', mode: 'b' },
+      { name: 'fixup-run', kind: 'words' },
+      { name: 'text-run', id: 'pasted', part: 1 },
+    ] satisfies Route[]) {
+      expect(isRunRoute(route), route.name).toBe(true)
+    }
+  })
+
+  it('is false for every page that is not a run', () => {
+    for (const route of [
+      { name: 'page', id: 'home' },
+      { name: 'practice' },
+      { name: 'fixup', tab: 'words' },
+      { name: 'text' },
+      { name: 'routine' },
+      { name: 'history' },
+      { name: 'test', id: 1 },
+      { name: 'days' },
+      { name: 'progress' },
+      { name: 'reports' },
+      { name: 'report', month: '2026-10' },
+      { name: 'journal' },
+      { name: 'notfound' },
+    ] satisfies Route[]) {
+      expect(isRunRoute(route), route.name).toBe(false)
+    }
   })
 })

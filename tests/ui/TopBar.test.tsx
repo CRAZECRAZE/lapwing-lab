@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DockProvider, useDock } from '../../src/state/dock.tsx'
 import type { Dock } from '../../src/state/dock.tsx'
+import { TourProvider, useTourOptional } from '../../src/state/tour.tsx'
 import { TopBar } from '../../src/ui/TopBar.tsx'
 
 beforeEach(() => history.replaceState(null, '', '/'))
@@ -124,5 +125,77 @@ describe('TopBar tool buttons', () => {
     expect(dock!.tool).toBe('notes')
     fireEvent.click(screen.getByRole('button', { name: 'Briefs' }))
     expect(dock!.tool).toBe('briefs')
+  })
+})
+
+describe('TopBar Tour button', () => {
+  const tourButton = (): HTMLButtonElement => screen.getByRole('button', { name: 'Tour' }) as HTMLButtonElement
+
+  it('is not there without a TourProvider', () => {
+    render(
+      <DockProvider>
+        <TopBar current="book" />
+      </DockProvider>,
+    )
+    expect(screen.queryByRole('button', { name: 'Tour' })).toBeNull()
+  })
+
+  it('comes last in the tools group, with the key in its title and no key chip', () => {
+    render(
+      <DockProvider>
+        <TourProvider disabled={false}>
+          <TopBar current="book" />
+        </TourProvider>
+      </DockProvider>,
+    )
+    const group = screen.getByRole('group', { name: 'Tools' })
+    const buttons = Array.from(group.querySelectorAll('button'))
+    expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      'Lookup',
+      'Key chart',
+      'Briefs',
+      'Notes',
+      'Tour',
+    ])
+    expect(buttons[4]).toBe(tourButton())
+    expect(tourButton().type).toBe('button')
+    expect(tourButton().title).toContain('Ctrl+Shift+T')
+    expect(tourButton().getAttribute('aria-keyshortcuts')).toBe('Control+Shift+T')
+    expect(tourButton().querySelector('kbd')).toBeNull()
+    expect(tourButton().disabled).toBe(false)
+  })
+
+  it('opens the tour on click', () => {
+    let open = false
+    function Probe(): null {
+      open = useTourOptional()!.open
+      return null
+    }
+    render(
+      <TourProvider disabled={false}>
+        <Probe />
+        <TopBar current="book" />
+      </TourProvider>,
+    )
+    expect(open).toBe(false)
+    fireEvent.click(tourButton())
+    expect(open).toBe(true)
+  })
+
+  it('is disabled, and does nothing, while a run is on screen', () => {
+    let open = false
+    function Probe(): null {
+      open = useTourOptional()!.open
+      return null
+    }
+    render(
+      <TourProvider disabled>
+        <Probe />
+        <TopBar current="practice" />
+      </TourProvider>,
+    )
+    expect(tourButton().disabled).toBe(true)
+    fireEvent.click(tourButton())
+    expect(open).toBe(false)
   })
 })

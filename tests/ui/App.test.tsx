@@ -232,4 +232,58 @@ describe('App shell', () => {
     act(() => navigate('/practice/fixup/run/words?pick=two'))
     await waitFor(() => expect(document.querySelector('.drill__prompt')?.textContent).toBe('two'))
   })
+
+  describe('the quick tour', () => {
+    const ctrlShiftT = (): void => {
+      act(() => {
+        document.body.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'T', code: 'KeyT', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+        )
+      })
+    }
+
+    it('opens on Ctrl+Shift+T and on the Tour button, and closes on Skip', async () => {
+      history.replaceState(null, '', '/history')
+      render(<App />)
+      expect(screen.queryByRole('dialog')).toBeNull()
+      ctrlShiftT()
+      expect(screen.getByRole('dialog', { name: 'Welcome to Lapwing Lab' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Skip' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Tour' }))
+      expect(screen.getByRole('dialog', { name: 'Welcome to Lapwing Lab' })).toBeTruthy()
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
+    it('rings a tab of the real top bar', () => {
+      history.replaceState(null, '', '/history')
+      render(<App />)
+      ctrlShiftT()
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      expect(document.querySelector('.tour__ring')).not.toBeNull()
+    })
+
+    it('stays closed on a run route, where the Tour button is off', async () => {
+      history.replaceState(null, '', '/practice/free/ch-8/time-60')
+      render(<App />)
+      await screen.findByRole('region', { name: /^Free type/ })
+      ctrlShiftT()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect((screen.getByRole('button', { name: 'Tour' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('closes when a run starts under it, and works again on the next page', async () => {
+      history.replaceState(null, '', '/practice')
+      render(<App />)
+      ctrlShiftT()
+      expect(screen.getByRole('dialog')).toBeTruthy()
+      act(() => navigate('/practice/free/ch-8/time-60'))
+      await screen.findByRole('region', { name: /^Free type/ })
+      expect(screen.queryByRole('dialog')).toBeNull()
+      act(() => navigate('/history'))
+      ctrlShiftT()
+      expect(screen.getByRole('dialog')).toBeTruthy()
+    })
+  })
 })

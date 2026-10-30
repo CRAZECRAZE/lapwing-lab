@@ -48,6 +48,11 @@ export function tabOf(route: Route): Tab {
   }
 }
 
+/** True for the routes that run something (a drill, free type, a fix-up, a text): chrome stays out of their way. */
+export function isRunRoute(route: Route): boolean {
+  return route.name === 'drill' || route.name === 'free' || route.name === 'fixup-run' || route.name === 'text-run'
+}
+
 const PAGE_PATH = /^\/page\/([A-Za-z0-9_-]+)\/?$/
 const DRILL_PATH = /^\/drill\/(.+?)\/?$/
 const FREE_PATH = /^\/practice\/free\/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)\/?$/

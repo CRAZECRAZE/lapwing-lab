@@ -125,6 +125,16 @@ body {
   color: var(--heading);
 }
 
+.topbar__tool:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.topbar__tool:disabled:hover {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
 .topbar__key {
   color: var(--muted);
   font-family: var(--mono);
