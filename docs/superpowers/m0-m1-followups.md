@@ -191,6 +191,8 @@ Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks 
 **Left out on purpose (the spec)**
 
 - Scheduling a routine by weekday or clock time, and reminders.
+- The session composer and the **Today** tab from section 9 of the original design (an assembled "today's session" of warm-up, template block, current-chapter practice and journal prompt); M7 built the routine planner (a checklist of the owner's own steps) instead.
+- The spaced-repetition briefs memory from section 9 of the original design; M5b was changed at the owner's request into the fix-up drill, and nothing replaced the briefs memory.
 - Importing text from a file or a URL (pasting is the only way in).
 - Re-ranking ghosts by length (a ghost is picked by wpm or by recency only).
 - Editing a saved text in place (delete it and save it again).
@@ -199,9 +201,9 @@ Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks 
 **Ghosts**
 
 - Ghost times include the pauses of the old run: they come from the wall-clock times of its strokes, so a run with a long break in it makes a slow ghost. Known and accepted; the replay is the one the fix-up drill uses and nothing new is stored.
-- Unsaved texts all share the section `text/pasted/<part>`, so the ghost for an unsaved text's part comes from any earlier unsaved text's same part, not from the same text. (Found while writing the docs.)
+- Unsaved texts all share the section `text/pasted/<part>`, so the ghost for an unsaved text's part comes from any earlier unsaved text's same part, not from the same text.
 - A drill on a chapter that is still locked still asks for its ghost (a request that is harmless but not needed).
-- A result with 0 words still shows the ghost line.
+- A result with 0 words still shows the ghost note.
 - A ghost that arrives late shifts the layout by a line.
 - The `m:ss` clock helper has four copies (`src/core/ghost.ts`, `FreeRoute`, `Stage0Route`, `DrillRunner`); one shared helper in `src/core/format.ts` would do.
 - A long template line in `compareToGhost` (`src/core/ghost.ts`) and a redundant empty-rows guard in `completionTimes`.
