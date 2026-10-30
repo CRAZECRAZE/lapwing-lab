@@ -15,6 +15,7 @@ beforeEach(() => {
           { status: 200 },
         )
       }
+      if (url === '/api/reports') return new Response('[]', { status: 200 })
       if (url === '/api/journal') return new Response('[]', { status: 200 })
       if (url.startsWith('/api/journal/')) {
         return new Response(JSON.stringify({ date: url.slice('/api/journal/'.length), text: 'Kept words.' }), { status: 200 })
@@ -100,6 +101,27 @@ describe('App shell', () => {
     expect(await screen.findByText('No practice recorded yet.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
     expect(screen.queryByRole('navigation', { name: 'Book pages' })).toBeNull()
+  })
+
+  it('shows the reports list at /progress/reports, under the Progress tab', async () => {
+    history.replaceState(null, '', '/progress/reports')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Reports', level: 1 })).toBeTruthy()
+    expect(await screen.findByText('No practice recorded yet.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows a report at /progress/reports/:month, under the Progress tab', async () => {
+    history.replaceState(null, '', '/progress/reports/2026-10')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'October 2026', level: 1 })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows not-found for an invalid report month', async () => {
+    history.replaceState(null, '', '/progress/reports/2026-13')
+    render(<App />)
+    expect(screen.getByText(/No such page/)).toBeTruthy()
   })
 
   it('shows one day at /days/:date, and resets when going back to the month', async () => {

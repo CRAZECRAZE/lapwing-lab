@@ -15,6 +15,8 @@ import { Nav } from './Nav.tsx'
 import { Practice } from './Practice.tsx'
 import { Progress } from './Progress.tsx'
 import { Reader } from './Reader.tsx'
+import { Report } from './Report.tsx'
+import { Reports } from './Reports.tsx'
 import { StatusLine } from './StatusLine.tsx'
 import { Stage0Route } from './Stage0Route.tsx'
 import { TestDetail } from './TestDetail.tsx'
@@ -40,6 +42,8 @@ export function App(): JSX.Element {
               {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
               {route.name === 'days' && <Days key={route.date ?? 'month'} date={route.date} />}
               {route.name === 'progress' && <Progress />}
+              {route.name === 'reports' && <Reports />}
+              {route.name === 'report' && <Report key={route.month} month={route.month} />}
               {route.name === 'journal' && <Journal key={route.date ?? localDate(Date.now())} date={route.date} />}
               {route.name === 'page' && <Reader id={route.id} />}
               {route.name === 'drill' &&

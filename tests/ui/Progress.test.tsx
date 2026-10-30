@@ -108,7 +108,12 @@ const allCalls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
 
 /** The requests of the page's own data; the heatmap's year is counted apart (`yearCalls`). */
 const calls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
-  allCalls(fn, path).filter((p) => !(path === '/api/days' && isYear(p)) && !(path === '/api/stats' && isPlateauWindow(p)))
+  allCalls(fn, path).filter(
+    (p) => !(path === '/api/days' && (isYear(p) || isBannerWindow(p))) && !(path === '/api/stats' && isPlateauWindow(p)),
+  )
+/** The month-end banner's own request: the previous month and this one, up to today. */
+const isBannerWindow = (p: Params): boolean => p.get('from') === '2026-09-01' && p.get('to') === TODAY
+const bannerCalls = (fn: ReturnType<typeof vi.fn>): Params[] => allCalls(fn, '/api/days').filter(isBannerWindow)
 /** The plateau notice's own request: the 56 free-type days ending today, whatever the switches say. */
 const isPlateauWindow = (p: Params): boolean =>
   p.get('from') === '2026-09-03' && p.get('to') === TODAY && p.get('mode') === 'free'
@@ -193,6 +198,27 @@ describe('Progress page structure', () => {
     // the two quality tiles follow the mode, so in Free type they say free type, not all modes
     expect(within(tile('7-day average')).queryByText('all modes')).toBeNull()
     expect(within(tile('First-try accuracy')).queryByText('all modes')).toBeNull()
+  })
+})
+
+describe('Progress reports link', () => {
+  it('links to the reports list', async () => {
+    stub()
+    await mount()
+    expect(screen.getByRole('link', { name: 'Reports' }).getAttribute('href')).toBe('/progress/reports')
+  })
+
+  it('shows the month-end banner on the last day of a month with practice', async () => {
+    stub({ days: () => [day('2026-10-12', 30, 1000)] })
+    await mount('2026-10-31')
+    expect(screen.getByText('October is done. Your report is ready.')).toBeTruthy()
+  })
+
+  it('shows no banner mid-month, and asks for the banner days once', async () => {
+    const fn = stub()
+    await mount()
+    expect(screen.queryByText(/is done/)).toBeNull()
+    expect(bannerCalls(fn)).toHaveLength(1)
   })
 })
 

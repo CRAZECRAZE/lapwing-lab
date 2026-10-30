@@ -58,6 +58,28 @@ describe('progress route', () => {
   })
 })
 
+describe('reports routes', () => {
+  it('parses the month list and a month, with or without a trailing slash', () => {
+    expect(parseRoute('/progress/reports')).toEqual({ name: 'reports' })
+    expect(parseRoute('/progress/reports/')).toEqual({ name: 'reports' })
+    expect(parseRoute('/progress/reports/2026-10')).toEqual({ name: 'report', month: '2026-10' })
+    expect(parseRoute('/progress/reports/2026-10/')).toEqual({ name: 'report', month: '2026-10' })
+  })
+
+  it('sends an invalid month to notfound', () => {
+    for (const path of [
+      '/progress/reports/2026-13',
+      '/progress/reports/2026-00',
+      '/progress/reports/2026-1',
+      '/progress/reports/abc',
+      '/progress/reports/2026-10-01',
+      '/progress/reports/2026-10/x',
+    ]) {
+      expect(parseRoute(path)).toEqual({ name: 'notfound' })
+    }
+  })
+})
+
 describe('tabOf', () => {
   const cases: Array<[Route, string]> = [
     [{ name: 'page', id: 'home' }, 'book'],
@@ -70,6 +92,8 @@ describe('tabOf', () => {
     [{ name: 'days' }, 'days'],
     [{ name: 'days', date: '2026-10-27' }, 'days'],
     [{ name: 'progress' }, 'progress'],
+    [{ name: 'reports' }, 'progress'],
+    [{ name: 'report', month: '2026-10' }, 'progress'],
     [{ name: 'journal' }, 'journal'],
     [{ name: 'journal', date: '2026-10-27' }, 'journal'],
   ]

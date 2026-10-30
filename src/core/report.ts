@@ -84,6 +84,19 @@ export function isMonthComplete(month: string, today: string): boolean {
   return today >= monthBounds(month).to
 }
 
+/** The practice of each month that has any: a day counts when it has strokes or active time. */
+export function practiceByMonth(days: readonly DayStat[]): Map<string, { activeMs: number; strokes: number }> {
+  const months = new Map<string, { activeMs: number; strokes: number }>()
+  for (const d of days) {
+    if (!(d.strokes > 0 || d.activeMs > 0)) continue
+    const total = months.get(monthKey(d.date)) ?? { activeMs: 0, strokes: 0 }
+    total.activeMs += d.activeMs
+    total.strokes += d.strokes
+    months.set(monthKey(d.date), total)
+  }
+  return months
+}
+
 /** `2026-10` -> `October`. */
 export function monthName(month: string): string {
   return MONTH_NAMES[parseMonth(month).m - 1]

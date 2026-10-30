@@ -21,6 +21,11 @@
   font-weight: 600;
 }
 
+.progress__reports {
+  margin-left: auto;
+  font-size: 0.9rem;
+}
+
 .progress__switch {
   display: inline-flex;
   flex-wrap: wrap;

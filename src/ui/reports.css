@@ -1,0 +1,108 @@
+/* Reports list: one row per month */
+
+.reports {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.reports__back {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.reports__title {
+  margin: 0 0 1.25rem;
+  color: var(--heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.reports__muted {
+  margin: 1rem 0 0;
+  color: var(--muted);
+}
+
+.reports__retry {
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.reports__retry:hover {
+  color: var(--heading);
+  border-color: var(--muted);
+}
+
+.reports__retry:focus-visible,
+.reports__row:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.reports__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reports__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 1.25rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.reports__row:hover {
+  border-color: var(--muted);
+  background: var(--raised);
+}
+
+.reports__month {
+  flex: 1 1 100%;
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.reports__figure {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports__note {
+  margin-left: auto;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+/* The month-end banner on the Progress page */
+
+.report-banner {
+  margin: 0 0 1.25rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--link);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.report-banner p {
+  margin: 0;
+}

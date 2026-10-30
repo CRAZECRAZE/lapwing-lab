@@ -4,12 +4,14 @@ import type { StatsMode } from '../../server/stats.ts'
 import { localDate } from '../core/days.ts'
 import { RANGES } from '../core/progressview.ts'
 import type { RangeId } from '../core/progressview.ts'
+import { isPlainClick, navigate } from '../router.ts'
 import { AccuracyConsistency } from './progress/AccuracyConsistency.tsx'
 import type { YearDays } from './progress/Heatmap.tsx'
 import { HeatmapPanel, useYearDays } from './progress/Heatmap.tsx'
 import { Ladder } from './progress/Ladder.tsx'
 import { Mixups } from './progress/Mixups.tsx'
 import { PlateauNotice } from './progress/PlateauNotice.tsx'
+import { ReportBanner } from './progress/ReportBanner.tsx'
 import { RhythmPanel } from './progress/RhythmPanel.tsx'
 import { Tiles } from './progress/Tiles.tsx'
 import type { ReadyData } from './progress/Tiles.tsx'
@@ -75,7 +77,20 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
         </h1>
         <Switch name="Range" options={RANGES} value={range} onChange={setRange} />
         <Switch name="Mode" options={MODES} value={mode} onChange={setMode} />
+        <a
+          class="progress__reports"
+          href="/progress/reports"
+          onClick={(e) => {
+            if (!isPlainClick(e)) return
+            e.preventDefault()
+            navigate('/progress/reports')
+          }}
+        >
+          Reports
+        </a>
       </div>
+
+      <ReportBanner today={today} />
 
       {plateau.plateau !== null && (
         <PlateauNotice plateau={plateau.plateau} onSnooze={() => void plateau.snooze()} variant="panel" />

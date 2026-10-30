@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
+import { isYearMonth } from './core/dates.ts'
 
 export type Route =
   | { name: 'page'; id: string }
@@ -9,6 +10,8 @@ export type Route =
   | { name: 'test'; id: number }
   | { name: 'days'; date?: string }
   | { name: 'progress' }
+  | { name: 'reports' }
+  | { name: 'report'; month: string }
   | { name: 'journal'; date?: string }
   | { name: 'notfound' }
 
@@ -26,6 +29,8 @@ export function tabOf(route: Route): Tab {
     case 'days':
       return 'days'
     case 'progress':
+    case 'reports':
+    case 'report':
       return 'progress'
     case 'journal':
       return 'journal'
@@ -38,6 +43,7 @@ const PAGE_PATH = /^\/page\/([A-Za-z0-9_-]+)\/?$/
 const DRILL_PATH = /^\/drill\/(.+?)\/?$/
 const FREE_PATH = /^\/practice\/free\/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)\/?$/
 const TEST_PATH = /^\/history\/(\d+)\/?$/
+const REPORT_PATH = /^\/progress\/reports\/([^/]+)\/?$/
 const DATED_PATH = /^\/(days|journal)\/(\d{4}-\d{2}-\d{2})\/?$/
 
 /** decodeURIComponent that returns null instead of throwing on a malformed escape such as `%zz`. */
@@ -69,6 +75,9 @@ export function parseRoute(pathname: string): Route {
   }
   if (/^\/days\/?$/.test(pathname)) return { name: 'days' }
   if (/^\/progress\/?$/.test(pathname)) return { name: 'progress' }
+  if (/^\/progress\/reports\/?$/.test(pathname)) return { name: 'reports' }
+  const report = REPORT_PATH.exec(pathname)
+  if (report && isYearMonth(report[1])) return { name: 'report', month: report[1] }
   if (/^\/journal\/?$/.test(pathname)) return { name: 'journal' }
   const dated = DATED_PATH.exec(pathname)
   if (dated) return { name: dated[1] as 'days' | 'journal', date: dated[2] }
