@@ -8,7 +8,13 @@ import type { ResultsByMode } from '../../src/core/progress.ts'
 import type { Progress } from '../../src/state/progress.tsx'
 import { Practice } from '../../src/ui/Practice.tsx'
 
-vi.mock('../../src/api.ts', () => ({ getLastTest: vi.fn() }))
+// The chapter panel's plateau line asks for the stats and the settings; here that fails, so there is no line.
+vi.mock('../../src/api.ts', () => ({
+  getLastTest: vi.fn(),
+  getStats: vi.fn(async () => Promise.reject(new Error('offline'))),
+  getSettings: vi.fn(async () => ({ plateauSnoozedUntil: null })),
+  putSettings: vi.fn(),
+}))
 const api = await import('../../src/api.ts')
 const getLastTest = vi.mocked(api.getLastTest)
 

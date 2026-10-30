@@ -70,14 +70,23 @@ const QUALITY: DayQuality[] = [
 ]
 
 type Params = URLSearchParams
-type Spec = { stats?: (p: Params) => unknown; days?: (p: Params) => unknown; tests?: (url: URL) => unknown }
+type Spec = {
+  stats?: (p: Params) => unknown
+  days?: (p: Params) => unknown
+  tests?: (url: URL) => unknown
+  settings?: (method: string, body: unknown) => unknown
+}
 
 /** Stubs fetch for the two routes. A handler may return a Response, a promise, or the JSON body itself. */
 function stub(spec: Spec = {}): ReturnType<typeof vi.fn> {
-  const fn = vi.fn(async (input: string) => {
+  const fn = vi.fn(async (input: string, init?: RequestInit) => {
     const url = new URL(input, 'http://localhost')
     if (url.pathname.startsWith('/api/tests')) {
       const found = await (spec.tests ?? (() => []))(url)
+      return found instanceof Response ? found : new Response(JSON.stringify(found), { status: 200 })
+    }
+    if (url.pathname === '/api/settings') {
+      const found = await (spec.settings ?? (() => ({})))(init?.method ?? 'GET', init?.body ? JSON.parse(String(init.body)) : undefined)
       return found instanceof Response ? found : new Response(JSON.stringify(found), { status: 200 })
     }
     const handler = url.pathname === '/api/stats' ? (spec.stats ?? (() => statsOf(QUALITY))) : (spec.days ?? (() => DAYS))
@@ -99,7 +108,11 @@ const allCalls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
 
 /** The requests of the page's own data; the heatmap's year is counted apart (`yearCalls`). */
 const calls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
-  allCalls(fn, path).filter((p) => !(path === '/api/days' && isYear(p)))
+  allCalls(fn, path).filter((p) => !(path === '/api/days' && isYear(p)) && !(path === '/api/stats' && isPlateauWindow(p)))
+/** The plateau notice's own request: the 56 free-type days ending today, whatever the switches say. */
+const isPlateauWindow = (p: Params): boolean =>
+  p.get('from') === '2026-09-03' && p.get('to') === TODAY && p.get('mode') === 'free'
+const plateauCalls = (fn: ReturnType<typeof vi.fn>): Params[] => allCalls(fn, '/api/stats').filter(isPlateauWindow)
 const yearCalls = (fn: ReturnType<typeof vi.fn>): Params[] => allCalls(fn, '/api/days').filter(isYear)
 
 function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
@@ -777,5 +790,102 @@ describe('Progress key, mix-up, ladder and year panels', () => {
     expect(yearCalls(fn)).toHaveLength(2)
     expect(screen.queryByText(/Couldn't load the year/)).toBeNull()
     expect(document.querySelectorAll('[data-date]')).toHaveLength(365)
+  })
+})
+
+describe('Progress page: plateau notice', () => {
+  const week = (ago: number, wpm: number, accuracy: number, steadiness: number): DayQuality => ({
+    date: `2026-10-${String(28 - ago).padStart(2, '0')}`,
+    runs: 2,
+    words: 100,
+    wpm,
+    accuracy,
+    steadiness,
+  })
+  // 41.4 wpm this week and 42 and 40 before it (21 and 14 days back are 7 and 14 Oct).
+  const FLAT: DayQuality[] = [
+    week(1, 41.4, 0.94, 53),
+    { ...week(8, 42, 0.92, 48), date: '2026-10-20' },
+    { ...week(15, 40, 0.91, 44), date: '2026-10-13' },
+  ]
+  const flatStats = (p: Params): StatsResponse => (isPlateauWindow(p) ? statsOf(FLAT) : statsOf(QUALITY))
+  const title = (): HTMLElement | null => screen.queryByText('Your speed has been flat for 3 weeks')
+
+  it('shows the notice above the tiles with its facts and links', async () => {
+    stub({ stats: flatStats })
+    await mount()
+    const notice = title()!.closest('section') as HTMLElement
+    expect(notice).toBeTruthy()
+    expect(within(notice).getByText(/Free-type wpm: 41 this week, 42 and 40 the weeks before\./)).toBeTruthy()
+    expect(within(notice).getByText(/Plateaus like this are common while learning steno\./)).toBeTruthy()
+    expect(within(notice).getByText(/Meanwhile your steadiness rose from 44 to 53 and your accuracy from 91% to 94%\./)).toBeTruthy()
+    expect(within(notice).getByRole('link', { name: 'Weakest keys' })).toBeTruthy()
+    expect(within(notice).getByRole('link', { name: 'Mix-ups' })).toBeTruthy()
+    const tiles = screen.getByRole('list', { name: 'Headline figures' })
+    expect(notice.compareDocumentPosition(tiles) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('links scroll to the Weakest keys and Mix-ups panels', async () => {
+    stub({ stats: flatStats })
+    await mount()
+    const scroll = vi.fn()
+    const target = document.getElementById('progress-weak')!
+    target.scrollIntoView = scroll
+    fireEvent.click(screen.getByRole('link', { name: 'Weakest keys' }))
+    expect(scroll).toHaveBeenCalledTimes(1)
+    expect(document.getElementById('progress-mixups')).toBeTruthy()
+  })
+
+  it('shows no notice when the speed is not flat or the request fails', async () => {
+    stub()
+    await mount()
+    expect(title()).toBeNull()
+    cleanup()
+    stub({ stats: (p) => (isPlateauWindow(p) ? failed() : statsOf(QUALITY)) })
+    await mount()
+    expect(title()).toBeNull()
+    expect(screen.getByRole('list', { name: 'Headline figures' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('is asked for once and does not follow the Mode and Range switches', async () => {
+    const fn = stub({ stats: flatStats })
+    await mount()
+    expect(plateauCalls(fn)).toHaveLength(1)
+    click('Drills and tests')
+    await flush()
+    click('3 months')
+    await flush()
+    click('Everything')
+    await flush()
+    expect(plateauCalls(fn)).toHaveLength(1)
+    expect(title()).toBeTruthy()
+    expect(screen.getByText(/41 this week, 42 and 40 the weeks before/)).toBeTruthy()
+  })
+
+  it('Not now (14 days) stores today plus 14 days and hides the notice', async () => {
+    const puts: unknown[] = []
+    stub({
+      stats: flatStats,
+      settings: (method, body) => {
+        if (method === 'PUT') puts.push(body)
+        return {}
+      },
+    })
+    await mount()
+    click('Not now (14 days)')
+    await flush()
+    expect(puts).toEqual([{ plateauSnoozedUntil: '2026-11-11' }])
+    expect(title()).toBeNull()
+  })
+
+  it('stays hidden while snoozed past today and shows again once the snooze has passed', async () => {
+    stub({ stats: flatStats, settings: () => ({ plateauSnoozedUntil: '2026-10-29' }) })
+    await mount()
+    expect(title()).toBeNull()
+    cleanup()
+    stub({ stats: flatStats, settings: () => ({ plateauSnoozedUntil: '2026-10-28' }) })
+    await mount()
+    expect(title()).toBeTruthy()
   })
 })

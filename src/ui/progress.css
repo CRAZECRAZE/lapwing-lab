@@ -935,3 +935,63 @@
 .rhythm__open {
   color: var(--link);
 }
+
+/* The plateau notice above the tiles: facts in a calm card, the title and a left rule in gold (--left) */
+.plateau {
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--left);
+  border-radius: 10px;
+}
+
+.plateau__title {
+  margin: 0 0 0.35rem;
+  color: var(--left);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.plateau__text {
+  margin: 0.2rem 0 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.plateau__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.1rem;
+  margin: 0.7rem 0 0;
+}
+
+.plateau__link {
+  color: var(--link);
+  font-size: 0.9rem;
+}
+
+.plateau__snooze {
+  margin-left: auto;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.plateau__snooze:hover {
+  color: var(--heading);
+  border-color: var(--muted);
+}
+
+.plateau__snooze:focus-visible,
+.plateau__link:focus-visible {
+  outline: 2px solid var(--left);
+  outline-offset: 2px;
+}

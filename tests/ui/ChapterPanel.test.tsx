@@ -111,10 +111,10 @@ function build(setup: Setup, marks: ProgressMark[], write: (next: ProgressMark[]
 }
 
 /** Holds the marks in state so a write re-renders the panel with the new progress, as the real provider does. */
-function Live({ chapter, setup }: { chapter: number; setup: Setup }): JSX.Element {
+function Live({ chapter, setup, today }: { chapter: number; setup: Setup; today?: string }): JSX.Element {
   const [marks, setMarks] = useState(setup.marks ?? [])
   fake.value = build(setup, marks, setMarks)
-  return <ChapterPanel chapter={chapter} />
+  return <ChapterPanel chapter={chapter} today={today} />
 }
 
 const show = (chapter: number, setup: Setup = {}) => render(<Live chapter={chapter} setup={setup} />)
@@ -543,5 +543,53 @@ describe('ChapterPanel: Open anyway opens the chapter and every one before it', 
     noDialog()
     expect(status()).toBe('Locked until Chapter 5 is cleared')
     expect(button('Open anyway').disabled).toBe(false)
+  })
+})
+
+describe('ChapterPanel: plateau line', () => {
+  const FLAT = [
+    { date: '2026-10-27', runs: 2, words: 100, wpm: 41.4, accuracy: 0.9, steadiness: 50 },
+    { date: '2026-10-20', runs: 2, words: 100, wpm: 42, accuracy: 0.9, steadiness: 50 },
+    { date: '2026-10-13', runs: 2, words: 100, wpm: 40, accuracy: 0.9, steadiness: 50 },
+  ]
+  const stubApi = (days: unknown[] | 'fail', puts: unknown[] = []): ReturnType<typeof vi.fn> => {
+    const fn = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = new URL(input, 'http://localhost')
+      if (url.pathname === '/api/settings') {
+        if (init?.method === 'PUT') puts.push(JSON.parse(String(init.body)))
+        return new Response('{}', { status: 200 })
+      }
+      if (days === 'fail') return new Response('{}', { status: 500 })
+      return new Response(JSON.stringify({ from: '', to: '', mode: 'free', days, keys: [], mixups: [], allTimeStrokes: 1 }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fn)
+    return fn
+  }
+  const flush = (): Promise<void> => act(async () => new Promise<void>((done) => setTimeout(done, 0)))
+  const line = (): HTMLElement | null => document.querySelector('.plateau-line')
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows one line with a link to Progress in the panel', async () => {
+    const fn = stubApi(FLAT)
+    render(<Live chapter={5} setup={{}} today="2026-10-28" />)
+    expect(line()).toBeNull() // still loading
+    await flush()
+    expect(line()?.textContent).toBe('Speed flat for 3 weeks, see Progress')
+    expect(panel().contains(line())).toBe(true)
+    expect(within(line()!).getByRole('link', { name: 'see Progress' }).getAttribute('href')).toBe('/progress')
+    expect(fn.mock.calls.filter(([u]) => String(u).startsWith('/api/stats'))).toHaveLength(1)
+  })
+
+  it('shows nothing when the request fails or the speed is not flat', async () => {
+    stubApi('fail')
+    render(<Live chapter={5} setup={{}} today="2026-10-28" />)
+    await flush()
+    expect(line()).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+    cleanup()
+    stubApi([])
+    render(<Live chapter={5} setup={{}} today="2026-10-28" />)
+    await flush()
+    expect(line()).toBeNull()
   })
 })

@@ -9,9 +9,11 @@ import type { YearDays } from './progress/Heatmap.tsx'
 import { HeatmapPanel, useYearDays } from './progress/Heatmap.tsx'
 import { Ladder } from './progress/Ladder.tsx'
 import { Mixups } from './progress/Mixups.tsx'
+import { PlateauNotice } from './progress/PlateauNotice.tsx'
 import { RhythmPanel } from './progress/RhythmPanel.tsx'
 import { Tiles } from './progress/Tiles.tsx'
 import type { ReadyData } from './progress/Tiles.tsx'
+import { usePlateau } from './progress/usePlateau.ts'
 import { useProgressData } from './progress/useProgressData.ts'
 import { useRhythm } from './progress/useRhythm.ts'
 import type { RhythmState } from './progress/useRhythm.ts'
@@ -63,6 +65,7 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
   // the rhythm panel's runs and pick live here: the panels are rebuilt each time the numbers reload
   const rhythm = useRhythm(mode)
   const year = useYearDays(today) // not part of `data`: the year does not depend on the range or the mode
+  const plateau = usePlateau(today) // the last 56 free-type days, whatever the switches say
 
   return (
     <section class="progress" aria-labelledby="progress-title">
@@ -74,6 +77,9 @@ export function Progress({ today: given }: { today?: string }): JSX.Element {
         <Switch name="Mode" options={MODES} value={mode} onChange={setMode} />
       </div>
 
+      {plateau.plateau !== null && (
+        <PlateauNotice plateau={plateau.plateau} onSnooze={() => void plateau.snooze()} variant="panel" />
+      )}
       {data.status === 'loading' && <p class="progress__muted">Loading…</p>}
       {data.status === 'error' && (
         <p class="progress__muted" role="alert">

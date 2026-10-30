@@ -3,12 +3,15 @@ import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
 import type { SectionResult } from '../../server/archive.ts'
 import { CHAPTER_TEST, drillPassMark } from '../core/chaptertest.ts'
+import { localDate } from '../core/days.ts'
 import { formatAccuracy, formatWpm } from '../core/format.ts'
 import { blockingChapters, chapterList, requirementText } from '../core/progress.ts'
 import type { ChapterState } from '../core/progress.ts'
 import { useProgress } from '../state/progress.tsx'
 import { isPlainClick, navigate } from '../router.ts'
 import { ConfirmDialog } from './ConfirmDialog.tsx'
+import { PlateauNotice } from './progress/PlateauNotice.tsx'
+import { usePlateau } from './progress/usePlateau.ts'
 import './chapterpanel.css'
 
 /** `5-basic-left-hand` → `basic left hand`. */
@@ -101,9 +104,14 @@ function DrillRows({ info, results, ticks }: { info: ChapterInfo; results: Secti
  */
 type Asking = { kind: 'move' } | { kind: 'open'; chapters: number[] } | null
 
-/** The chapter's progress on its own page: status, requirement, drills, the chapter test, and the marks. */
-export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | null {
+/**
+ * The chapter's progress on its own page: status, requirement, drills, the chapter test, and the marks. `today`
+ * (a local `YYYY-MM-DD`) is read once at mount; tests inject it.
+ */
+export function ChapterPanel({ chapter, today: given }: { chapter: number; today?: string }): JSX.Element | null {
   const progress = useProgress()
+  const [today] = useState(() => given ?? localDate(Date.now()))
+  const plateau = usePlateau(today)
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
   const [asking, setAsking] = useState<Asking>(null)
@@ -173,6 +181,7 @@ export function ChapterPanel({ chapter }: { chapter: number }): JSX.Element | nu
 
   return (
     <section class="chapter-panel" aria-label="Chapter progress">
+      {plateau.plateau !== null && <PlateauNotice plateau={plateau.plateau} onSnooze={() => void plateau.snooze()} variant="line" />}
       <p class={cleared ? 'chapter-panel__status chapter-panel__status--cleared' : 'chapter-panel__status'}>
         {statusText(state)}
       </p>

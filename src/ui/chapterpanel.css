@@ -18,6 +18,18 @@
   margin: 0;
 }
 
+/* The plateau line at the top of the panel: one calm gold line (--left) with a plain link to Progress */
+.chapter-panel .plateau-line {
+  margin-bottom: 0.45rem;
+  color: var(--left);
+  font-size: 0.85rem;
+}
+
+.chapter-panel .plateau-line a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .chapter-panel__status {
   color: var(--heading);
   font-size: 0.8rem;
