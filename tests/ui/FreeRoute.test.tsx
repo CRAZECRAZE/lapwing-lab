@@ -94,8 +94,8 @@ beforeEach(() => {
     loggers.push(logger)
     return logger
   })
-  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
-  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ...s }))
+  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best', ...s }))
 })
 
 afterEach(() => {
@@ -260,7 +260,7 @@ describe('FreeRoute', () => {
   })
 
   it('honours the stored board visibility and saves a new choice', async () => {
-    getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
     stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
     await mount('pseudo', 'words-25')
     await waitFor(() => expect(document.querySelector('.drill__board')).toBeNull())
@@ -350,7 +350,7 @@ describe('FreeRoute', () => {
     })
 
     it('applies a stored always without a click', async () => {
-      getSettings.mockResolvedValue({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+      getSettings.mockResolvedValue({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
       stubContent(CHAPTER)
       await mount('ch-6', 'words-25')
       await waitFor(() => expect(expected()).toBe('SAP'))
@@ -360,7 +360,7 @@ describe('FreeRoute', () => {
     })
 
     it('keeps the hint when the board is hidden: only the notation shows', async () => {
-      getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+      getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
       stubContent(CHAPTER)
       await mount('ch-6', 'words-25')
       await waitFor(() => expect(expected()).toBe('SAP'))

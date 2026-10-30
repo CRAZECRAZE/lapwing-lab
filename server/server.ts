@@ -11,6 +11,7 @@ import { MissingRowError, openArchive } from './archive.ts'
 import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
 import { buildFixup, emptyFixup } from './fixup.ts'
+import { buildGhosts } from './ghost.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
 import { isReportMonth, listReports, readReport, writeReport } from './reports.ts'
 import { readSettings, writeSettings } from './settings.ts'
@@ -251,6 +252,8 @@ function reportMonth(raw: string): string {
 }
 
 const RESULT_MODES = ['stage0', 'section', 'chapter-test']
+const GHOST_MODES = ['free', 'section', 'chapter-test', 'stage0', 'text']
+const MAX_GHOST_SECTION = 100
 
 function allow(res: ServerResponse, ...methods: string[]): never {
   res.setHeader('allow', methods.join(', '))
@@ -313,6 +316,8 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     if (snooze !== undefined && snooze !== null && !isIsoDate(snooze)) {
       bad('plateauSnoozedUntil', 'a date as YYYY-MM-DD or null')
     }
+    const ghost = body.ghost
+    if (ghost !== undefined && ghost !== 'best' && ghost !== 'last' && ghost !== 'off') bad('ghost', 'one of best, last, off')
     const seen = body.reportSeen
     if (seen !== undefined && seen !== null && !isYearMonth(seen)) bad('reportSeen', 'a month as YYYY-MM or null')
     ctx.ensureDataDir()
@@ -324,6 +329,7 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
         ...(hints === undefined ? {} : { hints }),
         ...(snooze === undefined ? {} : { plateauSnoozedUntil: snooze }),
         ...(seen === undefined ? {} : { reportSeen: seen }),
+        ...(ghost === undefined ? {} : { ghost }),
       }),
     )
     return
@@ -469,6 +475,18 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     const { from, to } = parseRange(params)
     const archive = ctx.existingArchive()
     sendJson(res, 200, archive ? buildFixup(archive, { from, to }) : emptyFixup({ from, to }))
+    return
+  }
+
+  if (pathname === '/api/ghost') {
+    if (method !== 'GET') allow(res, 'GET')
+    const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+    const mode = params.get('mode')
+    const section = params.get('section')
+    if (mode === null || !GHOST_MODES.includes(mode)) bad('mode', `one of ${GHOST_MODES.join(', ')}`)
+    if (!section || section.length > MAX_GHOST_SECTION) bad('section', `a string of 1 to ${MAX_GHOST_SECTION} characters`)
+    const archive = ctx.existingArchive()
+    sendJson(res, 200, archive ? buildGhosts(archive, mode, section) : { best: null, last: null })
     return
   }
 

@@ -6,6 +6,7 @@ import {
   deleteMark,
   getDays,
   getFixup,
+  getGhosts,
   getJournal,
   getLastTest,
   getNote,
@@ -395,25 +396,25 @@ describe('GET timeouts', () => {
 
 describe('settings', () => {
   it('round-trips through GET and PUT', async () => {
-    let stored = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
+    let stored = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' }
     const { calls, fetch } = fakeFetch((c) => {
       if (c.method === 'PUT') stored = { ...stored, ...(c.body as object) }
       return json(stored)
     })
-    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
-    await expect(putSettings({ boardVisibility: 'hover' }, fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
-    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+    await expect(putSettings({ boardVisibility: 'hover' }, fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+    await expect(getSettings(fetch)).resolves.toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
     expect(calls[1]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { boardVisibility: 'hover' } })
   })
 
   it('putSettings sends only the patch', async () => {
-    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null }))
-    await expect(putSettings({ hints: 'always' }, fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' }))
+    await expect(putSettings({ hints: 'always' }, fetch)).resolves.toEqual({ boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
     expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { hints: 'always' } })
   })
 
   it('getSettings falls back to defaults on failure or a bad body', async () => {
-    const defaults = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
+    const defaults = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' }
     await expect(getSettings(fakeFetch(() => new Error('down')).fetch)).resolves.toEqual(defaults)
     await expect(getSettings(fakeFetch(() => json({ error: 'x' }, 500)).fetch)).resolves.toEqual(defaults)
     await expect(getSettings(fakeFetch(() => json(null)).fetch)).resolves.toEqual(defaults)
@@ -426,23 +427,26 @@ describe('settings', () => {
       hints: 'miss',
       plateauSnoozedUntil: null,
       reportSeen: null,
+      ghost: 'best',
     })
     await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'nope', hints: 'always' })).fetch)).resolves.toEqual({
       boardVisibility: 'always',
       hints: 'always',
       plateauSnoozedUntil: null,
       reportSeen: null,
+      ghost: 'best',
     })
     await expect(getSettings(fakeFetch(() => json({ boardVisibility: 'hidden' })).fetch)).resolves.toEqual({
       boardVisibility: 'hidden',
       hints: 'miss',
       plateauSnoozedUntil: null,
       reportSeen: null,
+      ghost: 'best',
     })
   })
 
   it('getSettings passes valid snooze and report values through and falls back per field', async () => {
-    const full = { boardVisibility: 'hover', hints: 'always', plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' }
+    const full = { boardVisibility: 'hover', hints: 'always', plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10', ghost: 'last' }
     await expect(getSettings(fakeFetch(() => json(full)).fetch)).resolves.toEqual(full)
     for (const bad of ['2026-02-30', '2026-13-01', 'tomorrow', '2026-11', 7, {}, '']) {
       await expect(
@@ -457,11 +461,20 @@ describe('settings', () => {
     }
     await expect(
       getSettings(fakeFetch(() => json({ boardVisibility: 'hidden', plateauSnoozedUntil: null, reportSeen: '2026-09' })).fetch),
-    ).resolves.toEqual({ boardVisibility: 'hidden', hints: 'miss', plateauSnoozedUntil: null, reportSeen: '2026-09' })
+    ).resolves.toEqual({ boardVisibility: 'hidden', hints: 'miss', plateauSnoozedUntil: null, reportSeen: '2026-09', ghost: 'best' })
+  })
+
+  it('getSettings passes a valid ghost through and falls back to best on anything else', async () => {
+    for (const ghost of ['best', 'last', 'off']) {
+      await expect(getSettings(fakeFetch(() => json({ ghost })).fetch)).resolves.toMatchObject({ ghost })
+    }
+    for (const bad of ['nope', 7, null, {}, '']) {
+      await expect(getSettings(fakeFetch(() => json({ ghost: bad })).fetch)).resolves.toMatchObject({ ghost: 'best' })
+    }
   })
 
   it('putSettings sends a null patch value to clear a field', async () => {
-    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }))
+    const { calls, fetch } = fakeFetch(() => json({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' }))
     await putSettings({ plateauSnoozedUntil: null }, fetch)
     expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/settings', body: { plateauSnoozedUntil: null } })
   })
@@ -530,6 +543,16 @@ describe('history and journal calls', () => {
     expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/fixup?from=2026-10-01&to=2026-10-30' })
     await expect(getFixup('a', 'b', fakeFetch(() => json({ error: 'bad' }, 400)).fetch)).rejects.toThrow(/400/)
     await expect(getFixup('a', 'b', fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
+  })
+
+  it('getGhosts url-encodes mode and section and returns the ghosts', async () => {
+    const ghost = { testId: 3, endedAt: 2000, wpm: 30, completions: [0, 500, 1000, 1500, 2000] }
+    const ghosts = { best: ghost, last: null }
+    const { calls, fetch } = fakeFetch(() => json(ghosts))
+    await expect(getGhosts('section', 'rows & star/1', fetch)).resolves.toEqual(ghosts)
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/ghost?mode=section&section=rows+%26+star%2F1' })
+    await expect(getGhosts('a', 'b', fakeFetch(() => json({ error: 'bad' }, 400)).fetch)).rejects.toThrow(/400/)
+    await expect(getGhosts('a', 'b', fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
   })
 
   it('listJournal returns the entries', async () => {

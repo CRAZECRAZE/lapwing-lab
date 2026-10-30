@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
 vi.mock('../../../src/api.ts', () => api)
 
 const TODAY = '2026-10-28'
-const SETTINGS: Settings = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
+const SETTINGS: Settings = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' }
 
 /** Two free-type runs spread over one day of a week `ago` days back. */
 const dayOf = (ago: number, wpm: number, accuracy: number, steadiness: number): DayQuality => ({

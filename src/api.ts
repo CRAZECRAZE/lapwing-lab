@@ -5,10 +5,17 @@ import type { Settings } from '../server/settings.ts'
 import type { StatsMode, StatsResponse } from '../server/stats.ts'
 import { isIsoDate, isYearMonth } from './core/dates.ts'
 import type { FixupLists } from './core/fixup.ts'
+import type { Ghost } from './core/ghost.ts'
 
 type FetchFn = typeof fetch
 
-const DEFAULT_SETTINGS: Settings = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
+const DEFAULT_SETTINGS: Settings = {
+  boardVisibility: 'always',
+  hints: 'miss',
+  plateauSnoozedUntil: null,
+  reportSeen: null,
+  ghost: 'best',
+}
 
 // Resolved lazily so tests (and browsers) never see a detached `fetch`.
 const defaultFetch: FetchFn = (input, init) => fetch(input, init)
@@ -180,6 +187,8 @@ export async function getSettings(fetchFn: FetchFn = defaultFetch): Promise<Sett
     if (isIsoDate(snooze)) settings.plateauSnoozedUntil = snooze
     const seen = s?.reportSeen
     if (isYearMonth(seen)) settings.reportSeen = seen
+    const g = s?.ghost
+    if (g === 'best' || g === 'last' || g === 'off') settings.ghost = g
   } catch {
     // keep the defaults
   }
@@ -241,6 +250,15 @@ export async function getStats(
 export async function getFixup(from: string, to: string, fetchFn: FetchFn = defaultFetch): Promise<FixupLists> {
   const params = new URLSearchParams({ from, to })
   return (await request(fetchFn, 'GET', `/api/fixup?${params}`)) as FixupLists
+}
+
+export async function getGhosts(
+  mode: string,
+  section: string,
+  fetchFn: FetchFn = defaultFetch,
+): Promise<{ best: Ghost | null; last: Ghost | null }> {
+  const params = new URLSearchParams({ mode, section })
+  return (await request(fetchFn, 'GET', `/api/ghost?${params}`)) as { best: Ghost | null; last: Ghost | null }
 }
 
 export async function listJournal(fetchFn: FetchFn = defaultFetch): Promise<{ date: string; chars: number }[]> {

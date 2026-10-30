@@ -3,6 +3,7 @@ import { completedWords } from '../src/core/words.ts'
 import type { Lever } from '../src/core/uni.ts'
 import type { SlotMask } from '../src/core/steno.ts'
 import type { FixupRow } from '../src/core/fixup.ts'
+import type { GhostRow } from '../src/core/ghost.ts'
 
 export type StrokeRecord = {
   testId: number
@@ -95,6 +96,8 @@ export interface Archive {
   timingsInRange(from: string, to: string): StrokeTiming[]
   keyRowsInRange(from: string, to: string): KeyRow[]
   fixupRowsInRange(from: string, to: string): FixupRow[]
+  /** The newest `limit` finished, non-abandoned runs of a mode and section that have a wpm, newest first, with their strokes. */
+  ghostRuns(mode: string, section: string, limit: number): { testId: number; endedAt: number; wpm: number; rows: GhostRow[] }[]
   allTimeStrokes(): number
   listMarks(): ProgressMark[]
   setMark(chapter: number, kind: 'read' | 'override', at: number): void
@@ -225,6 +228,11 @@ export function openArchive(path: string): Archive {
      ORDER BY ended_at DESC, id DESC LIMIT 1`,
   )
   const selectStrokes = db.prepare('SELECT * FROM strokes WHERE test_id = ? ORDER BY id')
+  const selectGhostRuns = db.prepare(
+    `SELECT id, ended_at, wpm FROM tests WHERE mode = ? AND section = ? AND ended_at IS NOT NULL AND wpm IS NOT NULL
+       AND json_extract(meta_json, '$.abandoned') IS NOT 1
+     ORDER BY ended_at DESC, id DESC LIMIT ?`,
+  )
 
   // One row per test that has at least one stroke, with the first and last stroke times.
   const WITH_STROKES = `FROM tests t
@@ -501,6 +509,22 @@ export function openArchive(path: string): Archive {
         })
       }
       return out
+    },
+    ghostRuns(mode, section, limit) {
+      return selectGhostRuns.all(mode, section, count('limit', limit, 1)).map((t) => {
+        const rows: GhostRow[] = []
+        for (const r of selectStrokes.all(t.id as number)) {
+          const expected = parseJson(r.expected_json)
+          if (!Array.isArray(expected)) continue
+          rows.push({
+            tsMs: r.ts_ms as number,
+            expected: expected as string[],
+            pressedMask: r.pressed_slots_mask as number,
+            correct: r.correct === 1,
+          })
+        }
+        return { testId: t.id as number, endedAt: t.ended_at as number, wpm: t.wpm as number, rows }
+      })
     },
     allTimeStrokes() {
       return countStrokes.get()?.n as number

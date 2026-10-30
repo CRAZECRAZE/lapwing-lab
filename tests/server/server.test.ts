@@ -471,26 +471,26 @@ describe('archive API', () => {
   })
 
   it('serves and updates settings', async () => {
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
     const put = await call('PUT', '/api/settings', { boardVisibility: 'hover' })
-    expect(await put.json()).toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await put.json()).toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hover', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   })
 
   it('stores hints on their own, keeps the board setting, and an empty PUT returns the current values', async () => {
     await call('PUT', '/api/settings', { boardVisibility: 'hidden' })
     const put = await call('PUT', '/api/settings', { hints: 'always' })
-    expect(await put.json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
-    expect(await (await call('PUT', '/api/settings', {})).json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await put.json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+    expect(await (await call('PUT', '/api/settings', {})).json()).toEqual({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
     const both = await call('PUT', '/api/settings', { boardVisibility: 'always', hints: 'miss' })
-    expect(await both.json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await both.json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   })
 
   it('stores, keeps and clears the snooze and the last report seen', async () => {
     await call('PUT', '/api/settings', { hints: 'always' })
     const put = await call('PUT', '/api/settings', { plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' })
-    const both = { boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' }
+    const both = { boardVisibility: 'always', hints: 'always', plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10', ghost: 'best' }
     expect(await put.json()).toEqual(both)
     expect(await (await call('GET', '/api/settings')).json()).toEqual(both)
     const cleared = await call('PUT', '/api/settings', { plateauSnoozedUntil: null })
@@ -522,7 +522,7 @@ describe('archive API', () => {
   it('falls back to defaults when settings.json is corrupt', async () => {
     mkdirSync(dataDir, { recursive: true })
     writeFileSync(join(dataDir, 'settings.json'), '{oops')
-    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+    expect(await (await call('GET', '/api/settings')).json()).toEqual({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   })
 
   async function finishedRun(mode: string, section: string, meta: unknown, accuracy = 0.9, wpm = 20): Promise<number> {
@@ -855,6 +855,70 @@ describe('lab routes', () => {
       patterns: [],
     })
     expect(existsSync(dataDir)).toBe(false)
+  })
+
+  // Seeds a finished run of `words` "cat" strokes through the public POST routes.
+  async function ghostRun(mode: string, section: string, words: number, wpm: number, endedAt: number, meta: unknown = null) {
+    const { id: sessionId } = await json('POST', '/api/sessions', { startedAt: 1000 })
+    const { id } = await json('POST', '/api/tests', { sessionId, startedAt: 1001, mode, chapter: 4, section, itemCount: words })
+    for (let i = 0; i < words; i++) {
+      await json('POST', `/api/tests/${id}/strokes`, {
+        tsMs: 5000 + 1000 * i,
+        prompt: 'cat',
+        expected: ['KAT'],
+        pressedLevers: [],
+        pressedMask: parseStroke('KAT'),
+        correct: true,
+        latencyMs: 400,
+        attemptNo: 1,
+      })
+    }
+    await json('POST', `/api/tests/${id}/finish`, { endedAt, wpm, accuracy: 1, meta })
+    return id
+  }
+
+  it('answers /api/ghost with no ghosts and creates nothing when there is no database', async () => {
+    expect(await json('GET', '/api/ghost?mode=section&section=rows-star')).toEqual({ best: null, last: null })
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('answers /api/ghost with the best and last ghosts of seeded runs', async () => {
+    const fast = await ghostRun('section', 'rows-star', 6, 50, 2000)
+    const newest = await ghostRun('section', 'rows-star', 5, 20, 3000)
+    await ghostRun('section', 'rows-star', 9, 90, 4000, { abandoned: true })
+    await ghostRun('section', 'other', 9, 90, 5000)
+    const out = await json('GET', '/api/ghost?mode=section&section=rows-star')
+    expect(out.best).toEqual({ testId: fast, endedAt: 2000, wpm: 50, completions: [0, 1000, 2000, 3000, 4000, 5000] })
+    expect(out.last).toEqual({ testId: newest, endedAt: 3000, wpm: 20, completions: [0, 1000, 2000, 3000, 4000] })
+  })
+
+  it('400s bad /api/ghost parameters, with or without an archive, and 405s other methods', async () => {
+    const bads = [
+      '', 'mode=section', 'section=rows-star', 'mode=section&section=', 'mode=nope&section=x', 'mode=fixup&section=x',
+      'mode=&section=x', `mode=section&section=${'a'.repeat(101)}`,
+    ]
+    for (const q of bads) expect((await call('GET', `/api/ghost?${q}`)).status, q).toBe(400)
+    await ghostRun('section', 'rows-star', 5, 20, 2000)
+    for (const q of bads) expect((await call('GET', `/api/ghost?${q}`)).status, q).toBe(400)
+    for (const mode of ['free', 'section', 'chapter-test', 'stage0', 'text']) {
+      expect((await call('GET', `/api/ghost?mode=${mode}&section=${'a'.repeat(100)}`)).status, mode).toBe(200)
+    }
+    const res = await call('POST', '/api/ghost?mode=section&section=rows-star')
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET')
+  })
+
+  it('serves, updates and validates the ghost setting', async () => {
+    expect((await json('GET', '/api/settings')).ghost).toBe('best')
+    for (const ghost of ['last', 'off', 'best']) expect((await json('PUT', '/api/settings', { ghost })).ghost).toBe(ghost)
+    await json('PUT', '/api/settings', { ghost: 'last' })
+    const file = join(dataDir, 'settings.json')
+    const before = readFileSync(file, 'utf8')
+    for (const ghost of ['nope', 7, null, {}, []]) {
+      expect((await call('PUT', '/api/settings', { ghost })).status, String(ghost)).toBe(400)
+    }
+    expect((await call('PUT', '/api/settings', { hints: 'always', ghost: 'nope' })).status).toBe(400)
+    expect(readFileSync(file, 'utf8')).toBe(before)
   })
 
   it('round-trips a journal entry through PUT, GET and the list', async () => {

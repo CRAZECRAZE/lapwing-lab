@@ -72,7 +72,7 @@ beforeEach(() => {
     loggers.push(logger)
     return logger
   })
-  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
+  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([])
   getFixup.mockReset().mockResolvedValue(lists([word('sap', 'SAP'), word('tap', 'TAP')], [pattern('-P')]))

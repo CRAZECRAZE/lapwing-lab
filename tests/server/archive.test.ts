@@ -1131,7 +1131,7 @@ describe('settings', () => {
   }
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-  const NULLS = { plateauSnoozedUntil: null, reportSeen: null }
+  const NULLS = { plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' }
   const DEFAULTS = { boardVisibility: 'always', hints: 'miss', ...NULLS }
 
   it('returns defaults when the file is missing', () => {
@@ -1206,18 +1206,21 @@ describe('settings', () => {
       hints: 'always',
       plateauSnoozedUntil: '2026-11-13',
       reportSeen: null,
+      ghost: 'best',
     })
     expect(writeSettings(f, { reportSeen: '2026-10' })).toEqual({
       boardVisibility: 'hidden',
       hints: 'always',
       plateauSnoozedUntil: '2026-11-13',
       reportSeen: '2026-10',
+      ghost: 'best',
     })
     expect(readSettings(f)).toEqual({
       boardVisibility: 'hidden',
       hints: 'always',
       plateauSnoozedUntil: '2026-11-13',
       reportSeen: '2026-10',
+      ghost: 'best',
     })
     expect(writeSettings(f, { hints: 'miss' })).toMatchObject({ plateauSnoozedUntil: '2026-11-13', reportSeen: '2026-10' })
     expect(writeSettings(f, { plateauSnoozedUntil: '2028-02-29' }).plateauSnoozedUntil).toBe('2028-02-29')
@@ -1266,5 +1269,39 @@ describe('settings', () => {
     expect(readSettings(f)).toMatchObject({ plateauSnoozedUntil: null, reportSeen: '2026-10' })
     writeFileSync(f, '{"plateauSnoozedUntil":null,"reportSeen":{}}')
     expect(readSettings(f)).toMatchObject(NULLS)
+  })
+
+  it('defaults ghost to best, reads last and off back, and falls back on an unknown value', () => {
+    const f = file()
+    expect(readSettings(f).ghost).toBe('best')
+    for (const ghost of ['best', 'last', 'off']) {
+      writeFileSync(f, JSON.stringify({ ghost }))
+      expect(readSettings(f).ghost).toBe(ghost)
+    }
+    for (const bad of ['"nope"', '7', 'null', '{}']) {
+      writeFileSync(f, `{"boardVisibility":"hover","ghost":${bad}}`)
+      expect(readSettings(f)).toEqual({ boardVisibility: 'hover', hints: 'miss', ...NULLS })
+    }
+  })
+
+  it('persists a ghost patch, keeps the other fields and an old file without the field is fine', () => {
+    const f = file()
+    writeFileSync(f, '{"boardVisibility":"hover","hints":"always"}')
+    expect(readSettings(f)).toEqual({ boardVisibility: 'hover', hints: 'always', ...NULLS })
+    expect(writeSettings(f, { ghost: 'off' })).toEqual({ boardVisibility: 'hover', hints: 'always', ...NULLS, ghost: 'off' })
+    expect(readSettings(f).ghost).toBe('off')
+    expect(writeSettings(f, { hints: 'miss' }).ghost).toBe('off')
+    expect(writeSettings(f, { ghost: 'last' }).ghost).toBe('last')
+    expect(readdirSync(dir)).toEqual(['settings.json'])
+  })
+
+  it('rejects an invalid ghost and leaves the file alone', () => {
+    const f = file()
+    writeSettings(f, { ghost: 'last' })
+    const before = readFileSync(f, 'utf8')
+    expect(() => writeSettings(f, { ghost: 'nope' as never })).toThrow()
+    expect(() => writeSettings(f, { ghost: null as never })).toThrow()
+    expect(() => writeSettings(f, { hints: 'always', ghost: 7 as never })).toThrow()
+    expect(readFileSync(f, 'utf8')).toBe(before)
   })
 })

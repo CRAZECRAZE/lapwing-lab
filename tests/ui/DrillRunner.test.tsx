@@ -41,8 +41,8 @@ beforeEach(() => {
     loggers.push(logger)
     return logger
   })
-  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null })
-  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ...s }))
+  getSettings.mockReset().mockResolvedValue({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
+  putSettings.mockReset().mockImplementation(async (s) => ({ boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best', ...s }))
   // Chapter 4 is passed, so 5 is open and 6 is locked behind 5.
   getResults.mockReset().mockImplementation(async (mode) => (mode === 'stage0' ? [passed('pseudo-test')] : []))
   getProgress.mockReset().mockResolvedValue([])
@@ -89,7 +89,7 @@ describe('DrillRunner', () => {
   })
 
   it('honours a stored hint of always', async () => {
-    getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null })
+    getSettings.mockResolvedValue({ boardVisibility: 'hidden', hints: 'always', plateauSnoozedUntil: null, reportSeen: null, ghost: 'best' })
     await mountRig(runner())
     await waitFor(() => expect(document.querySelector('.drill__expected')!.textContent).toBe('SAP'))
     expect(document.querySelector('.drill__board')).toBeNull()

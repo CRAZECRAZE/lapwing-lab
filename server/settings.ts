@@ -8,11 +8,20 @@ export type Settings = {
   plateauSnoozedUntil: string | null
   // The last monthly report (YYYY-MM) the owner has seen, or null.
   reportSeen: string | null
+  // Which earlier run to race in a drill, if any.
+  ghost: 'best' | 'last' | 'off'
 }
 
 const VISIBILITY = ['always', 'hover', 'hidden']
 const HINTS = ['miss', 'always']
-const DEFAULTS: Settings = { boardVisibility: 'always', hints: 'miss', plateauSnoozedUntil: null, reportSeen: null }
+const GHOSTS = ['best', 'last', 'off']
+const DEFAULTS: Settings = {
+  boardVisibility: 'always',
+  hints: 'miss',
+  plateauSnoozedUntil: null,
+  reportSeen: null,
+  ghost: 'best',
+}
 
 function isVisibility(v: unknown): v is Settings['boardVisibility'] {
   return typeof v === 'string' && VISIBILITY.includes(v)
@@ -22,6 +31,10 @@ function isHints(v: unknown): v is Settings['hints'] {
   return typeof v === 'string' && HINTS.includes(v)
 }
 
+function isGhost(v: unknown): v is Settings['ghost'] {
+  return typeof v === 'string' && GHOSTS.includes(v)
+}
+
 // A missing, unreadable or invalid file is never fatal: the owner just gets defaults,
 // and each field falls back on its own (an old file with only boardVisibility is fine).
 export function readSettings(file: string): Settings {
@@ -29,11 +42,12 @@ export function readSettings(file: string): Settings {
   try {
     const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
     if (typeof parsed === 'object' && parsed !== null) {
-      const { boardVisibility, hints, plateauSnoozedUntil, reportSeen } = parsed as Partial<Record<keyof Settings, unknown>>
+      const { boardVisibility, hints, plateauSnoozedUntil, reportSeen, ghost } = parsed as Partial<Record<keyof Settings, unknown>>
       if (isVisibility(boardVisibility)) settings.boardVisibility = boardVisibility
       if (isHints(hints)) settings.hints = hints
       if (isIsoDate(plateauSnoozedUntil)) settings.plateauSnoozedUntil = plateauSnoozedUntil
       if (isYearMonth(reportSeen)) settings.reportSeen = reportSeen
+      if (isGhost(ghost)) settings.ghost = ghost
     }
   } catch {
     // fall through to defaults
@@ -48,6 +62,9 @@ export function writeSettings(file: string, patch: Partial<Settings>): Settings 
   if (patch.hints !== undefined && !isHints(patch.hints)) {
     throw new Error(`hints must be one of ${HINTS.join(', ')}`)
   }
+  if (patch.ghost !== undefined && !isGhost(patch.ghost)) {
+    throw new Error(`ghost must be one of ${GHOSTS.join(', ')}`)
+  }
   if (patch.plateauSnoozedUntil != null && !isIsoDate(patch.plateauSnoozedUntil)) {
     throw new Error('plateauSnoozedUntil must be a YYYY-MM-DD date or null')
   }
@@ -59,6 +76,7 @@ export function writeSettings(file: string, patch: Partial<Settings>): Settings 
   if (patch.hints !== undefined) next.hints = patch.hints
   if (patch.plateauSnoozedUntil !== undefined) next.plateauSnoozedUntil = patch.plateauSnoozedUntil
   if (patch.reportSeen !== undefined) next.reportSeen = patch.reportSeen
+  if (patch.ghost !== undefined) next.ghost = patch.ghost
   const tmp = `${file}.${process.pid}.tmp`
   writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n')
   renameSync(tmp, file)
