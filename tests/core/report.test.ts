@@ -108,7 +108,7 @@ describe('chapterPassDates', () => {
   })
 
   it('counts a drills chapter by its mark only', () => {
-    const r = results({ section: [res('12-a', at(2026, 10, 3))], 'chapter-test': [res('12', at(2026, 10, 3))] })
+    const r = results({ section: [res('12-a', at(2026, 10, 3))] })
     expect(chapterPassDates(CHAPTERS, r, []).has(12)).toBe(false)
     expect(chapterPassDates(CHAPTERS, r, [{ chapter: 12, kind: 'override', at: at(2026, 10, 8) }]).get(12)).toBe('2026-10-08')
   })
@@ -122,6 +122,10 @@ describe('chapterPassDates', () => {
       { chapter: 99, kind: 'read', at: at(2026, 10, 8) },
     ])
     expect(dates.size).toBe(0)
+  })
+
+  it('ignores a mark whose time is not a number', () => {
+    expect(chapterPassDates(CHAPTERS, results(), [{ chapter: 18, kind: 'read', at: Number.NaN }]).has(18)).toBe(false)
   })
 
   it('uses local time: a minute before local midnight is still that day', () => {

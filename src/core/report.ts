@@ -117,6 +117,7 @@ export function chapterPassDates(
   return dates
 }
 
+/** The day arrays must already be filtered to their month: `reportTiles` trusts the caller and uses an all-dates window. */
 export type ReportTilesInput = {
   /** The month's free-type days (`/api/stats`, mode free). */
   month: DayQuality[]
@@ -174,14 +175,12 @@ function endpoints(days: readonly DayQuality[], field: 'wpm' | 'accuracy'): { fi
 export function reportTiles(input: ReportTilesInput): ReportTiles {
   const { month, previous, time, previousTime, firstMonth, previousName } = input
 
-  const runs = month.reduce((sum, d) => sum + finiteOr0(d.runs), 0)
-  const steady = month.map((d) => d.steadiness).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
   const wpm = qualityMean(month, EVERYTHING, 'wpm')
   const accuracy = qualityMean(month, EVERYTHING, 'accuracy')
-  const steadiness = enough(runs) && steady.length > 0 ? medianInt(steady) : null
+  const steadiness = monthSteadiness(month)
   const wpmBefore = firstMonth ? null : qualityMean(previous, EVERYTHING, 'wpm')
   const accuracyBefore = firstMonth ? null : qualityMean(previous, EVERYTHING, 'accuracy')
-  const steadinessBefore = firstMonth ? null : previousSteadiness(previous)
+  const steadinessBefore = firstMonth ? null : monthSteadiness(previous)
 
   const wpmDiff = change(wpm, wpmBefore)
   const accuracyDiff = change(accuracy, accuracyBefore)
@@ -245,8 +244,8 @@ export function reportTiles(input: ReportTilesInput): ReportTiles {
   }
 }
 
-/** The previous month's steadiness, on the same terms as this month's: 3 runs and a day with a value. */
-function previousSteadiness(days: readonly DayQuality[]): number | null {
+/** A month's steadiness: the median of its days' values, null under 3 runs or without a day that has a value. */
+function monthSteadiness(days: readonly DayQuality[]): number | null {
   const runs = days.reduce((sum, d) => sum + finiteOr0(d.runs), 0)
   const steady = days.map((d) => d.steadiness).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
   return enough(runs) && steady.length > 0 ? medianInt(steady) : null
