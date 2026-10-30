@@ -5,6 +5,7 @@ import {
   createTestLogger,
   deleteMark,
   getDays,
+  getFixup,
   getJournal,
   getLastTest,
   getNote,
@@ -520,6 +521,15 @@ describe('history and journal calls', () => {
     expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/stats?from=2026-10-01&to=2026-10-31&mode=drills' })
     await expect(getStats('a', 'b', 'free', fakeFetch(() => json({ error: 'bad' }, 400)).fetch)).rejects.toThrow(/400/)
     await expect(getStats('a', 'b', 'free', fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
+  })
+
+  it('getFixup sends from and to and returns the lists', async () => {
+    const lists = { from: '2026-10-01', to: '2026-10-30', words: [], patterns: [] }
+    const { calls, fetch } = fakeFetch(() => json(lists))
+    await expect(getFixup('2026-10-01', '2026-10-30', fetch)).resolves.toEqual(lists)
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/fixup?from=2026-10-01&to=2026-10-30' })
+    await expect(getFixup('a', 'b', fakeFetch(() => json({ error: 'bad' }, 400)).fetch)).rejects.toThrow(/400/)
+    await expect(getFixup('a', 'b', fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
   })
 
   it('listJournal returns the entries', async () => {

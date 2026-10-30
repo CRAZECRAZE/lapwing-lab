@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { completedWords } from '../src/core/words.ts'
 import type { Lever } from '../src/core/uni.ts'
 import type { SlotMask } from '../src/core/steno.ts'
+import type { FixupRow } from '../src/core/fixup.ts'
 
 export type StrokeRecord = {
   testId: number
@@ -93,6 +94,7 @@ export interface Archive {
   runsInRange(from: string, to: string): RunRow[]
   timingsInRange(from: string, to: string): StrokeTiming[]
   keyRowsInRange(from: string, to: string): KeyRow[]
+  fixupRowsInRange(from: string, to: string): FixupRow[]
   allTimeStrokes(): number
   listMarks(): ProgressMark[]
   setMark(chapter: number, kind: 'read' | 'override', at: number): void
@@ -280,6 +282,14 @@ export function openArchive(path: string): Archive {
      WHERE ${LOCAL_DAY} BETWEEN ? AND ?
      GROUP BY st.expected_json, st.pressed_slots_mask, st.correct
      ORDER BY st.expected_json, st.pressed_slots_mask, st.correct`,
+  )
+  // Every stroke of every run in range, finished or not: the fix-up replay needs whole runs in order.
+  const selectFixupRows = db.prepare(
+    `SELECT st.test_id, st.ts_ms, st.prompt, st.expected_json, st.pressed_slots_mask, st.correct
+     ${WITH_STROKES}
+     JOIN strokes st ON st.test_id = t.id
+     WHERE ${LOCAL_DAY} BETWEEN ? AND ?
+     ORDER BY st.test_id, st.id`,
   )
   const countStrokes = db.prepare('SELECT COUNT(*) AS n FROM strokes')
   const selectMarks = db.prepare('SELECT chapter, kind, at FROM progress_marks ORDER BY chapter')
@@ -471,6 +481,23 @@ export function openArchive(path: string): Archive {
           pressedMask: r.pressed_slots_mask as number,
           correct: r.correct === 1,
           n: r.n as number,
+        })
+      }
+      return out
+    },
+    fixupRowsInRange(from, to) {
+      const [lo, hi] = dateRange(from, to)
+      const out: FixupRow[] = []
+      for (const r of selectFixupRows.all(lo, hi)) {
+        const expected = parseJson(r.expected_json)
+        if (!Array.isArray(expected)) continue
+        out.push({
+          testId: r.test_id as number,
+          tsMs: r.ts_ms as number,
+          prompt: r.prompt as string,
+          expected: expected as string[],
+          pressedMask: r.pressed_slots_mask as number,
+          correct: r.correct === 1,
         })
       }
       return out

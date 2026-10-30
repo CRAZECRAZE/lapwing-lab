@@ -5,6 +5,7 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { parseStroke } from '../../src/core/steno.ts'
 import { createServer, listen, parsePort } from '../../server/server.ts'
 
 let root: string
@@ -792,6 +793,67 @@ describe('lab routes', () => {
       allTimeStrokes: 0,
     })
     expect((await json('GET', '/api/stats?from=2026-10-01&to=2026-10-31')).mode).toBe('free')
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  // Seeds a free run of 36 "cat" items, four of them late and missed with P for T, through the public POST routes.
+  async function seedCat(): Promise<void> {
+    const startedAt = new Date(2026, 9, 27, 10).getTime()
+    const { id: sessionId } = await json('POST', '/api/sessions', { startedAt })
+    const { id } = await json('POST', '/api/tests', {
+      sessionId, startedAt, mode: 'free', chapter: null, section: null, itemCount: 36,
+    })
+    let tsMs = startedAt
+    const add = (pressedMask: number, correct: boolean) =>
+      json('POST', `/api/tests/${id}/strokes`, {
+        tsMs: (tsMs += 1000),
+        prompt: 'cat',
+        expected: ['KAT'],
+        pressedLevers: [],
+        pressedMask,
+        correct,
+        latencyMs: 400,
+        attemptNo: 1,
+      })
+    for (let i = 0; i < 36; i++) {
+      if (i >= 30 && i <= 33) await add(parseStroke('KAP'), false)
+      await add(parseStroke('KAT'), true)
+    }
+  }
+
+  it('answers /api/fixup with the shape and the lists of the range', async () => {
+    await seedCat()
+    const out = await json('GET', '/api/fixup?from=2026-10-01&to=2026-10-30')
+    expect(Object.keys(out).sort()).toEqual(['from', 'patterns', 'to', 'words'])
+    expect(out).toMatchObject({ from: '2026-10-01', to: '2026-10-30' })
+    expect(out.words).toEqual([expect.objectContaining({ prompt: 'cat', attempts: 36, misses: 4 })])
+    expect(out.patterns).toEqual([expect.objectContaining({ id: 'mixup:-P>-T', count: 4 })])
+    expect(await json('GET', '/api/fixup?from=2026-11-01&to=2026-11-30')).toEqual({
+      from: '2026-11-01', to: '2026-11-30', words: [], patterns: [],
+    })
+    expect((await call('GET', '/api/fixup?from=2024-10-11&to=2027-10-16')).status).toBe(200) // exactly 1,100 days
+  })
+
+  it('400s bad /api/fixup parameters, with or without an archive, and 405s other methods', async () => {
+    const bads = [
+      '', 'from=2026-10-01', 'to=2026-10-30', 'from=2026-10-30&to=2026-10-01', 'from=2026-02-30&to=2026-03-01',
+      'from=abc&to=2026-10-01', 'from=2024-10-10&to=2027-10-16', 'from=2000-01-01&to=2026-10-30',
+    ]
+    for (const q of bads) expect((await call('GET', `/api/fixup?${q}`)).status, q).toBe(400)
+    await seed(new Date(2026, 9, 27, 12).getTime())
+    for (const q of bads) expect((await call('GET', `/api/fixup?${q}`)).status, q).toBe(400)
+    const res = await call('POST', '/api/fixup?from=2026-10-01&to=2026-10-30')
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET')
+  })
+
+  it('answers /api/fixup with empty lists and creates nothing when there is no database', async () => {
+    expect(await json('GET', '/api/fixup?from=2026-10-01&to=2026-10-30')).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-30',
+      words: [],
+      patterns: [],
+    })
     expect(existsSync(dataDir)).toBe(false)
   })
 

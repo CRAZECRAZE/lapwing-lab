@@ -738,6 +738,85 @@ describe('archive stats reads', () => {
     })
   })
 
+  describe('fixupRowsInRange', () => {
+    const when = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m).getTime()
+
+    function runAt(a: Archive, stamps: number[], over: Partial<StrokeRecord>[] = [], mode = 'free'): number {
+      const id = newTest(a, { mode, section: null })
+      stamps.forEach((tsMs, i) => a.addStroke(stroke(id, { tsMs, ...over[i] })))
+      return id
+    }
+
+    it('is empty for an empty database', () => {
+      expect(memory().fixupRowsInRange('2026-10-01', '2026-10-31')).toEqual([])
+    })
+
+    it('returns every stroke in run, then stroke order, with the fields the replay reads', () => {
+      const a = memory()
+      const second = runAt(
+        a,
+        [when(27, 10), when(27, 10, 1)],
+        [{ prompt: 'cat', expected: ['KAT'] }, { correct: false, pressedMask: 11 }],
+      )
+      const first = runAt(a, [when(27, 9)], [{ prompt: 'dog', expected: ['TKOG', 'TKOG/-S'], pressedMask: 5 }])
+      expect(a.fixupRowsInRange('2026-10-27', '2026-10-27')).toEqual([
+        { testId: second, tsMs: when(27, 10), prompt: 'cat', expected: ['KAT'], pressedMask: 7, correct: true },
+        { testId: second, tsMs: when(27, 10, 1), prompt: 'sap', expected: ['SAP'], pressedMask: 11, correct: false },
+        { testId: first, tsMs: when(27, 9), prompt: 'dog', expected: ['TKOG', 'TKOG/-S'], pressedMask: 5, correct: true },
+      ])
+    })
+
+    it('orders by test id, not by time, and keeps insertion order within a run', () => {
+      const a = memory()
+      const early = runAt(a, [when(27, 12), when(27, 8)], [{ prompt: 'one' }, { prompt: 'two' }])
+      const late = runAt(a, [when(27, 7)], [{ prompt: 'three' }])
+      const rows = a.fixupRowsInRange('2026-10-27', '2026-10-27')
+      expect(rows.map((r) => [r.testId, r.prompt])).toEqual([[early, 'one'], [early, 'two'], [late, 'three']])
+    })
+
+    it('includes abandoned, timed-out and unfinished runs', () => {
+      const a = memory()
+      const abandoned = runAt(a, [when(27, 10)], [], 'section')
+      a.finishTest(abandoned, { endedAt: when(27, 11), wpm: 1, accuracy: 1, meta: { abandoned: true } })
+      const unfinished = runAt(a, [when(27, 12)], [], 'stage0')
+      const finished = runAt(a, [when(27, 13)], [], 'chapter-test')
+      a.finishTest(finished, { endedAt: when(27, 14), wpm: 10, accuracy: 0.9, meta: null })
+      expect(a.fixupRowsInRange('2026-10-27', '2026-10-27').map((r) => r.testId)).toEqual([abandoned, unfinished, finished])
+    })
+
+    it('leaves out runs whose first stroke is outside the range and puts a run on its first-stroke date', () => {
+      const a = memory()
+      runAt(a, [when(26, 23, 59)])
+      runAt(a, [when(28, 0)])
+      const across = runAt(a, [when(27, 23, 59), when(28, 0, 1)])
+      expect(a.fixupRowsInRange('2026-10-27', '2026-10-27').map((r) => r.testId)).toEqual([across, across])
+      expect(a.fixupRowsInRange('2026-10-28', '2026-10-28')).toHaveLength(1)
+    })
+
+    it('skips a row whose expected_json is malformed or not a list, and does not throw', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lapwing-fixup-'))
+      try {
+        const file = join(dir, 'steno.db')
+        const a = openArchive(file)
+        open.push(a)
+        runAt(a, [when(27, 10), when(27, 10, 1), when(27, 10, 2)])
+        const raw = new DatabaseSync(file)
+        raw.prepare('UPDATE strokes SET expected_json = ? WHERE id = 1').run('[oops')
+        raw.prepare('UPDATE strokes SET expected_json = ? WHERE id = 2').run('{"a":1}')
+        raw.close()
+        expect(a.fixupRowsInRange('2026-10-27', '2026-10-27').map((r) => r.tsMs)).toEqual([when(27, 10, 2)])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('throws RangeError for malformed or reversed dates', () => {
+      const a = memory()
+      expect(() => a.fixupRowsInRange('27/10/2026', '2026-10-28')).toThrow(RangeError)
+      expect(() => a.fixupRowsInRange('2026-10-28', '2026-10-27')).toThrow(RangeError)
+    })
+  })
+
   describe('allTimeStrokes', () => {
     it('is 0 for an empty database', () => {
       expect(memory().allTimeStrokes()).toBe(0)

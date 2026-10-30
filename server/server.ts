@@ -10,6 +10,7 @@ import type { Lever } from '../src/core/uni.ts'
 import { MissingRowError, openArchive } from './archive.ts'
 import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
+import { buildFixup, emptyFixup } from './fixup.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
 import { isReportMonth, listReports, readReport, writeReport } from './reports.ts'
 import { readSettings, writeSettings } from './settings.ts'
@@ -77,7 +78,7 @@ async function sendFile(req: IncomingMessage, res: ServerResponse, file: string)
 const JSON_TYPE = 'application/json; charset=utf-8'
 const MAX_BODY_BYTES = 1024 * 1024
 const MAX_JOURNAL_CHARS = 200000
-// The longest from..to span /api/days and /api/stats answer (the all-time view reaches 1,100 days back).
+// The longest from..to span /api/days, /api/stats and /api/fixup answer (the all-time view reaches 1,100 days back).
 const MAX_DAYS_SPAN = 1100
 const MS_PER_DAY = 86400000
 
@@ -457,6 +458,19 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
     const archive = ctx.existingArchive()
     sendJson(res, 200, archive ? buildStats(archive, { from, to, mode }) : emptyStats({ from, to, mode }))
+    return
+  }
+
+  if (pathname === '/api/fixup') {
+    if (method !== 'GET') allow(res, 'GET')
+    const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+    const from = journalDate(params.get('from'), 'from')
+    const to = journalDate(params.get('to'), 'to')
+    const span = dayNumber(to) - dayNumber(from)
+    if (span < 0) throw new HttpError(400, '"from" must not be after "to"')
+    if (span > MAX_DAYS_SPAN) throw new HttpError(400, `"from" and "to" must be at most ${MAX_DAYS_SPAN} days apart`)
+    const archive = ctx.existingArchive()
+    sendJson(res, 200, archive ? buildFixup(archive, { from, to }) : emptyFixup({ from, to }))
     return
   }
 
