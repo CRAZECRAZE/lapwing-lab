@@ -236,3 +236,6 @@ Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks 
 - The routine page keeps today's date from when it opened, so a tab left open past midnight shows yesterday's ticks until reload (the same as `today` under M6a).
 - Only 200 tests of the day are read for the ticks.
 - `RoutineAddStep` and `FreeRoute` call `backTarget` more than once per render.
+- `selectLast` (the "last test" lookup) still calls `json_extract` on `meta_json` without the `json_valid` guard that `selectGhostRuns` and `selectTimings` have; a hand-edited row with malformed meta would make it throw. The server only writes valid JSON.
+- Pressing Check on a blank box stores an empty string as the unsaved text on purpose (it clears an old one); that is not covered by a test.
+- `tests/core/dictsearch.test.ts` ("does not grow worse than linearly") is a timing test and failed once under load during the M7 full run; it passed three times in isolation and the file is not touched by M7.
