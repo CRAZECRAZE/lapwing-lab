@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
-import { CHAPTER_TEST, buildChapterTest, drillPassMark, firstShowings } from '../../src/core/chaptertest.ts'
+import { CHAPTER_TEST, buildChapterTest, drillPassMark, firstShowings, replayItems } from '../../src/core/chaptertest.ts'
 import type { DrillItem } from '../../src/core/drill.ts'
 import { parseStroke } from '../../src/core/steno.ts'
 
@@ -278,5 +278,50 @@ describe('firstShowings', () => {
 
   it('gives [] for no strokes', () => {
     expect(firstShowings([])).toEqual([])
+  })
+})
+
+describe('replayItems', () => {
+  const one = ['KAT']
+  const two = ['KAT/PHREU']
+  const row = (expected: string[], stroke: string, correct = true) => ({
+    expected,
+    pressedMask: parseStroke(stroke),
+    correct,
+  })
+  const showing = (outlines: string[]) => outlines[0].split('/').map((s) => row(outlines, s))
+
+  it('numbers a one-stroke word shown three times in a row as items 0, 1, 2, each completing', () => {
+    const out = replayItems([...showing(one), ...showing(one), ...showing(one)])
+    expect(out).toEqual([
+      { item: 0, completes: true },
+      { item: 1, completes: true },
+      { item: 2, completes: true },
+    ])
+  })
+
+  it('keeps a two-stroke word with a miss between in one item that completes on the last row only', () => {
+    const out = replayItems([row(two, 'KAT'), row(two, 'TKOG', false), row(two, 'KAT'), row(two, 'PHREU')])
+    expect(out.map((o) => o.item)).toEqual([0, 0, 0, 0])
+    expect(out.map((o) => o.completes)).toEqual([false, false, false, true])
+  })
+
+  it('gives the item numbers firstShowings relied on after an unlogged undo', () => {
+    // KAT (partial), * (undo, not logged), KAT (partial), PHREU (correct), then two more plain showings
+    const out = replayItems([row(two, 'KAT'), row(two, 'KAT'), row(two, 'PHREU'), ...showing(two), ...showing(two)])
+    expect(out.map((o) => o.item)).toEqual([0, 0, 0, 1, 1, 2, 2])
+    expect(out.map((o) => o.completes)).toEqual([false, false, true, false, true, false, true])
+  })
+
+  it('marks unreplayable rows as items that never complete', () => {
+    expect(
+      replayItems([
+        { expected: [], pressedMask: 1, correct: true },
+        { expected: ['not a stroke!'], pressedMask: 0, correct: true },
+      ]),
+    ).toEqual([
+      { item: 0, completes: false },
+      { item: 1, completes: false },
+    ])
   })
 })
