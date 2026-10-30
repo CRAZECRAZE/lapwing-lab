@@ -31,6 +31,8 @@ It also tries to open that address with `xdg-open`; if that is missing nothing h
 - `PORT=5800 npm start` uses another port.
 - `NO_OPEN=1 npm start` does not open a browser.
 
+The server only answers requests addressed to `127.0.0.1`, `localhost` or `[::1]` on its own port, and it refuses any other `Host` or `Origin` header (403). That keeps a web page you happen to visit from reaching your data through your own browser. Reaching it from another machine, or under another hostname, is not supported.
+
 First use: open **Chapter 4**, click **Connect**, and choose the Uni in the browser's device picker.
 
 ## Turn Plover's Output off while practicing
@@ -318,7 +320,7 @@ npm run sync:book       # re-vendor the book at the pinned commit (needs network
 npm run sync:dictionary # re-vendor the dictionary at the pinned commit, or a given one (needs network)
 ```
 
-`npm run dev` (leave `PORT` unset; the Vite proxy is fixed to 5757) prints the Vite address to open; Vite proxies `/api`, `/content` and `/media` to the server on 5757. `npm run sync:book` is only for re-vendoring the pinned book commit; you do not need it for normal use; the same goes for `npm run sync:dictionary`.
+`npm run dev` (leave `PORT` unset; the Vite proxy is fixed to 5757) prints the Vite address to open; Vite proxies `/api`, `/content` and `/media` to the server on 5757, rewriting `Host` and `Origin` to that address so the server accepts them (see `vite.config.ts`). `npm run sync:book` is only for re-vendoring the pinned book commit; you do not need it for normal use; the same goes for `npm run sync:dictionary`.
 
 ```
 content/lapwing-book/   vendored book (generated; do not edit)

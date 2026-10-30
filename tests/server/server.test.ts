@@ -219,7 +219,7 @@ describe('aborted downloads', () => {
     const { port } = new URL(base)
     const socket = connect(Number(port), '127.0.0.1')
     await new Promise<void>((ok) => socket.once('connect', () => ok()))
-    socket.write('GET /big.bin HTTP/1.1\r\nHost: x\r\n\r\n')
+    socket.write(`GET /big.bin HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n\r\n`)
     await new Promise<void>((ok) => socket.once('data', () => ok()))
     expect(openFds('big.bin')).toHaveLength(1)
     socket.destroy()
@@ -1148,5 +1148,114 @@ describe('lab routes', () => {
     await json('PUT', '/api/reports/2026-10', { text: 'r' })
     expect(await json('GET', '/api/notes')).toEqual([{ chapter: 5, chars: 1 }])
     expect(await json('GET', '/api/reports')).toEqual([{ month: '2026-10', chars: 1 }])
+  })
+})
+
+describe('Host and Origin guard', () => {
+  let dir: string
+  let dataDir: string
+  let api: Server
+  let port: number
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'lapwing-guard-'))
+    dataDir = join(dir, 'data')
+    mkdirSync(join(dir, 'dist'), { recursive: true })
+    writeFileSync(join(dir, 'dist', 'index.html'), '<!doctype html><title>app</title>')
+    api = createServer({ root: dir, dataDir })
+    port = await listen(api, 0)
+  })
+
+  afterEach(() => {
+    api.close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // Node's http.request lets the test set Host and Origin exactly; `headers` is a flat list so one can be repeated.
+  function send(method: string, path: string, headers: string[], body?: string): Promise<{ status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      const req = request({ host: '127.0.0.1', port, path, method, headers: headers as unknown as string[] }, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }))
+      })
+      req.on('error', reject)
+      req.end(body)
+    })
+  }
+
+  const good = () => ['Host', `127.0.0.1:${port}`]
+  const put = (headers: string[]) => send('PUT', '/api/settings', headers, JSON.stringify({ hints: 'always' }))
+
+  it('serves the app and the API with good headers, with or without a same-origin Origin', async () => {
+    expect((await send('GET', '/', good())).status).toBe(200)
+    expect((await send('GET', '/api/settings', good())).status).toBe(200)
+    expect((await send('GET', '/api/health', [...good(), 'Origin', `http://127.0.0.1:${port}`])).status).toBe(200)
+    expect((await send('GET', '/api/health', ['Host', `LOCALHOST:${port}`, 'Origin', `http://localhost:${port}`])).status).toBe(200)
+    expect((await put([...good(), 'Content-Type', 'application/json', 'Origin', `http://127.0.0.1:${port}`])).status).toBe(200)
+  })
+
+  it('refuses a bad Host on the app and on API reads, before anything runs', async () => {
+    for (const host of [`evil.example:${port}`, 'evil.example', `127.0.0.1.evil.example:${port}`, '127.0.0.1:1']) {
+      for (const path of ['/', '/api/settings', '/api/health', '/content/book.json', '/nope']) {
+        const res = await send('GET', path, ['Host', host])
+        expect(res.status, `${host} ${path}`).toBe(403)
+        expect(res.body).toBe('Forbidden host')
+      }
+    }
+    // An unmatched path would be 404 and a bad method 405; neither is reached.
+    expect((await send('POST', '/api/health', ['Host', 'evil.example'])).status).toBe(403)
+    expect((await send('DELETE', '/anything', ['Host', 'evil.example'])).status).toBe(403)
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('refuses a missing or empty Host', async () => {
+    expect((await send('GET', '/api/health', ['Host', ''])).status).toBe(403)
+    // HTTP/1.0 may leave Host out altogether; Node hands such a request to the handler.
+    const socket = connect(port, '127.0.0.1')
+    await new Promise<void>((ok) => socket.once('connect', () => ok()))
+    socket.write('GET /api/health HTTP/1.0\r\n\r\n')
+    const chunks: Buffer[] = []
+    await new Promise<void>((ok) => {
+      socket.on('data', (c: Buffer) => chunks.push(c))
+      socket.on('close', () => ok())
+    })
+    expect(Buffer.concat(chunks).toString()).toMatch(/^HTTP\/1\.1 403 /)
+  })
+
+  it('refuses a duplicated Host header', async () => {
+    const res = await send('GET', '/api/health', ['Host', `127.0.0.1:${port}`, 'Host', 'evil.example'])
+    expect(res.status).toBe(403)
+    expect(res.body).toBe('Forbidden host')
+  })
+
+  it('refuses a foreign Origin on a write and writes nothing', async () => {
+    for (const origin of ['https://evil.example', 'http://evil.example', 'null', 'http://localhost:5173', `http://127.0.0.1:${port + 1}`]) {
+      const res = await put([...good(), 'Content-Type', 'text/plain', 'Origin', origin])
+      expect(res.status, origin).toBe(403)
+      expect(res.body).toBe('Forbidden origin')
+    }
+    const dup = await put([...good(), 'Origin', `http://127.0.0.1:${port}`, 'Origin', 'http://evil.example'])
+    expect(dup.status).toBe(403)
+    expect(existsSync(dataDir)).toBe(false)
+    expect(existsSync(join(dataDir, 'settings.json'))).toBe(false)
+  })
+
+  it('refuses a foreign Origin on reads and on static files too', async () => {
+    expect((await send('GET', '/api/settings', [...good(), 'Origin', 'https://evil.example'])).status).toBe(403)
+    expect((await send('GET', '/', [...good(), 'Origin', 'null'])).status).toBe(403)
+    expect((await send('HEAD', '/', [...good(), 'Origin', 'https://evil.example'])).status).toBe(403)
+  })
+
+  it('answers 403 as plain text', async () => {
+    const res = await new Promise<string | undefined>((resolve, reject) => {
+      const req = request({ host: '127.0.0.1', port, path: '/', headers: { Host: 'evil.example' } }, (r) => {
+        r.resume()
+        resolve(r.headers['content-type'])
+      })
+      req.on('error', reject)
+      req.end()
+    })
+    expect(res).toBe('text/plain; charset=utf-8')
   })
 })

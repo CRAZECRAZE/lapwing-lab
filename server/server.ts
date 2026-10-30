@@ -15,6 +15,7 @@ import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
 import { buildFixup, emptyFixup } from './fixup.ts'
 import { buildGhosts } from './ghost.ts'
+import { checkRequest } from './guard.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
 import { isReportMonth, listReports, readReport, writeReport } from './reports.ts'
 import { readRoutines, writeRoutines } from './routines.ts'
@@ -675,6 +676,13 @@ export function createServer(opts: ServerOptions): Server {
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
+    // First, before anything is decoded or routed: only requests addressed to this server by this server's pages.
+    const guard = checkRequest(req)
+    if (!guard.ok) {
+      send(res, 403, 'text/plain; charset=utf-8', guard.reason === 'host' ? 'Forbidden host' : 'Forbidden origin')
+      return
+    }
+
     // Decode exactly once. Anything that still looks like a traversal afterwards
     // (backslash, NUL, ..) is caught by the containment check or rejected here.
     let pathname: string
