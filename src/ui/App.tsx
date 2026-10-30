@@ -7,6 +7,7 @@ import { UniProvider } from '../state/uni-context.tsx'
 import { ChapterTestRoute } from './ChapterTestRoute.tsx'
 import { Days } from './Days.tsx'
 import { DockHost } from './DockHost.tsx'
+import { Fixup } from './Fixup.tsx'
 import { FreeRoute } from './FreeRoute.tsx'
 import { History } from './History.tsx'
 import { Journal } from './Journal.tsx'
@@ -38,6 +39,7 @@ export function App(): JSX.Element {
               {route.name === 'free' && (
                 <FreeRoute key={`${route.source}/${route.mode}`} source={route.source} mode={route.mode} />
               )}
+              {route.name === 'fixup' && <Fixup tab={route.tab} />}
               {route.name === 'history' && <History />}
               {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
               {route.name === 'days' && <Days key={route.date ?? 'month'} date={route.date} />}

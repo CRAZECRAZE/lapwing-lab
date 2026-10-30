@@ -1,0 +1,110 @@
+/* Fix-up page: a tab strip, a table of items to tick, and Start */
+
+.fixup {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.fixup__title {
+  margin: 0 0 1rem;
+  color: var(--heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.fixup__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.fixup__tab {
+  padding: 0.35rem 0.9rem;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.fixup__tab:hover,
+.fixup__tab:focus-visible {
+  color: var(--heading);
+}
+
+.fixup__tab[aria-current='page'] {
+  border-bottom-color: var(--left);
+  color: var(--heading);
+}
+
+/* A narrow screen scrolls the table sideways rather than the page. */
+.fixup__scroll {
+  overflow-x: auto;
+  margin: 0 0 1rem;
+}
+
+.fixup__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.fixup__table caption {
+  padding-bottom: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.fixup__table th,
+.fixup__table td {
+  padding: 0.3rem 0.8rem 0.3rem 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  font-weight: 400;
+  vertical-align: top;
+}
+
+.fixup__table thead th {
+  color: var(--heading);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.fixup__table tbody th {
+  color: var(--text);
+}
+
+.fixup__mono {
+  font-family: var(--mono);
+}
+
+.fixup__note {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.fixup__start {
+  display: inline-block;
+  padding: 0.3rem 1.1rem;
+  border: 1px solid var(--muted);
+  border-radius: 0.4rem;
+  background: var(--raised);
+  color: var(--heading);
+  font: inherit;
+  text-decoration: none;
+}
+
+.fixup__start:hover,
+.fixup__start:focus-visible {
+  border-color: var(--left);
+}
+
+button.fixup__start {
+  cursor: pointer;
+}
+
+button.fixup__start:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}

@@ -5,6 +5,8 @@ export type Route =
   | { name: 'drill'; id: string }
   | { name: 'practice' }
   | { name: 'free'; source: string; mode: string }
+  | { name: 'fixup'; tab: 'words' | 'patterns' }
+  | { name: 'fixup-run'; kind: 'words' | 'patterns' }
   | { name: 'history' }
   | { name: 'test'; id: number }
   | { name: 'days'; date?: string }
@@ -21,6 +23,8 @@ export function tabOf(route: Route): Tab {
   switch (route.name) {
     case 'practice':
     case 'free':
+    case 'fixup':
+    case 'fixup-run':
       return 'practice'
     case 'history':
     case 'test':
@@ -41,6 +45,7 @@ export function tabOf(route: Route): Tab {
 const PAGE_PATH = /^\/page\/([A-Za-z0-9_-]+)\/?$/
 const DRILL_PATH = /^\/drill\/(.+?)\/?$/
 const FREE_PATH = /^\/practice\/free\/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)\/?$/
+const FIXUP_RUN_PATH = /^\/practice\/fixup\/run\/(words|patterns)\/?$/
 const TEST_PATH = /^\/history\/(\d+)\/?$/
 const REPORT_PATH = /^\/progress\/reports\/([^/]+)\/?$/
 const DATED_PATH = /^\/(days|journal)\/(\d{4}-\d{2}-\d{2})\/?$/
@@ -66,6 +71,10 @@ export function parseRoute(pathname: string): Route {
   if (/^\/practice\/?$/.test(pathname)) return { name: 'practice' }
   const free = FREE_PATH.exec(pathname)
   if (free) return { name: 'free', source: free[1], mode: free[2] }
+  if (/^\/practice\/fixup\/?$/.test(pathname)) return { name: 'fixup', tab: 'words' }
+  if (/^\/practice\/fixup\/patterns\/?$/.test(pathname)) return { name: 'fixup', tab: 'patterns' }
+  const fixupRun = FIXUP_RUN_PATH.exec(pathname)
+  if (fixupRun) return { name: 'fixup-run', kind: fixupRun[1] as 'words' | 'patterns' }
   if (/^\/history\/?$/.test(pathname)) return { name: 'history' }
   const test = TEST_PATH.exec(pathname)
   if (test) {

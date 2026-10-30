@@ -22,6 +22,16 @@ describe('parseRoute', () => {
     expect(parseRoute('/practice/other')).toEqual({ name: 'notfound' })
   })
 
+  it('parses the fix-up page and its run routes', () => {
+    expect(parseRoute('/practice/fixup')).toEqual({ name: 'fixup', tab: 'words' })
+    expect(parseRoute('/practice/fixup/')).toEqual({ name: 'fixup', tab: 'words' })
+    expect(parseRoute('/practice/fixup/patterns')).toEqual({ name: 'fixup', tab: 'patterns' })
+    expect(parseRoute('/practice/fixup/run/words')).toEqual({ name: 'fixup-run', kind: 'words' })
+    expect(parseRoute('/practice/fixup/run/patterns')).toEqual({ name: 'fixup-run', kind: 'patterns' })
+    expect(parseRoute('/practice/fixup/run/other')).toEqual({ name: 'notfound' })
+    expect(parseRoute('/practice/fixup/other')).toEqual({ name: 'notfound' })
+  })
+
   it('parses history and a single test', () => {
     expect(parseRoute('/history')).toEqual({ name: 'history' })
     expect(parseRoute('/history/')).toEqual({ name: 'history' })
@@ -89,6 +99,9 @@ describe('tabOf', () => {
     [{ name: 'notfound' }, 'book'],
     [{ name: 'practice' }, 'practice'],
     [{ name: 'free', source: 'a', mode: 'b' }, 'practice'],
+    [{ name: 'fixup', tab: 'words' }, 'practice'],
+    [{ name: 'fixup', tab: 'patterns' }, 'practice'],
+    [{ name: 'fixup-run', kind: 'words' }, 'practice'],
     [{ name: 'history' }, 'history'],
     [{ name: 'test', id: 1 }, 'history'],
     [{ name: 'days' }, 'days'],
