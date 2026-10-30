@@ -169,10 +169,10 @@ describe('RhythmView: the stroke strip', () => {
     expect(bars(container)).toHaveLength(6)
   })
 
-  it("reads the first stroke's gap from its own latency", () => {
+  it("reads the first stroke's gap from its own latency and calls it the start, not a stall", () => {
     const { container } = view([4000, ...even(59)])
-    expect(hits(container)[0].getAttribute('aria-label')).toBe('Stroke 1: 4.0 s pause, stall')
-    expect(stallBars(container)).toHaveLength(1)
+    expect(hits(container)[0].getAttribute('aria-label')).toBe('Stroke 1: 4.0 s pause, start')
+    expect(stallBars(container)).toHaveLength(0)
   })
 
   it('draws the dashed typical-gap line with its label, and y ticks in seconds', () => {
@@ -257,7 +257,7 @@ describe('RhythmView: the stroke strip', () => {
     expect(Array.from(details.querySelectorAll('thead th')).map((h) => h.textContent)).toEqual(['Stroke', 'Pause (s)', 'Kind'])
     expect(Array.from(rows[13].children).map((c) => c.textContent)).toEqual(['14', '3.20', 'stall'])
     expect(Array.from(rows[40].children).map((c) => c.textContent)).toEqual(['41', '12.00', 'break'])
-    expect(Array.from(rows[0].children).map((c) => c.textContent)).toEqual(['1', '0.60', 'normal'])
+    expect(Array.from(rows[0].children).map((c) => c.textContent)).toEqual(['1', '0.60', 'start'])
   })
 })
 
@@ -335,8 +335,8 @@ describe('RhythmView: many strokes', () => {
 
   it('draws a run of nothing but breaks without numbers gone wrong', () => {
     const { container } = view(even(12, 30_000))
-    expect(bars(container)).toHaveLength(0)
-    expect(breaks(container)).toHaveLength(12)
+    expect(bars(container)).toHaveLength(1)
+    expect(breaks(container)).toHaveLength(11)
     expect(badNumbers(container)).toEqual([])
   })
 
@@ -356,10 +356,10 @@ describe('RhythmView: the quarters', () => {
     expect(quarters.textContent).toContain('Speed through the run (estimated wpm)')
     expect(quarterLabels(container)).toEqual(['1st', '2nd', '3rd', '4th'])
     expect(quarters.querySelectorAll('rect.rhythm__qbar')).toHaveLength(4)
-    expect(Array.from(quarters.querySelectorAll('.rhythm__qvalue')).map((t) => t.textContent)).toEqual(['20.0', '20.0', '20.0', '20.0'])
+    expect(Array.from(quarters.querySelectorAll('.rhythm__qvalue')).map((t) => t.textContent)).toEqual(['21.4', '20.0', '20.0', '20.0'])
     const zero = quarters.querySelector('.chart__grid[data-value="0"]')
     expect(zero).not.toBeNull()
-    expect(Array.from(quarters.querySelectorAll('.chart__hit')).map((g) => g.getAttribute('aria-label'))[0]).toBe('1st quarter: 20.0 wpm, estimated')
+    expect(Array.from(quarters.querySelectorAll('.chart__hit')).map((g) => g.getAttribute('aria-label'))[0]).toBe('1st quarter: 21.4 wpm, estimated')
   })
 
   it("shows the run's stored wpm beside them and the note that they are estimates", () => {
@@ -386,7 +386,7 @@ describe('RhythmView: the quarters', () => {
     const rows = Array.from(details.querySelectorAll('tbody tr')).map((r) => Array.from(r.children).map((c) => c.textContent))
     expect(rows).toHaveLength(4)
     expect(rows[0][0]).toBe('1st')
-    expect(rows[0][1]).toBe('20.0')
+    expect(rows[0][1]).toBe('21.4')
   })
 
   it('the quarters chart has one tab stop of its own', () => {

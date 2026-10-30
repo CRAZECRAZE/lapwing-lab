@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ChapterInfo } from '../../scripts/build-content.ts'
-import { CHAPTER_TEST, buildChapterTest, drillPassMark } from '../../src/core/chaptertest.ts'
+import { CHAPTER_TEST, buildChapterTest, drillPassMark, firstShowings } from '../../src/core/chaptertest.ts'
 import type { DrillItem } from '../../src/core/drill.ts'
+import { parseStroke } from '../../src/core/steno.ts'
 
 const words = (n: number): DrillItem[] =>
   Array.from({ length: n }, (_, i) => ({ prompt: `word${i}`, outlines: [`W${i}`] }))
@@ -119,5 +120,66 @@ describe('drillPassMark', () => {
 
   it('read: no pass mark', () => {
     expect(drillPassMark(info({ gate: 'read', passMark: { accuracy: 0.9 } }))).toBeUndefined()
+  })
+})
+
+describe('firstShowings', () => {
+  const one = ['KAT']
+  const two = ['KAT/PHREU']
+  const row = (expected: string[], stroke: string) => ({ expected, pressedMask: parseStroke(stroke) })
+  /** The rows of one correct showing of a word. */
+  const showing = (outlines: string[]) => outlines[0].split('/').map((s) => row(outlines, s))
+
+  it('flags the strokes of showings 1, 4 and 7 (items 0, 3, 6) and no others', () => {
+    const rows = [
+      ...[0, 1, 2].flatMap(() => showing(one)),
+      ...[0, 1, 2].flatMap(() => showing(['TKOG'])),
+      ...[0, 1, 2].flatMap(() => showing(two)),
+    ]
+    const flags = firstShowings(rows)
+    expect(flags).toHaveLength(rows.length)
+    // one-stroke word x3, one-stroke word x3, two-stroke word x3 (item 6 starts with 2 strokes)
+    expect(flags).toEqual([true, false, false, true, false, false, true, true, false, false, false, false])
+  })
+
+  it('keeps a miss and the retry inside the same showing', () => {
+    const rows = [
+      row(two, 'KAT'),
+      row(two, 'TKOG'), // a miss in the middle of the showing
+      row(two, 'KAT'),
+      row(two, 'PHREU'),
+      ...showing(two),
+      ...showing(two),
+      ...showing(two),
+    ]
+    const flags = firstShowings(rows)
+    expect(flags.slice(0, 4)).toEqual([true, true, true, true])
+    expect(flags.slice(4, 8)).toEqual([false, false, false, false])
+    expect(flags.slice(8)).toEqual([true, true])
+  })
+
+  it('treats a different expected outline as a new item even when the last one was not finished', () => {
+    const flags = firstShowings([row(two, 'KAT'), row(one, 'KAT'), row(one, 'KAT')])
+    expect(flags).toEqual([true, false, false])
+  })
+
+  it('uses the given number of repetitions', () => {
+    const rows = [...showing(one), ...showing(one), ...showing(one), ...showing(one)]
+    expect(firstShowings(rows, 2)).toEqual([true, false, true, false])
+    expect(firstShowings(rows, 1)).toEqual([true, true, true, true])
+  })
+
+  it('flags a trailing incomplete item without throwing', () => {
+    const rows = [...showing(one), ...showing(one), ...showing(one), row(two, 'KAT')]
+    expect(() => firstShowings(rows)).not.toThrow()
+    expect(firstShowings(rows)).toEqual([true, false, false, true])
+  })
+
+  it('does not throw on rows that cannot be replayed', () => {
+    expect(firstShowings([{ expected: [], pressedMask: 1 }, { expected: ['not a stroke!'], pressedMask: 0 }])).toHaveLength(2)
+  })
+
+  it('gives [] for no strokes', () => {
+    expect(firstShowings([])).toEqual([])
   })
 })

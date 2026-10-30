@@ -1,7 +1,13 @@
 // The rhythm of one run: how steadily the owner types, from the stroke rows the app already records.
 // Pure: no DOM, no fetch, no Node.
 
-export type RhythmStroke = { tsMs: number; correct: boolean; latencyMs: number }
+export type RhythmStroke = {
+  tsMs: number
+  correct: boolean
+  latencyMs: number
+  /** First showing of a word in a chapter test: the owner is still reading it, so its gap says nothing about rhythm. */
+  fresh?: boolean
+}
 
 export type RhythmOptions = {
   /** A gap longer than this is a break: the owner stepped away. Left out of everything below. */
@@ -10,20 +16,20 @@ export type RhythmOptions = {
   stallFactor?: number
   /** ...and at least this long. */
   stallMinMs?: number
-  /** Fewer non-break gaps than this give no steadiness score. */
+  /** Fewer scored gaps (not start, fresh or break) than this give no steadiness score. */
   minGaps?: number
 }
 
-export type RhythmGap = { ms: number; kind: 'normal' | 'stall' | 'break' }
+export type RhythmGap = { ms: number; kind: 'normal' | 'stall' | 'break' | 'start' | 'fresh' }
 
 export type Rhythm = {
   /** One gap per stroke, in order. */
   gaps: RhythmGap[]
-  /** Median of the non-break gaps; null when there are none. It is 0 when most gaps are 0 (equal timestamps). */
+  /** Median of the scored gaps (not start, fresh or break); null when there are none. It is 0 when most gaps are 0 (equal timestamps). */
   typicalGapMs: number | null
   stalls: number
   breaks: number
-  /** Integer 0..100, null under `minGaps` non-break gaps or when the typical gap is 0 (no rhythm to score). */
+  /** Integer 0..100, null under `minGaps` scored gaps or when the typical gap is 0 (no rhythm to score). */
   steadiness: number | null
   /** The run cut into four slices of equal active time; null with no active time or fewer than 4 strokes. */
   quarters: { activeMs: number; correct: number }[] | null
@@ -72,33 +78,43 @@ export function runRhythm(strokes: readonly RhythmStroke[], opts: RhythmOptions 
   const stallMinMs = opts.stallMinMs ?? RHYTHM_DEFAULTS.stallMinMs
   const minGaps = opts.minGaps ?? RHYTHM_DEFAULTS.minGaps
 
-  // The first stroke's gap is its own latency (time since its prompt appeared); later gaps are timestamp differences.
+  // The first stroke's gap is its own latency (time since its prompt appeared) and is kind `start`; later gaps are
+  // timestamp differences. A fresh stroke (first showing of a word: the owner is still reading it) is kind `fresh`.
+  // Start and fresh gaps are left out of the typical gap, stalls, breaks and steadiness; start wins over fresh.
   const raw = strokes.map((s, i) => clean(i === 0 ? s.latencyMs : s.tsMs - strokes[i - 1].tsMs))
-  const isBreak = raw.map((ms) => ms > breakMs)
-  const kept = raw.filter((_, i) => !isBreak[i]).sort((a, b) => a - b)
+  const isStart = raw.map((_, i) => i === 0)
+  const isFresh = strokes.map((s, i) => i > 0 && s.fresh === true)
+  const isBreak = raw.map((ms, i) => !isStart[i] && !isFresh[i] && ms > breakMs)
+  const scored = raw.map((_, i) => !isStart[i] && !isFresh[i] && !isBreak[i])
+  const kept = raw.filter((_, i) => scored[i]).sort((a, b) => a - b)
 
   const typicalGapMs = kept.length > 0 ? quantile(kept, 0.5) : null
   const gaps: RhythmGap[] = raw.map((ms, i) => {
+    if (isStart[i]) return { ms, kind: 'start' }
+    if (isFresh[i]) return { ms, kind: 'fresh' }
     if (isBreak[i]) return { ms, kind: 'break' }
     const stall = typicalGapMs !== null && ms > stallFactor * typicalGapMs && ms >= stallMinMs
     return { ms, kind: stall ? 'stall' : 'normal' }
   })
   const stalls = gaps.filter((g) => g.kind === 'stall').length
-  const breaks = gaps.length - kept.length
+  const breaks = isBreak.filter(Boolean).length
 
   const steadiness = typicalGapMs !== null && kept.length >= minGaps ? steadinessOf(kept, typicalGapMs) : null
 
   // Quarters: slice k holds the cumulative active time in (k/4, (k+1)/4] of the total (the first slice also holds 0).
-  // A stroke goes to the slice holding the end of its gap; a break stroke adds no time and sits where the run is.
-  const active = kept.reduce((a, b) => a + b, 0)
+  // Active time is every gap after the start that is not longer than breakMs, scored or fresh (a fresh word is part of
+  // the run's speed). A stroke goes to the slice holding the end of its gap; a stroke with no active time (the start, a
+  // break, a long fresh pause) adds none and sits where the run is.
+  const counts = raw.map((ms, i) => !isStart[i] && ms <= breakMs)
+  const active = raw.reduce((a, ms, i) => (counts[i] ? a + ms : a), 0)
   let quarters: Rhythm['quarters'] = null
   if (active > 0 && strokes.length >= 4) {
     quarters = Array.from({ length: 4 }, () => ({ activeMs: 0, correct: 0 }))
     let cumulative = 0
     strokes.forEach((s, i) => {
-      if (!isBreak[i]) cumulative += raw[i]
+      if (counts[i]) cumulative += raw[i]
       const slice = Math.max(0, Math.min(3, Math.ceil((cumulative * 4) / active) - 1))
-      if (!isBreak[i]) quarters![slice].activeMs += raw[i]
+      if (counts[i]) quarters![slice].activeMs += raw[i]
       if (s.correct) quarters![slice].correct += 1
     })
   }

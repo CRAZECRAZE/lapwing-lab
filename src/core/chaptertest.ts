@@ -1,5 +1,6 @@
 import type { ChapterInfo } from '../../scripts/build-content.ts'
 import { shuffle } from '../stage0/lists.ts'
+import { DrillSession } from './drill.ts'
 import type { DrillItem } from './drill.ts'
 
 /** The book's chapter test: this many random words from the chapter's test list, each shown this many times in a row. */
@@ -38,4 +39,40 @@ export function drillPassMark(
     case 'read':
       return undefined
   }
+}
+
+/**
+ * One flag per stroke row: true when the stroke belongs to a first showing of a word in a chapter test (the owner is
+ * still reading the word). The rows are replayed through a `DrillSession`, one item at a time: a `correct` result ends
+ * the item, `partial` and `miss` continue it. Item k (0-based) is a first showing when `k % repetitions === 0`. A row
+ * whose expected outlines differ from the current item's starts a new item (the old one was left unfinished), and so
+ * does a row whose outlines cannot be replayed (it counts as an item of one stroke).
+ */
+export function firstShowings(
+  strokes: readonly { expected: string[]; pressedMask: number }[],
+  repetitions: number = CHAPTER_TEST.repetitions,
+): boolean[] {
+  const every = Math.max(1, Math.floor(repetitions) || 1)
+  const flags: boolean[] = []
+  let session: DrillSession | null = null
+  let outlines: readonly string[] = []
+  let item = -1
+  for (const row of strokes) {
+    const same =
+      session !== null && row.expected.length === outlines.length && row.expected.every((o, i) => o === outlines[i])
+    if (!same) {
+      item++
+      outlines = row.expected
+      try {
+        session = new DrillSession([{ prompt: row.expected.join(' '), outlines: [...row.expected] }])
+      } catch {
+        session = null
+      }
+    }
+    flags.push(item % every === 0)
+    if (session === null) continue
+    const result = session.submit({ levers: [], mask: row.pressedMask })
+    if (result.kind === 'correct') session = null
+  }
+  return flags
 }
