@@ -111,8 +111,8 @@ const calls = (fn: ReturnType<typeof vi.fn>, path: string): Params[] =>
   allCalls(fn, path).filter(
     (p) => !(path === '/api/days' && (isYear(p) || isBannerWindow(p))) && !(path === '/api/stats' && isPlateauWindow(p)),
   )
-/** The month-end banner's own request: the previous month and this one, up to today. */
-const isBannerWindow = (p: Params): boolean => p.get('from') === '2026-09-01' && p.get('to') === TODAY
+/** The month-end banner's own request: the reports list's 36-month window, up to today. */
+const isBannerWindow = (p: Params): boolean => p.get('from') === '2023-11-01' && p.get('to') === TODAY
 const bannerCalls = (fn: ReturnType<typeof vi.fn>): Params[] => allCalls(fn, '/api/days').filter(isBannerWindow)
 /** The plateau notice's own request: the 56 free-type days ending today, whatever the switches say. */
 const isPlateauWindow = (p: Params): boolean =>

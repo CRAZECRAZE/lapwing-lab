@@ -2,7 +2,7 @@ import type { JSX } from 'preact'
 import { useLayoutEffect, useState } from 'preact/hooks'
 import type { DayStat } from '../../../server/archive.ts'
 import { getDays, getSettings } from '../../api.ts'
-import { isMonthComplete, monthBounds, monthKey, monthName, practiceByMonth, previousMonth } from '../../core/report.ts'
+import { isMonthComplete, monthName, practiceByMonth, reportsWindowStart } from '../../core/report.ts'
 import { isPlainClick, navigate } from '../../router.ts'
 import '../reports.css'
 
@@ -14,15 +14,15 @@ function pendingMonth(days: readonly DayStat[], seen: string | null, today: stri
 
 /**
  * A quiet line on the Progress page when a month has just ended and its report has not been opened.
- * One fetch on mount (the last two months of days, and the settings); a failure or a slow answer shows nothing.
+ * One fetch on mount (the days of the reports list's 36-month window, and the settings); a failure or a slow answer
+ * shows nothing.
  */
 export function ReportBanner({ today }: { today: string }): JSX.Element | null {
   const [month, setMonth] = useState<string | null>(null)
 
   useLayoutEffect(() => {
     let live = true
-    const from = monthBounds(previousMonth(monthKey(today))).from
-    Promise.all([getDays(from, today), getSettings()]).then(
+    Promise.all([getDays(reportsWindowStart(today), today), getSettings()]).then(
       ([days, settings]) => live && setMonth(pendingMonth(days, settings.reportSeen ?? null, today)),
       () => undefined, // no banner and no error: it is a nicety
     )

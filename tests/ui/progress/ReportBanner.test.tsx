@@ -11,7 +11,11 @@ function stub(days: DayStat[] | 'fail', settings: unknown = {}): ReturnType<type
   const fn = vi.fn(async (input: string) => {
     const url = new URL(input, 'http://localhost')
     if (url.pathname === '/api/days') {
-      return days === 'fail' ? new Response('{}', { status: 500 }) : new Response(JSON.stringify(days), { status: 200 })
+      if (days === 'fail') return new Response('{}', { status: 500 })
+      // like the server: only the days inside the asked window
+      const from = url.searchParams.get('from') ?? ''
+      const to = url.searchParams.get('to') ?? ''
+      return new Response(JSON.stringify(days.filter((d) => d.date >= from && d.date <= to)), { status: 200 })
     }
     return new Response(JSON.stringify(settings), { status: 200 })
   })
@@ -102,11 +106,18 @@ describe('ReportBanner', () => {
     expect(document.body.textContent).toBe('')
   })
 
-  it('asks once for the last two months of days and for the settings', async () => {
+  it('names an unseen October in December, after a whole month with no practice', async () => {
+    stub([day('2026-10-12')])
+    await mount('2026-12-05')
+    expect(screen.getByText('October is done. Your report is ready.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /report/i }).getAttribute('href')).toBe('/progress/reports/2026-10')
+  })
+
+  it('asks once for the reports window of days (the 36 months the list uses) and for the settings', async () => {
     const fn = stub([])
     await mount('2026-10-31')
     const urls = fn.mock.calls.map(([u]) => String(u))
-    expect(urls.filter((u) => u.startsWith('/api/days'))).toEqual(['/api/days?from=2026-09-01&to=2026-10-31'])
+    expect(urls.filter((u) => u.startsWith('/api/days'))).toEqual(['/api/days?from=2023-11-01&to=2026-10-31'])
     expect(urls.filter((u) => u === '/api/settings')).toHaveLength(1)
   })
 })
