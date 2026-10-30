@@ -275,8 +275,13 @@ describe('Report page: content', () => {
 
   it('shows a plain not-found line and fetches nothing for something that is not a month', async () => {
     stub()
-    await mount('2026-13', '2026-10-28')
-    expect(screen.getByText('No such month.')).toBeTruthy()
+    for (const month of ['2026-13', '2026-00', '2026-1', 'abc', '2026-10-01']) {
+      cleanup()
+      await mount(month, '2026-10-28')
+      expect(screen.getByText('No such month.')).toBeTruthy()
+      expect(screen.getByRole('link', { name: /Back to Reports/ }).getAttribute('href')).toBe('/progress/reports')
+      expect(screen.queryByLabelText('Your notes')).toBeNull()
+    }
     expect(calls).toHaveLength(0)
   })
 

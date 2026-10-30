@@ -66,15 +66,17 @@ describe('reports routes', () => {
     expect(parseRoute('/progress/reports/2026-10/')).toEqual({ name: 'report', month: '2026-10' })
   })
 
-  it('sends an invalid month to notfound', () => {
-    for (const path of [
-      '/progress/reports/2026-13',
-      '/progress/reports/2026-00',
-      '/progress/reports/2026-1',
-      '/progress/reports/abc',
-      '/progress/reports/2026-10-01',
-      '/progress/reports/2026-10/x',
-    ]) {
+  it('returns the report route for any single segment, so the Report page can say there is no such month', () => {
+    for (const month of ['2026-13', '2026-00', '2026-1', 'abc', '2026-10-01']) {
+      expect(parseRoute(`/progress/reports/${month}`)).toEqual({ name: 'report', month })
+      expect(parseRoute(`/progress/reports/${month}/`)).toEqual({ name: 'report', month })
+    }
+  })
+
+  it('decodes the segment, and sends a malformed escape or more segments to notfound', () => {
+    expect(parseRoute('/progress/reports/2026%2D10')).toEqual({ name: 'report', month: '2026-10' })
+    expect(parseRoute('/progress/reports/a%20b')).toEqual({ name: 'report', month: 'a b' })
+    for (const path of ['/progress/reports/%zz', '/progress/reports/2026-10/x', '/progress/reports//']) {
       expect(parseRoute(path)).toEqual({ name: 'notfound' })
     }
   })
@@ -94,6 +96,7 @@ describe('tabOf', () => {
     [{ name: 'progress' }, 'progress'],
     [{ name: 'reports' }, 'progress'],
     [{ name: 'report', month: '2026-10' }, 'progress'],
+    [{ name: 'report', month: '2026-13' }, 'progress'],
     [{ name: 'journal' }, 'journal'],
     [{ name: 'journal', date: '2026-10-27' }, 'journal'],
   ]

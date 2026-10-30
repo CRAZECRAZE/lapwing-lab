@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'preact/hooks'
-import { isYearMonth } from './core/dates.ts'
 
 export type Route =
   | { name: 'page'; id: string }
@@ -77,7 +76,11 @@ export function parseRoute(pathname: string): Route {
   if (/^\/progress\/?$/.test(pathname)) return { name: 'progress' }
   if (/^\/progress\/reports\/?$/.test(pathname)) return { name: 'reports' }
   const report = REPORT_PATH.exec(pathname)
-  if (report && isYearMonth(report[1])) return { name: 'report', month: report[1] }
+  if (report) {
+    // any single segment: the Report page says "No such month." for one that is not a month, in the Progress tab
+    const month = safeDecode(report[1])
+    if (month !== null) return { name: 'report', month }
+  }
   if (/^\/journal\/?$/.test(pathname)) return { name: 'journal' }
   const dated = DATED_PATH.exec(pathname)
   if (dated) return { name: dated[1] as 'days' | 'journal', date: dated[2] }

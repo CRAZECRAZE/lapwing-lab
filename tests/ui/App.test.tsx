@@ -118,10 +118,14 @@ describe('App shell', () => {
     expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
   })
 
-  it('shows not-found for an invalid report month', async () => {
+  it('says there is no such month for an invalid report month, under the Progress tab, with a way back', async () => {
     history.replaceState(null, '', '/progress/reports/2026-13')
     render(<App />)
-    expect(screen.getByText(/No such page/)).toBeTruthy()
+    expect(screen.getByText('No such month.')).toBeTruthy()
+    expect(screen.queryByText(/No such page/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Progress' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('link', { name: /Back to Reports/ }).getAttribute('href')).toBe('/progress/reports')
   })
 
   it('shows one day at /days/:date, and resets when going back to the month', async () => {

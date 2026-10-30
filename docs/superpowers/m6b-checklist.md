@@ -14,7 +14,7 @@ Words used below: a **run** is one test in History (a free-type run, a drill or 
 ## Where the reports are
 
 5. **The link.** On Progress, next to the Range and Mode switches, there is a `Reports` link. Click it: the address becomes `/progress/reports` and **Progress** is still the highlighted tab in the top bar (the top bar still has six tabs).
-6. **The list.** `/progress/reports` lists the months newest first, from your earliest month with practice or a note to the current one. A month with neither (a gap) is left out, and a month with only a note is listed (a note of only spaces does not count). Each row shows the month (`October 2026`), the practice time, the strokes (`N strokes`), and the word `note` if that month has a note. Only October exists so far, so there is one row. Compare its time and strokes with Days for October. Click the row.
+6. **The list.** `/progress/reports` lists the months newest first, from your earliest month with practice or a note to the current one. A month with neither (a gap) is left out, and a month with only a note is listed (a note of only spaces does not count). Each row shows the month (`October 2026`), the practice time, the strokes (`N strokes`), and the word `note` if that month has a note. Only October exists so far, so there is one row. Compare its time and strokes with Days for October. Click the row. Then type a month that does not exist into the address bar, such as `/progress/reports/2026-13`: the page says `No such month.` with a `Back to Reports` link, and **Progress** is still the highlighted tab.
 
 ## The October report
 
