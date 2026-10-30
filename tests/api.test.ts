@@ -14,6 +14,7 @@ import {
   getProgress,
   getReport,
   getResults,
+  getRoutines,
   getSettings,
   getStats,
   getText,
@@ -27,6 +28,7 @@ import {
   putMark,
   putNote,
   putReport,
+  putRoutines,
   putSettings,
   putText,
 } from '../src/api.ts'
@@ -774,5 +776,27 @@ describe('saved text calls', () => {
     await expect(listTexts(bad())).rejects.toBeInstanceOf(HttpStatusError)
     await expect(putText('a', { name: 'n', text: 't' }, bad())).rejects.toBeInstanceOf(HttpStatusError)
     await expect(deleteText('a', bad())).rejects.toBeInstanceOf(HttpStatusError)
+  })
+})
+
+describe('routine calls', () => {
+  const doc = { routines: [{ id: 'a', name: 'A', steps: [{ kind: 'fixup' as const, tab: 'words' as const }] }], active: 'a' }
+
+  it('getRoutines GETs the doc', async () => {
+    const { calls, fetch } = fakeFetch(() => json(doc))
+    await expect(getRoutines(fetch)).resolves.toEqual(doc)
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/routines' })
+  })
+
+  it('putRoutines PUTs the whole doc and returns the saved doc', async () => {
+    const { calls, fetch } = fakeFetch((c) => json(c.body))
+    await expect(putRoutines(doc, fetch)).resolves.toEqual(doc)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/routines', body: doc })
+  })
+
+  it('rejects with HttpStatusError on a 400 or a network failure', async () => {
+    await expect(putRoutines(doc, fakeFetch(() => json({ error: 'x' }, 400)).fetch)).rejects.toBeInstanceOf(HttpStatusError)
+    await expect(getRoutines(fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
   })
 })

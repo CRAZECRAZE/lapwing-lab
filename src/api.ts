@@ -6,6 +6,7 @@ import type { StatsMode, StatsResponse } from '../server/stats.ts'
 import { isIsoDate, isYearMonth } from './core/dates.ts'
 import type { FixupLists } from './core/fixup.ts'
 import type { Ghost } from './core/ghost.ts'
+import type { RoutineDoc } from './core/routine.ts'
 
 type FetchFn = typeof fetch
 
@@ -389,4 +390,13 @@ export async function putText(
 
 export async function deleteText(id: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
   await request(fetchFn, 'DELETE', textPath(id))
+}
+
+// Routines: the whole document is read and replaced together; a 400 rejects with HttpStatusError.
+export async function getRoutines(fetchFn: FetchFn = defaultFetch): Promise<RoutineDoc> {
+  return (await request(fetchFn, 'GET', '/api/routines')) as RoutineDoc
+}
+
+export async function putRoutines(doc: RoutineDoc, fetchFn: FetchFn = defaultFetch): Promise<RoutineDoc> {
+  return (await request(fetchFn, 'PUT', '/api/routines', doc)) as RoutineDoc
 }

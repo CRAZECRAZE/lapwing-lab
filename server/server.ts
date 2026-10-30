@@ -6,6 +6,8 @@ import { extname, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream'
 import { isIsoDate, isYearMonth } from '../src/core/dates.ts'
 import { MAX_TEXT_CHARS } from '../src/core/realtext.ts'
+import { validateRoutineDoc } from '../src/core/routine.ts'
+import type { RoutineDoc } from '../src/core/routine.ts'
 import { LEVERS } from '../src/core/uni.ts'
 import type { Lever } from '../src/core/uni.ts'
 import { MissingRowError, openArchive } from './archive.ts'
@@ -15,6 +17,7 @@ import { buildFixup, emptyFixup } from './fixup.ts'
 import { buildGhosts } from './ghost.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
 import { isReportMonth, listReports, readReport, writeReport } from './reports.ts'
+import { readRoutines, writeRoutines } from './routines.ts'
 import { readSettings, writeSettings } from './settings.ts'
 import { buildStats, emptyStats, STATS_MODES } from './stats.ts'
 import type { StatsMode } from './stats.ts'
@@ -291,6 +294,7 @@ interface ApiContext {
   /** The archive if it is open or its file already exists; null when nothing was ever saved (never creates it). */
   existingArchive(): Archive | null
   settingsFile: string
+  routinesFile: string
   journalDir: string
   notesDir: string
   reportsDir: string
@@ -359,6 +363,24 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
         ...(ghost === undefined ? {} : { ghost }),
       }),
     )
+    return
+  }
+
+  if (pathname === '/api/routines') {
+    if (method === 'GET') {
+      sendJson(res, 200, readRoutines(ctx.routinesFile))
+      return
+    }
+    if (method !== 'PUT') allow(res, 'GET', 'PUT')
+    const body = await readBody(req, res)
+    let doc: RoutineDoc
+    try {
+      doc = validateRoutineDoc(body)
+    } catch (err) {
+      throw new HttpError(400, err instanceof Error ? err.message : 'Not a valid routines document')
+    }
+    writeRoutines(ctx.routinesFile, doc)
+    sendJson(res, 200, doc)
     return
   }
 
@@ -634,6 +656,7 @@ export function createServer(opts: ServerOptions): Server {
   let archive: Archive | undefined
   const ctx: ApiContext = {
     settingsFile: join(dataDir, 'settings.json'),
+    routinesFile: join(dataDir, 'routines.json'),
     journalDir: join(dataDir, 'journal'),
     notesDir: join(dataDir, 'notes'),
     reportsDir: join(dataDir, 'reports'),
