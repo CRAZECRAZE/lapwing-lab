@@ -108,3 +108,53 @@ button.fixup__start:disabled {
   color: var(--muted);
   cursor: default;
 }
+
+/* Fix-up run: the status under the prompt and the result card */
+
+.fixup-run__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fixup-run__label {
+  margin: 0;
+  color: var(--heading);
+  font-size: 0.95rem;
+}
+
+.fixup-run__position,
+.fixup-run__streak {
+  margin: 0;
+}
+
+.fixup-run__dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.fixup-run__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fixup-run__dot--filled {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+.fixup-run__summary .stage0-summary__stats {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem 2rem;
+}

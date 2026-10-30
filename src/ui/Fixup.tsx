@@ -11,7 +11,7 @@ import { useProgress } from '../state/progress.tsx'
 import { useFixup } from './useFixup.ts'
 import './fixup.css'
 
-type Kind = 'words' | 'patterns'
+export type Kind = 'words' | 'patterns'
 
 /** Where a run of the ticked items starts: a `pick` query parameter per item (a prompt, or a pattern id). */
 export function runHref(kind: Kind, picks: readonly string[]): string {
@@ -26,7 +26,7 @@ const NOTHING_PATTERNS = 'Nothing to fix here: no stroke pattern has been missed
 const percent = (rate: number): string => `${Math.round(rate * 100)}%`
 
 /** "-T typed for -S" or "R- missing". */
-function patternText(p: FixupPattern): string {
+export function patternText(p: FixupPattern): string {
   return p.kind === 'mixup' ? `${p.pressed} typed for ${p.needed}` : `${p.needed} missing`
 }
 
@@ -111,10 +111,10 @@ function WordsTable({ words }: { words: readonly FixupWord[] }): JSX.Element {
   )
 }
 
-type WordLists = { status: 'loading' | 'error' } | { status: 'ready'; lists: ListWords[]; reached: number }
+export type WordLists = { status: 'loading' | 'error' } | { status: 'ready'; lists: ListWords[]; reached: number }
 
 /** The practice lists of the chapters up to the one being taught. Any file that fails fails the lot. */
-function useWordLists(): WordLists {
+export function useWordLists(): WordLists {
   const progress = useProgress()
   const reached = taughtChapter(progress.chapters, progress.states)
   const ids = progress.index.filter((e) => e.chapter <= reached)

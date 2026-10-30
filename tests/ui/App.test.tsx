@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { navigate } from '../../src/router.ts'
 import { App } from '../../src/ui/App.tsx'
 
 beforeEach(() => {
@@ -14,6 +15,10 @@ beforeEach(() => {
           JSON.stringify({ from: '', to: '', mode: 'free', days: [], keys: [], mixups: [], allTimeStrokes: 0 }),
           { status: 200 },
         )
+      }
+      if (url.startsWith('/api/fixup')) {
+        const word = (prompt: string) => ({ prompt, outlines: ['SAP'], kind: 'word', attempts: 9, misses: 3, rate: 0.3, lastTsMs: 1 })
+        return new Response(JSON.stringify({ from: '', to: '', words: [word('one'), word('two')], patterns: [] }), { status: 200 })
       }
       if (url === '/api/reports') return new Response('[]', { status: 200 })
       if (url === '/api/journal') return new Response('[]', { status: 200 })
@@ -186,5 +191,13 @@ describe('App shell', () => {
     render(<App />)
     expect(await screen.findByText('No such test.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('starts a fresh fix-up run when only the picks in the query change', async () => {
+    history.replaceState(null, '', '/practice/fixup/run/words?pick=one')
+    render(<App />)
+    await waitFor(() => expect(document.querySelector('.drill__prompt')?.textContent).toBe('one'))
+    act(() => navigate('/practice/fixup/run/words?pick=two'))
+    await waitFor(() => expect(document.querySelector('.drill__prompt')?.textContent).toBe('two'))
   })
 })

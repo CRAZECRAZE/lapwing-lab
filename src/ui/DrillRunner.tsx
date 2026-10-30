@@ -41,7 +41,8 @@ export function RunnerMessage({ text, href, label }: { text: string; href: strin
   )
 }
 
-const clock = (ms: number): string => {
+/** `m:ss`. */
+export const clock = (ms: number): string => {
   const total = Math.round(ms / 1000)
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
