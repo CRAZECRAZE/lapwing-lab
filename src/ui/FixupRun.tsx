@@ -87,7 +87,8 @@ function Result({ kind, finished, onKeepGoing }: { kind: Kind; finished: Finishe
         <div><dt>First try</dt><dd>{stats.completed === 0 ? '—' : `${Math.round(stats.accuracy * 100)}%`}</dd></div>
         <div><dt>Time</dt><dd>{formatClock(stats.elapsedMs)}</dd></div>
       </dl>
-      <QuickNote title={title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
+      {/* No stats: the journal heading must carry no percentage or wpm for a fix-up run. */}
+      <QuickNote title={title} stats={null} />
       <div class="stage0-summary__actions runner__actions">
         {left > 0 && (
           <button type="button" class="stage0-button" onClick={onKeepGoing}>Keep going</button>

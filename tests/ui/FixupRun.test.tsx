@@ -203,6 +203,23 @@ describe('FixupRun words', () => {
     expect(within(card).queryByRole('button', { name: 'Keep going' })).toBeNull()
   })
 
+  it('saves a note under the result without a percentage or wpm in the journal heading', async () => {
+    const rig = await mountRun()
+    await screen.findByText('0 clean in a row')
+    ten(rig, SAP)
+    ten(rig, TAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Add a note' }))
+    fireEvent.input(within(card).getByLabelText('Note for today'), { target: { value: 'Slow and steady' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(vi.mocked(api.appendJournal)).toHaveBeenCalledTimes(1))
+    const block = vi.mocked(api.appendJournal).mock.calls[0][1]
+    const heading = block.split('\n')[0]
+    expect(heading).toMatch(/^### \d\d:\d\d — Fix-up · words$/)
+    expect(block).not.toMatch(/wpm|%/)
+    expect(block).toContain('Slow and steady')
+  })
+
   it('finds picks such as a comma or a slash', async () => {
     history.replaceState(null, '', '/practice/fixup/run/words?pick=a%2Fb&pick=%2C')
     getFixup.mockResolvedValue(lists([word('a/b', 'SAP'), word(',', 'TAP')]))
