@@ -4,8 +4,11 @@ import {
   FIXUP_WINDOW_DAYS,
   LIST_SIZE,
   MIN_WORD_ATTEMPTS,
+  buildLists,
   itemKind,
   lastSeenText,
+  patternId,
+  rankPatterns,
   rankWords,
   wordAttempts,
 } from '../../src/core/fixup.ts'
@@ -171,5 +174,134 @@ describe('lastSeenText', () => {
 
   it('says today for a future time', () => {
     expect(lastSeenText(at(31), at(30))).toBe('today')
+  })
+})
+
+/**
+ * Rows for one word, one per character of `marks`: '.' is a correct stroke of `expected`, 'x' is a wrong stroke that
+ * pressed `wrong` (empty means nothing pressed). Times rise by one so the order is chronological.
+ */
+const marked = (expected: string, marks: string, wrong: string, startMs = 1000, testId = 1): FixupRow[] =>
+  [...marks].map((mark, i) => ({
+    ...row(expected, [expected], expected, { testId, tsMs: startMs + i, correct: mark === '.' }),
+    pressedMask: mark === '.' ? parseStroke(expected) : wrong === '' ? 0 : parseStroke(wrong),
+  }))
+
+/** 40 marks with `misses` misses spread out and the last one at the end, so the latest ten are never all clean. */
+const spread = (misses: number, total = 40): string => {
+  const marks = Array.from({ length: total }, () => '.')
+  for (let i = 0; i < misses; i++) marks[total - 1 - i * 3] = 'x'
+  return marks.join('')
+}
+
+describe('patternId', () => {
+  it('is stable and tells the two kinds apart', () => {
+    expect(patternId({ kind: 'mixup', pressed: '-S', needed: '-T' })).toBe('mixup:-S>-T')
+    expect(patternId({ kind: 'missing', needed: '-T' })).toBe('missing:-T')
+    expect(patternId({ kind: 'mixup', pressed: '-S', needed: '-T' })).toBe(patternId({ kind: 'mixup', pressed: '-S', needed: '-T' }))
+  })
+})
+
+describe('rankPatterns', () => {
+  it('lists a mix-up with its count, required presses and rate', () => {
+    const got = rankPatterns(marked('KAT', spread(5), 'KAS'))
+    expect(got).toHaveLength(1)
+    expect(got[0]).toMatchObject({ kind: 'mixup', pressed: '-S', needed: '-T', id: 'mixup:-S>-T', count: 5, required: 40, rate: 0.125 })
+  })
+
+  it('counts a missing key net of the mix-ups for that key', () => {
+    const none = rankPatterns([...marked('KAT', spread(5), 'KAS')])
+    expect(none.some((p) => p.kind === 'missing')).toBe(false)
+    const twoSpare = rankPatterns([...marked('KAT', spread(5), 'KAS'), ...marked('KAT', spread(2), 'KA', 5000)])
+    expect(twoSpare.some((p) => p.kind === 'missing')).toBe(false)
+    const threeSpare = rankPatterns([...marked('KAT', spread(5), 'KAS'), ...marked('KAT', spread(3), 'KA', 5000)])
+    const missing = threeSpare.find((p) => p.kind === 'missing')
+    expect(missing).toMatchObject({ needed: '-T', count: 3, required: 80 })
+  })
+
+  it('lists a key left out with nothing in its place', () => {
+    const got = rankPatterns(marked('KAT', spread(4), 'KA'))
+    expect(got).toHaveLength(1)
+    expect(got[0]).toMatchObject({ kind: 'missing', needed: '-T', id: 'missing:-T', count: 4, required: 40, rate: 0.1 })
+  })
+
+  it('takes lastTsMs from the latest row that showed the pattern', () => {
+    const rows = marked('KAT', spread(4), 'KA', 1000)
+    const got = rankPatterns(rows)
+    expect(got[0].lastTsMs).toBe(1039)
+  })
+
+  it('excludes a needed key with fewer than MIN_KEY_PRESSES required presses', () => {
+    expect(rankPatterns(marked('KAT', spread(5, 29), 'KAS'))).toEqual([])
+    expect(rankPatterns(marked('KAT', spread(5, 30), 'KAS'))).toHaveLength(1)
+  })
+
+  it('excludes a pattern seen fewer than MIN_MIXUP_COUNT times', () => {
+    expect(rankPatterns(marked('KAT', spread(2), 'KAS'))).toEqual([])
+    expect(rankPatterns(marked('KAT', spread(3), 'KAS'))).toHaveLength(1)
+  })
+
+  it('ranks by rate, not count', () => {
+    const rows = [...marked('S', spread(10, 200), ''), ...marked('-T', spread(4, 40), '', 9000)]
+    const got = rankPatterns(rows)
+    expect(got.map((p) => [p.needed, p.count])).toEqual([
+      ['-T', 4],
+      ['S-', 10],
+    ])
+  })
+
+  it('breaks rate ties by higher count, then by key order', () => {
+    const rows = [
+      ...marked('-T', spread(4, 40), '', 1000),
+      ...marked('S', spread(4, 40), '', 3000),
+      ...marked('A', spread(8, 80), '', 5000),
+    ]
+    expect(rankPatterns(rows).map((p) => [p.needed, p.count])).toEqual([
+      ['A-', 8],
+      ['S-', 4],
+      ['-T', 4],
+    ])
+  })
+
+  it('keeps at most LIST_SIZE patterns', () => {
+    const keys = ['S', 'T', 'K', 'P', 'W', 'H', 'R', 'A', 'O', '*', 'E', 'U']
+    const rows = keys.flatMap((k, i) => marked(k, spread(4), '', 1000 + i * 100))
+    expect(rankPatterns(rows)).toHaveLength(LIST_SIZE)
+  })
+
+  it('drops a pattern as fixed when its key was pressed in the latest ten attempts, and lists it again after a miss', () => {
+    const early = [...'xxxxx', ...Array.from({ length: 35 }, () => '.')]
+    expect(rankPatterns(marked('KAT', early.join(''), 'KAS'))).toEqual([])
+    const again = [...early]
+    again[35] = 'x'
+    expect(rankPatterns(marked('KAT', again.join(''), 'KAS'))).toHaveLength(1)
+  })
+
+  it('shares fixed status between a mix-up and a missing key with the same needed key', () => {
+    const marks = [...'x'.repeat(3), ...'y'.repeat(3), ...Array.from({ length: 34 }, () => '.')]
+    const rows = marks.map((m, i) =>
+      row('KAT', ['KAT'], m === '.' ? 'KAT' : m === 'x' ? 'KAS' : 'KA', { tsMs: 1000 + i, correct: m === '.' }),
+    )
+    expect(rankPatterns(rows)).toEqual([])
+  })
+
+  it('skips rows with no nearest stroke', () => {
+    const noise: FixupRow[] = Array.from({ length: 10 }, (_, i) => row('zz', [], 'KA', { tsMs: 9000 + i, correct: false }))
+    const got = rankPatterns([...marked('KAT', spread(4), 'KA'), ...noise])
+    expect(got).toHaveLength(1)
+    expect(got[0]).toMatchObject({ count: 4, required: 40 })
+    expect(rankPatterns(noise)).toEqual([])
+  })
+})
+
+describe('buildLists', () => {
+  it('is empty for no rows', () => {
+    expect(buildLists([])).toEqual({ words: [], patterns: [] })
+  })
+
+  it('ranks words and patterns from the same rows', () => {
+    const lists = buildLists(marked('KAT', spread(5), 'KAS'))
+    expect(lists.words.map((w) => w.prompt)).toEqual(['KAT'])
+    expect(lists.patterns).toHaveLength(1)
   })
 })
