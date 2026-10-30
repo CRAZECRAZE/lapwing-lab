@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TestLogger } from '../../src/api.ts'
-import type { DrillItem } from '../../src/core/drill.ts'
+import type { DrillItem, DrillRun } from '../../src/core/drill.ts'
 import type { HidDeviceLike, HidLike } from '../../src/hid/uni-link.ts'
 import { DockProvider, useDock } from '../../src/state/dock.tsx'
 import type { Dock } from '../../src/state/dock.tsx'
@@ -1433,5 +1433,116 @@ describe('Drill paused while a dock tool is open', () => {
     await replug(rig)
     await pause()
     expect(document.activeElement).toBe(inDock)
+  })
+})
+
+/** A run that never finishes: it records the strokes it gets and judges each one correct. */
+function neverEndingRun(): DrillRun & { submitted: number } {
+  const current: DrillItem = { prompt: 'CUSTOM', outlines: ['SAP'] }
+  const run = {
+    submitted: 0,
+    total: 5,
+    index: 0,
+    current,
+    finished: false,
+    submit() {
+      run.submitted++
+      return { kind: 'correct' as const, item: current, firstTry: true }
+    },
+    stats() {
+      return { completed: run.submitted, firstTryCorrect: run.submitted, accuracy: 1, elapsedMs: 10, wpm: 0 }
+    },
+  }
+  return run
+}
+
+describe('Drill custom run, status slot and extra meta', () => {
+  it('uses the run from makeSession: its prompt is shown and strokes reach its submit', async () => {
+    const run = neverEndingRun()
+    const makeSession = vi.fn((_clock: () => number) => run)
+    const rig = await mountDrill({ makeSession })
+    expect(makeSession).toHaveBeenCalledTimes(1)
+    expect(typeof makeSession.mock.calls[0][0]).toBe('function')
+    expect(document.querySelector('.drill__prompt')!.textContent).toBe('CUSTOM')
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    expect(run.submitted).toBe(2)
+    expect(rig.onDone).not.toHaveBeenCalled()
+  })
+
+  it('renderStatus replaces the stats line and updates after each stroke', async () => {
+    const run = neverEndingRun()
+    const rig = await mountDrill({
+      makeSession: () => run,
+      renderStatus: (r) => <p class="custom-status">done {r.stats().completed}</p>,
+    })
+    expect(document.querySelector('.drill__stats')).toBeNull()
+    expect(document.querySelector('.custom-status')!.textContent).toBe('done 0')
+    rig.stroke(SAP)
+    expect(document.querySelector('.custom-status')!.textContent).toBe('done 1')
+    rig.stroke(SAP)
+    expect(document.querySelector('.custom-status')!.textContent).toBe('done 2')
+  })
+
+  it('keeps the stats line when renderStatus is not given', async () => {
+    await mountDrill()
+    expect(document.querySelector('.drill__stats')).not.toBeNull()
+  })
+
+  it('merges extraMeta into the meta of finish', async () => {
+    const extraMeta = vi.fn(() => ({ fixup: true, rounds: 2 }))
+    const rig = await mountDrill({ extraMeta })
+    rig.stroke(SAP)
+    await waitFor(() => expect(rig.onDone).toHaveBeenCalledTimes(1))
+    expect(rig.logger.finishes).toHaveLength(1)
+    expect(rig.logger.finishes[0].meta).toMatchObject({ kind: 'stroke', itemCount: 1, fixup: true, rounds: 2 })
+    expect(rig.onDone.mock.calls[0][0].meta).toMatchObject({ fixup: true, rounds: 2 })
+  })
+
+  it('merges extraMeta into the meta of the abandoned close', async () => {
+    const rig = await mountDrill({
+      kind: 'word',
+      items: [item('sap', 'SAP'), item('kat', 'KAT')],
+      extraMeta: () => ({ fixup: true }),
+    })
+    rig.stroke(SAP)
+    rig.unmount()
+    expect(rig.logger.finishes).toHaveLength(1)
+    expect(rig.logger.finishes[0].meta).toMatchObject({ kind: 'word', abandoned: true, completed: 1, fixup: true })
+  })
+
+  it('leaves the meta untouched without extraMeta', async () => {
+    const rig = await mountDrill({ items: [item('SAP', 'SAP'), item('KAT', 'KAT')] })
+    rig.stroke(SAP)
+    rig.unmount()
+    expect(Object.keys(rig.logger.finishes[0].meta as object).sort()).toEqual(
+      ['abandoned', 'completed', 'elapsedMs', 'firstTryCorrect', 'itemCount', 'kind', 'passed'].sort(),
+    )
+  })
+
+  it('an item of kind stroke in a word drill shows its target from the start, a plain item hides it until a miss', async () => {
+    const rig = await mountDrill({
+      kind: 'word',
+      items: [{ prompt: 'SAP', outlines: ['SAP'], kind: 'stroke' }, item('kat', 'KAT')],
+    })
+    expect(document.querySelector('.drill__prompt')!.classList.contains('drill__prompt--stroke')).toBe(true)
+    expect(lever('S1-').classList.contains('key--target')).toBe(true)
+    expect(lever('A-').classList.contains('key--target')).toBe(true)
+    expect(lever('-P').classList.contains('key--target')).toBe(true)
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('')
+    rig.stroke(SAP)
+    expect(document.querySelector('.drill__prompt')!.textContent).toBe('kat')
+    expect(document.querySelector('.drill__prompt')!.classList.contains('drill__prompt--word')).toBe(true)
+    expect(document.querySelector('.key--target')).toBeNull()
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('')
+    rig.stroke(SAP) // a miss on KAT
+    expect(document.querySelector('.drill__expected')!.textContent).toBe('KAT')
+    expect(lever('K-').classList.contains('key--target')).toBe(true)
+  })
+
+  it('an item of kind word in a stroke drill hides its target until a miss', async () => {
+    await mountDrill({ kind: 'stroke', items: [{ prompt: 'sap', outlines: ['SAP'], kind: 'word' }] })
+    expect(document.querySelector('.drill__prompt')!.classList.contains('drill__prompt--word')).toBe(true)
+    expect(document.querySelector('.key--target')).toBeNull()
   })
 })

@@ -1,9 +1,9 @@
-import type { JSX } from 'preact'
+import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'preact/hooks'
 import type { Settings } from '../../server/settings.ts'
 import type { TestLogger } from '../api.ts'
 import { DrillSession } from '../core/drill.ts'
-import type { DrillItem, DrillKind, DrillStats } from '../core/drill.ts'
+import type { DrillItem, DrillKind, DrillRun, DrillStats } from '../core/drill.ts'
 import { formatStroke, parseOutline, parseStroke, slotMask } from '../core/steno.ts'
 import type { Slot, SlotMask } from '../core/steno.ts'
 import type { RawStroke } from '../core/uni.ts'
@@ -32,6 +32,12 @@ export type DrillProps = {
   view?: 'prompt' | 'flow'
   /** Ends the drill after this much session-clock time from the first judged stroke. */
   timeLimitMs?: number
+  /** Replaces the default `DrillSession` over `items` (e.g. a fix-up run); `items` still gives the item count. */
+  makeSession?: (clock: () => number) => DrillRun
+  /** Replaces the progress/accuracy line. */
+  renderStatus?: (run: DrillRun) => ComponentChildren
+  /** Merged into the meta of the finished and of the abandoned test. */
+  extraMeta?: () => Record<string, unknown>
   onDone(result: DrillResult): void
   onExit(): void
 }
@@ -100,8 +106,8 @@ export function Drill(props: DrillProps): JSX.Element {
   const pausedTotal = useRef(0)
   const pausedSince = useRef<number | null>(paused ? Date.now() : null)
   const clock = (): number => (pausedSince.current ?? Date.now()) - pausedTotal.current
-  const sessionRef = useRef<DrillSession | null>(null)
-  sessionRef.current ??= new DrillSession(items, clock)
+  const sessionRef = useRef<DrillRun | null>(null)
+  sessionRef.current ??= props.makeSession ? props.makeSession(clock) : new DrillSession(items, clock)
   const session = sessionRef.current
 
   const entered = useRef<SlotMask[]>([])
@@ -180,6 +186,7 @@ export function Drill(props: DrillProps): JSX.Element {
         elapsedMs: stats.elapsedMs,
         passed,
         ...(timedOut ? { timeLimitMs: limit, timedOut: true } : {}),
+        ...latest.current.extraMeta?.(),
       }
       let timer: ReturnType<typeof setTimeout> | undefined
       const timeout = new Promise<void>((resolve) => {
@@ -283,6 +290,7 @@ export function Drill(props: DrillProps): JSX.Element {
           elapsedMs: stats.elapsedMs,
           passed: null,
           abandoned: true,
+          ...latest.current.extraMeta?.(),
         }
         void logger.finish({ wpm: stats.wpm, accuracy: stats.accuracy, meta }).catch(() => {})
       }
@@ -291,15 +299,16 @@ export function Drill(props: DrillProps): JSX.Element {
 
   const stats = session.stats()
   const item = session.current
+  const itemKind = item?.kind ?? kind
   const showMiss = miss.current
   // A word's outline stays hidden until the first miss, unless the hint setting is `always`;
   // a stroke drill shows its own target.
   const wordHinted = hinted.current || hints === 'always'
-  const hintStrokes = showMiss || kind === 'stroke' || wordHinted ? remaining(item, entered.current) : []
+  const hintStrokes = showMiss || itemKind === 'stroke' || wordHinted ? remaining(item, entered.current) : []
   const target = showMiss ? showMiss.target : (hintStrokes[0] ?? 0)
   const expectedText = showMiss
     ? showMiss.expected
-    : kind === 'word' && wordHinted
+    : itemKind === 'word' && wordHinted
       ? hintStrokes.map(formatStroke).join('/')
       : ''
   const flowFrom = Math.max(0, session.index - FLOW_BEHIND)
@@ -365,7 +374,7 @@ export function Drill(props: DrillProps): JSX.Element {
       )}
 
       {view === 'flow' ? (
-        <p class={`drill__flow drill__flow--${kind}`}>
+        <p class={`drill__flow drill__flow--${itemKind}`}>
           {items.slice(flowFrom, session.index + 1 + FLOW_AHEAD).map((it, k) => {
             const at = flowFrom + k
             const state = at < session.index ? 'done' : at === session.index ? 'current' : 'next'
@@ -382,13 +391,17 @@ export function Drill(props: DrillProps): JSX.Element {
           {!item && <span class="drill__flow-end">✓</span>}
         </p>
       ) : (
-        <div class={`drill__prompt drill__prompt--${kind}`} aria-live="polite">
+        <div class={`drill__prompt drill__prompt--${itemKind}`} aria-live="polite">
           {item ? item.prompt : '✓'}
         </div>
       )}
-      <p class="drill__stats">
-        {progress} · acc {stats.completed > 0 ? `${Math.round(stats.accuracy * 100)}%` : '—'} · {Math.round(stats.wpm)} wpm
-      </p>
+      {props.renderStatus ? (
+        props.renderStatus(session)
+      ) : (
+        <p class="drill__stats">
+          {progress} · acc {stats.completed > 0 ? `${Math.round(stats.accuracy * 100)}%` : '—'} · {Math.round(stats.wpm)} wpm
+        </p>
+      )}
       <p class="drill__expected" aria-live="polite">
         {expectedText}
       </p>
