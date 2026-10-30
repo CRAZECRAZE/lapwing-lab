@@ -381,6 +381,10 @@ describe('archive API', () => {
       ['/api/settings', { plateauSnoozedUntil: 5 }],
       ['/api/settings', { reportSeen: '2026-13' }],
       ['/api/settings', { reportSeen: 202610 }],
+      ['/api/settings', { plateauSnoozedUntil: {} }],
+      ['/api/settings', { plateauSnoozedUntil: [] }],
+      ['/api/settings', { reportSeen: {} }],
+      ['/api/settings', { reportSeen: [] }],
       ['/api/settings', '[]'],
     ]
     for (const [path, body] of cases) {

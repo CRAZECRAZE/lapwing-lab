@@ -1,4 +1,5 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { isIsoDate, isYearMonth } from '../src/core/dates.ts'
 
 export type Settings = {
   boardVisibility: 'always' | 'hover' | 'hidden'
@@ -19,17 +20,6 @@ function isVisibility(v: unknown): v is Settings['boardVisibility'] {
 
 function isHints(v: unknown): v is Settings['hints'] {
   return typeof v === 'string' && HINTS.includes(v)
-}
-
-// A real calendar date: 2026-02-30 and 2026-13-01 are rejected, a leap day is not.
-export function isIsoDate(v: unknown): v is string {
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
-  const d = new Date(`${v}T00:00:00Z`)
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v
-}
-
-export function isYearMonth(v: unknown): v is string {
-  return typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v)
 }
 
 // A missing, unreadable or invalid file is never fatal: the owner just gets defaults,
