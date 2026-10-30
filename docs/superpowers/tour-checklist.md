@@ -1,0 +1,11 @@
+# Quick tour checks in your browser
+
+Only you can do these, because they depend on what your browser does with keys and on how the card looks on your screen. What was checked here: the step order, the Back, Skip, Next and Done buttons, the keys, the focus, the ring and the Tour button, by tests with a simulated page (jsdom); no real browser was used and nothing was written to `data/` or to the browser. Start the app with `npm start`. None of these needs the board.
+
+1. **Does `Ctrl+Shift+T` reach the page? (the one that matters most)** Open the app in your usual browser tab and press `Ctrl+Shift+T`. Either the tour card appears (the key reaches the page) or the browser reopens a closed tab (it keeps the key for itself). Tell me which. If it reopens a tab, try an installed app or a `--app` window (for example `chromium --app=http://localhost:PORT`, with the port `npm start` prints), where the key may work.
+2. **The Tour button.** Press **Tour** at the end of the top bar's tool group (to the right of Notes). The card opens on `Step 1 of 12`. Press **Skip**: the card closes and the focus is back on the **Tour** button.
+3. **Walk it through.** Press **Next** (or `Right arrow`) to the end. **Back** is missing on step 1, **Skip** is missing on the last step, and the last button says **Done**. Does the copy read calm and clear, and is any step too long or too short for you?
+4. **The ring.** On the Book, Practice, History, Days, Progress and Journal steps and on the tools step a thin ring marks the matching tab or the tool buttons, and the card sits at the bottom of the window. On the other steps there is no ring and the card is in the middle. Check that the ring sits on the right thing and that it follows when you resize the window.
+5. **Keys.** In the tour, `Esc` closes it, `Left arrow` goes back, `Tab` and `Shift+Tab` stay on the card's buttons, and typing `K` or `/` does not open a dock tool. After closing, `K` opens the Key chart as before.
+6. **Not during a run.** Open a drill or a free-type run: the **Tour** button is greyed out and `Ctrl+Shift+T` does nothing. Open the tour on a page and then press the browser's back button into a run: the tour closes.
+7. **Narrow window.** Make the window narrow (under about 640 pixels wide). The card on a ringed step is full width at the bottom, and the buttons still fit and can be pressed.

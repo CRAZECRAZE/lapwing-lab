@@ -37,7 +37,7 @@ Plover should be able to stay connected at the same time: on Linux, hidraw norma
 
 ## What is inside today
 
-The top bar has six tabs: **Book · Practice · History · Days · Progress · Journal**, and four tool buttons: **Lookup · Key chart · Briefs · Notes** (see "The dock" below).
+The top bar has six tabs: **Book · Practice · History · Days · Progress · Journal**, and four tool buttons: **Lookup · Key chart · Briefs · Notes** (see "The dock" below), then a **Tour** button (see "Quick tour" below).
 
 - **Book** is the reader for all 33 pages of the book (Home, chapters, appendices, Glossary, Changes), with the book's images and videos served locally. Strokes in the text light up the keys on a board when you hover, focus or click them. While a stroke is shown in the board panel, pressing it on the Uni shows a ✓; for a multi-stroke outline, press the strokes in order starting from the first.
 - **Practice** has a **Where you are** panel (the chapter you are on, see below), **free type** and the Chapter 4 **Stage 0 drills**. Free type is a flowing line of words: 25 or 50 words, or 30 or 60 seconds, or choose **Custom** and type your own number of words (1 to 500) or seconds (5 to 600); Start stays off until the number is in range. A timed run starts counting on your first stroke. Stage 0 is six key-row drills (left bottom, right bottom, left top, right top, vowels, star), the 100-word layout test with the book's pass mark (90% accuracy within 10 minutes), and two extra practice lists. The board can be always visible, shown on hover, or hidden.
@@ -49,6 +49,7 @@ The top bar has six tabs: **Book · Practice · History · Days · Progress · J
 - **Days** is a month calendar shaded by how long you practiced each day, with totals; pick a day to see its tests and its journal note. Your current streak of consecutive days is shown in the status line as well.
 - **Progress** is the page that shows whether practice is working: speed and accuracy by day, how steady your typing is, how much you practice, which keys and mix-ups hold you back and how you stand against the book's chapter marks, with a Reports link to the month-end reports (see "Progress" and "Reports and the plateau notice" below).
 - **Journal** is one markdown note per day, saved automatically as you type. A result card also has **Add a note**, which appends to today's note under a stamped heading.
+- **Quick tour** is a short walkthrough of all of the above, opened with `Ctrl+Shift+T` or the **Tour** button (see "Quick tour" below).
 
 Free type draws only on words the book has taught: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter you pick (each chapter that has practice lists in the built content is offered as a source).
 
@@ -57,6 +58,15 @@ For the chapter word lists, the **Hint** setting chooses when the keys a word ne
 "Time practiced" is approximate: for each test it is the time from the first stroke to the last, so pauses inside a test count and time before the first stroke does not.
 
 The full dictionary lookup and the Progress page (M6a) are done (see "The dictionary" and "Progress" below). The Progress page now has a plateau notice and a month-end report (M6b, see "Reports and the plateau notice" below). The fix-up drill is done too (M5b, see "Fix-up drill" below), and so are the ghosts, the real-text practice and the routine planner (M7, see "Ghosts", "Real text" and "Routines" below). Every milestone of the plan in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9 has been built except three things that section 9 names and that were left out on purpose: the session composer and the **Today** tab (M7 delivers the routine planner, ghosts and real-text practice, but no assembled "today's session"), and the spaced-repetition briefs memory (M5b became the fix-up drill at the owner's request). See `docs/superpowers/m0-m1-followups.md`.
+
+## Quick tour
+
+A short walkthrough of every feature, in twelve steps: the book, practice, fix-up, real text and routines, ghosts, History, Days, Progress, Journal, the dock tools and where your data lives. Each step is a small card over the page with **Back**, **Skip** and **Next** (the last step has **Done**). Where a step is about a tab or the tools, a thin ring marks it in the top bar. The tour never changes the page you are on, and it never opens by itself.
+
+- **Open it** with `Ctrl+Shift+T` from anywhere in the app, or with the **Tour** button at the end of the top bar's tool group. The key goes by the physical key, so it works on any layout. Browsers keep `Ctrl+Shift+T` for "reopen closed tab" and may never hand it to the page; if it reopens a tab instead, use the button (an installed app or `--app` window may get the key).
+- **Keys in the tour.** `Esc` skips, `Right arrow` goes to the next step, `Left arrow` back, `Tab` stays inside the card, and the focus returns to where it was when the tour closes. The dock's keys do nothing while the tour is open.
+- **Not during a run.** The key and the button are off while a drill, free-type run, fix-up run or text run is on screen, so a run is never disturbed; an open tour closes if one starts.
+- Offline, nothing is stored: the tour writes nothing to `data/` or to the browser. The steps are in `src/ui/tourSteps.ts`. See `docs/superpowers/tour-checklist.md` for what to check in your own browser.
 
 ## Chapter practice and gates
 
