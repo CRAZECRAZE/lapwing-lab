@@ -9,6 +9,7 @@ import {
   getLastTest,
   getNote,
   getProgress,
+  getReport,
   getResults,
   getSettings,
   getStats,
@@ -16,12 +17,11 @@ import {
   listJournal,
   listNotes,
   listReports,
-  getReport,
-  putReport,
   listTests,
   putJournal,
   putMark,
   putNote,
+  putReport,
   putSettings,
 } from '../src/api.ts'
 import type { StrokeRecord, TestRow } from '../server/archive.ts'

@@ -1,6 +1,6 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeFileAtomic } from './atomic.ts'
+import { listTextFiles, readTextOrEmpty } from './files.ts'
 
 const FILE = /^ch(\d\d)\.md$/
 
@@ -16,13 +16,7 @@ function noteFile(dir: string, chapter: number): string {
 
 // A missing file or folder is an empty note; reads never create anything.
 export function readNote(dir: string, chapter: number): string {
-  const file = noteFile(dir, chapter)
-  try {
-    return readFileSync(file, 'utf8')
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return ''
-    throw err
-  }
+  return readTextOrEmpty(noteFile(dir, chapter))
 }
 
 export function writeNote(dir: string, chapter: number, text: string): void {
@@ -31,23 +25,11 @@ export function writeNote(dir: string, chapter: number, text: string): void {
 }
 
 export function listNotes(dir: string): { chapter: number; chars: number }[] {
-  let names: string[]
-  try {
-    names = readdirSync(dir)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw err
-  }
-  const out: { chapter: number; chars: number }[] = []
-  for (const name of names) {
+  const files = listTextFiles(dir, (name) => {
     const digits = FILE.exec(name)?.[1]
-    if (digits === undefined) continue
-    const chapter = Number(digits)
-    if (!isNoteChapter(chapter)) continue
-    // A directory that happens to be named like a note is not a note.
-    if (!statSync(join(dir, name)).isFile()) continue
-    const text = readNote(dir, chapter)
-    if (text.trim() !== '') out.push({ chapter, chars: text.length })
-  }
-  return out.sort((a, b) => a.chapter - b.chapter)
+    return digits !== undefined && isNoteChapter(Number(digits))
+  })
+  return files
+    .map(({ name, chars }) => ({ chapter: Number(FILE.exec(name)?.[1]), chars }))
+    .sort((a, b) => a.chapter - b.chapter)
 }
