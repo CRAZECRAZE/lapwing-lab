@@ -114,7 +114,7 @@ Lookup reads one generated file, `content/build/dictionary.json`: about 58,000 c
 
 ## Progress
 
-The **Progress** tab (the fifth in the top bar, or `/progress`) draws your existing history as panels. It needs no setup and nothing new is recorded: it works from the tests and strokes already in `data/steno.db`, the same ones History and Days read, and it writes nothing (it creates no file in `data/`, and on a fresh install it shows `No practice recorded yet.`). Reloading gives the same numbers.
+The **Progress** tab (the fifth in the top bar, or `/progress`) draws your existing history as panels. It needs no setup and nothing new is recorded: it works from the tests and strokes already in `data/steno.db`, the same ones History and Days read, and the panels write nothing (they create no file in `data/`, and on a fresh install the page shows `No practice recorded yet.`; the snooze and the report banner described in the next section are the only exceptions). Reloading gives the same numbers.
 
 **The two switches** sit at the top.
 
@@ -150,7 +150,7 @@ The **Progress** tab (the fifth in the top bar, or `/progress`) draws your exist
 - **Start vs finish** and the speed in each of the four quarters are **estimates**. A quarter is a quarter of the run's active time (breaks left out); the run's words are shared across the quarters in proportion to the correct strokes in each, divided by that quarter's minutes. The whole run's wpm is shown beside them, as counted by the app.
 - The strip has one bar per stroke. A run of more than 300 strokes is drawn wider than the page and scrolls sideways inside its own box; the seconds axis stays in view.
 
-**Being honest with small amounts of data.** A speed, accuracy or steadiness figure that rests on fewer than 3 runs shows a dash and `not enough data yet`. A key needs 30 presses to be ranked and a mix-up needs 3 occurrences. The plateau notice and the month report are not in this step (M6b).
+**Being honest with small amounts of data.** A speed, accuracy or steadiness figure that rests on fewer than 3 runs shows a dash and `not enough data yet`. A key needs 30 presses to be ranked and a mix-up needs 3 occurrences. The plateau notice and the month report are described in the next section.
 
 **A limit.** The archive does not record which stroke of a multi-stroke word you were attempting, so for those words a miss is matched to the closest stroke of any of the word's outlines (the page says so under Weakest keys). That is right for nearly all misses, but a wrong stroke can be blamed on the wrong stroke of the word, and retyping the previous stroke where a later one was needed is not seen as a miss on that key.
 
@@ -158,16 +158,41 @@ The **Progress** tab (the fifth in the top bar, or `/progress`) draws your exist
 
 **How it is built.** The page asks the local server for `GET /api/stats?from=&to=&mode=` (mode `free`, `drills` or `all`; read-only; the strokes are summed on the server and only totals leave it) and for `GET /api/days`, which both accept a span of up to 1,100 days. Neither creates `data/` if there is no archive. The charts are drawn as SVG, with no charting library. The design is in `docs/superpowers/specs/2026-10-28-lapwing-lab-m6-progress-design.md`; `docs/superpowers/m6a-checklist.md` lists what to check against your real history.
 
+## Reports and the plateau notice
+
+Two quiet extras sit around the Progress page. Neither nags, sets a goal or tells you what to practice.
+
+**The month-end report.** Click **Reports** on the Progress page (or open `/progress/reports`) for a list of months, newest first, from your first month of practice to the current one. Each row shows the month, the practice time, the strokes and a `note` mark if you wrote one. A row opens `/progress/reports/YYYY-MM`, which is still the Progress tab. A report shows:
+
+- a header with the month and the days you practiced (`October 2026 · 6 practice days`);
+- six tiles: practice time, strokes, free-type wpm, accuracy, steadiness and chapters passed. Time and strokes cover every mode; speed, accuracy and steadiness cover free type (a line says so). Under a tile is the change against the month before when both months have data, in the plain colour whether better or worse. In your first month there is nothing to compare with, so the speed and accuracy tiles show `first day 22, last day 41` instead. A tile resting on fewer than 3 free-type runs shows a dash and `not enough runs yet`;
+- chapters passed: the chapters you first passed in that month, each with its day (`ch 4 on the 30th`), found from the first run that met the chapter's pass mark or the date of a read or override mark. A chapter the ladder only counts as cleared by its best-result rule, with no passing run and no mark, has no date and is counted in no month;
+- the wpm-by-day chart for the month, with **Show the numbers**;
+- a box, **Your notes**.
+
+The numbers are never stored: they are recomputed from your archive every time you open a report.
+
+**Your notes.** The box saves by itself a moment after you stop typing (it says `Saved`). Each month's note is the plain UTF-8 text file `data/reports/YYYY-MM.md` (for example `data/reports/2026-10.md`). It is not rendered, so you can read or edit it in any text editor; an edit made there shows the next time you open the report. The folder is created when you first save a note; opening a report writes no file for the note.
+
+**The month-end banner.** On the last day of a month, or any later day, Progress shows `October is done. Your report is ready.` as a link, when that month had practice and you have not opened its report. Opening the report of a finished month remembers it (as `reportSeen` in `data/settings.json`) and the line goes away. It only moves forward: opening an older month never brings an earlier banner back, and opening the current month before its last day remembers nothing. The line never shows for a month before its last day.
+
+**The plateau notice.** It looks at your free-type wpm over the last 56 days, cut into eight weeks of 7 days ending today. A week counts when it has at least 2 free-type runs, and its speed is the average of those runs weighted by words. Counting back from this week, a week is part of the plateau when its speed is within 2 wpm (or 4% of this week's speed, whichever is more) of this week's. A week without 2 free-type runs, such as a week off, is skipped: it neither counts nor ends the plateau. A week outside the tolerance ends it. When 3 or more weeks are in the plateau, the notice says `Your speed has been flat for N weeks`, gives this week's wpm and up to two earlier ones, and adds `Plateaus like this are common while learning steno.` A `Meanwhile` line appears only for a figure that rose over the plateau (steadiness by at least 3 points, accuracy by at least 1.5 points); it never mentions anything that got worse. It links to the `Weakest keys` and `Mix-ups` panels and gives no advice. So it cannot appear before about three weeks of regular free-type practice. It ignores the Progress page's Mode and Range switches.
+
+It shows in two places: above the tiles on the Progress page, and as one small gold line (`Speed flat for 3 weeks, see Progress`) in the header of a chapter's panel in the reader (chapter pages only, not the home page or the appendices). **Not now (14 days)** hides it in both places until 14 days later; it also stops by itself when the plateau ends. If the numbers cannot be loaded, the notice and the banner are simply not shown.
+
+**What is written to `data/`.** Only `data/reports/YYYY-MM.md` (your notes) and two fields in `data/settings.json`: `plateauSnoozedUntil` (a date, from **Not now**) and `reportSeen` (a month, from opening a finished month's report). Opening Progress, the reports list or a report creates no file, apart from `reportSeen` when you open a finished month's report. Nothing in `steno.db` changes. The design is in `docs/superpowers/specs/2026-10-30-lapwing-lab-m6b-reports-design.md`; `docs/superpowers/m6b-checklist.md` lists what to check against your real history.
+
 ## Your data
 
 Everything the app writes lives in `data/`:
 
 - `steno.db`, a SQLite database (tables `sessions`, `tests`, `strokes`, and `progress_marks`, which holds only your read and override marks, one row per chapter)
-- `settings.json`
+- `settings.json`, your settings: the board and hint choices, plus `plateauSnoozedUntil` (the date the plateau notice is snoozed until) and `reportSeen` (the last finished month whose report you opened)
 - `journal/YYYY-MM-DD.md`, your notes: plain markdown, one file per local day
 - `notes/chNN.md`, your notes per chapter from the My notes tool: plain markdown, one file per chapter (1 to 26)
+- `reports/YYYY-MM.md`, your notes in the month-end reports: plain text, one file per month
 
-Each is created on first save (the journal folder when you first write a journal note, the notes folder when you first type in My notes), so `data/` does not exist until you first use a drill or change a setting, and on a fresh install merely opening a tab writes nothing. The first start after upgrading from an earlier version adds the empty `progress_marks` table to an existing `steno.db` in place (your tests and strokes are not changed), so copy `data/` first if you want a backup. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
+Each is created on first save (the journal folder when you first write a journal note, the notes folder when you first type in My notes, the reports folder when you first type a report note), so `data/` does not exist until you first use a drill or change a setting, and on a fresh install merely opening a tab writes nothing. The first start after upgrading from an earlier version adds the empty `progress_marks` table to an existing `steno.db` in place (your tests and strokes are not changed), so copy `data/` first if you want a backup. Back up by copying the whole `data/` folder. It is git-ignored on purpose.
 
 Opening a drill and leaving without a stroke writes nothing. Leaving a drill early (Exit or Esc) keeps the strokes you already did and closes the test as left early: it shows in History as "Left early" with the partial numbers. A run left early is never shown as the last result on the Chapter 4 panel or the Practice tab. A test whose `ended_at` is still empty means the browser tab was closed mid-drill.
 

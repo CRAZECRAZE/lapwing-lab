@@ -130,8 +130,8 @@ Deferred from the M6a reviews; M6b plans (the plateau notice and the month repor
 - **Progress panels, tidiness.** Plural, percent, clamp and the panel head are duplicated across the panels; `shown = active !== null ? active : null` in `WeeklyBars.tsx` is a no-op; the date tick labels end a little before the right edge; `Loading…` has no `role="status"`, and the tiles collapse to one line on a switch (a `min-height` would calm the jump); `useYearDays` requests the year even for an empty archive.
 - **Charts, small behaviors.** No test catches removing `preventDefault` on the handled arrow keys (correct live). Hover and focus share one active state, so moving the mouse off a keyboard-focused point hides its tooltip. The weekly strokes labels thin by one uniform step set by the widest label, so a single 4-character outlier (`1.5k`) thins 12 to 14 bar views more than needed. The partial-first-week note sits under the svg rather than inside it. A steadiness bar inside the band tint is 2.87:1 against it (the others are 3.31 or better).
 - **Colour.** The heatmap's level colours are slightly stronger than the Days tab's; the ladder's amber and green differ in hue only (luminance ratio 1.21:1; the words `met` and `not yet` carry the meaning); a ladder gate test with no pass mark shows `needs —`.
-- **Chapter tests read erratic by design.** A chapter test shows each word three times in a row, so the first showing carries reading time and the repeats are quick; through `runRhythm` a run scores steadiness about 18 with about 21 stalls, against about 69 and 0 stalls for the same typist in free type. The page now says so (a note under the figures and a line under the accuracy chart). Next step: a repeat-aware score, using whether a stroke's `prompt` equals the previous stroke's prompt, plus a stall share in the score.
-- **The first gap of a run.** It is the time since the first prompt appeared, so a settle of 2.5 to 10 s before starting shows as a red stall on stroke 1. Option: label stroke 1 `start` and leave it out of the stall and break counts and the typical gap. A call for the owner.
+- **Resolved by M6b: Chapter tests read erratic by design.** A chapter test shows each word three times in a row, so the first showing carries reading time and the repeats are quick; through `runRhythm` a run scores steadiness about 18 with about 21 stalls, against about 69 and 0 stalls for the same typist in free type. The page now says so (a note under the figures and a line under the accuracy chart). Next step: a repeat-aware score, using whether a stroke's `prompt` equals the previous stroke's prompt, plus a stall share in the score. M6b scores chapter tests on the second and third showing of each word (first showings are `first showing` bars, left out of the scores) and labels the steadiness `repeats only`.
+- **Resolved by M6b: The first gap of a run.** It is the time since the first prompt appeared, so a settle of 2.5 to 10 s before starting shows as a red stall on stroke 1. Option: label stroke 1 `start` and leave it out of the stall and break counts and the typical gap. A call for the owner. M6b labels the first bar `start` and leaves it out of the stall and break counts, the typical gap and the steadiness.
 - **Bundle size.** The JS bundle grew from 112.81 to 159.01 kB with M6a.
 - **Server memory on all-time.** The stroke-timing and key-row reads materialize every row; iterate the statement instead.
 - **Chart tick text** is about 7 px at 360 px wide.
@@ -140,3 +140,19 @@ Deferred from the M6a reviews; M6b plans (the plateau notice and the month repor
 - **Rounding of small changes.** An accuracy change of -0.05 points prints `-0.1`.
 - **Layout.** Panel 4 (Rhythm) sits below panel 3 rather than beside it.
 - **Tile comparison wording.** The speed and accuracy tiles compare against `the 7 days before`, not `last week`.
+
+## Left open by M6b
+
+Deferred from the M6b reviews. Nothing here blocks the plateau notice, the reports or the Rhythm view.
+
+- **The notice needs data.** The plateau notice needs about three weeks of regular free-type practice (2 or more free-type runs in each of 3 weeks) before it can appear, so it could not be seen on the owner's history when M6b was built.
+- **Notice outside the data panels.** On the Progress page the plateau notice renders outside the data panels, so during loading, on an error or in the empty state it can show while its `Weakest keys` and `Mix-ups` links have nothing to scroll to. The cheap fix is to render it inside the ready branch, above the tiles.
+- **Extra requests.** Every chapter-page visit now makes one 56-day `/api/stats` request and one `/api/settings` request (per mount).
+- **Small feedback gaps.** A failed snooze write gives no feedback (the notice just stays). Accuracy shown as a whole percent in the notice can show a one-point rise for a 1.5-point gain.
+- **First showings in long chapter tests.** The `.rhythm__bar--fresh` stroke may look darker than the normal bars on very long chapter tests (over 300 strokes), and first-showing bars in a chapter test are drawn capped (about a third show the cap mark).
+- **Wording.** The message `Rhythm needs at least 10 strokes to be scored.` should say scored strokes.
+- **Two date validators.** `server/journal.ts` has its own `isJournalDate` that overlaps the shared `isIsoDate` in `src/core/dates.ts`.
+- **Reports path is a file.** If `data/reports` is a file instead of a folder, the reports routes give HTTP 500, like notes and the journal do.
+- **Report page, failure and limits.** A Progress-data error blocks the whole report instead of only the chapters tile. The notes box mounts only once the numbers are ready, so a stats failure also hides it. `firstMonth` looks back only 36 months.
+- **Report tiles, empty month.** `reportTiles` shows no change line for time and strokes when this month is empty but the previous month had practice.
+- **A clamp that cannot trigger.** The 1,100-day clamp in `reportsWindowStart` can never trigger (36 months is at most about 1,096 days).
