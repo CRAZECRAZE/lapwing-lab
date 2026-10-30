@@ -153,7 +153,7 @@
   export type TextPlan = {
     items: DrillItem[]                 // strokable words in text order; kind 'word'
     words: number                      // tokens with a letter
-    covered: number                    // = items.length
+    covered: number                    // words (not items) that were matched: words minus the sum of missing counts; never above `words`
     skipped: number                    // tokens without a letter (numbers, symbols)
     missing: { word: string; count: number }[]   // count desc, then word asc
   }
