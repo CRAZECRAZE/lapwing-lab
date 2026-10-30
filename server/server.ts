@@ -5,6 +5,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { extname, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream'
 import { isIsoDate, isYearMonth } from '../src/core/dates.ts'
+import { MAX_TEXT_CHARS } from '../src/core/realtext.ts'
 import { LEVERS } from '../src/core/uni.ts'
 import type { Lever } from '../src/core/uni.ts'
 import { MissingRowError, openArchive } from './archive.ts'
@@ -17,6 +18,15 @@ import { isReportMonth, listReports, readReport, writeReport } from './reports.t
 import { readSettings, writeSettings } from './settings.ts'
 import { buildStats, emptyStats, STATS_MODES } from './stats.ts'
 import type { StatsMode } from './stats.ts'
+import {
+  MAX_NAME_CHARS,
+  MAX_TEXTS,
+  deleteSavedText,
+  isTextId,
+  listTexts,
+  readSavedText,
+  writeSavedText,
+} from './texts.ts'
 
 export interface ServerOptions {
   root: string
@@ -251,6 +261,22 @@ function reportMonth(raw: string): string {
   return isReportMonth(raw) ? raw : bad('month', 'a month as YYYY-MM')
 }
 
+// A saved-text id from a path segment: lower-case words with single dashes, checked before any file access.
+function textId(raw: string): string {
+  return isTextId(raw) ? raw : bad('id', 'lower-case letters and digits with single dashes, at most 40 characters')
+}
+
+// A saved text's body: a name of 1-MAX_NAME_CHARS characters once trimmed, and text of at most MAX_TEXT_CHARS.
+function savedTextBody(o: Fields): { name: string; text: string } {
+  const name = o.name
+  if (typeof name !== 'string' || name.trim() === '') return bad('name', 'a non-blank string')
+  if (name.trim().length > MAX_NAME_CHARS) return bad('name', `at most ${MAX_NAME_CHARS} characters`)
+  const text = o.text
+  if (typeof text !== 'string') return bad('text', 'a string')
+  if (text.length > MAX_TEXT_CHARS) return bad('text', `at most ${MAX_TEXT_CHARS} characters`)
+  return { name: name.trim(), text }
+}
+
 const RESULT_MODES = ['stage0', 'section', 'chapter-test']
 const GHOST_MODES = ['free', 'section', 'chapter-test', 'stage0', 'text']
 const MAX_GHOST_SECTION = 100
@@ -268,6 +294,7 @@ interface ApiContext {
   journalDir: string
   notesDir: string
   reportsDir: string
+  textsDir: string
   ensureDataDir(): void
 }
 
@@ -561,6 +588,38 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     return
   }
 
+  if (pathname === '/api/texts') {
+    if (method !== 'GET') allow(res, 'GET')
+    sendJson(res, 200, listTexts(ctx.textsDir))
+    return
+  }
+
+  // The id segment excludes '/', and textId admits only the id pattern before any file access.
+  const savedText = /^\/api\/texts\/([^/]+)$/.exec(pathname)
+  if (savedText) {
+    if (method !== 'GET' && method !== 'PUT' && method !== 'DELETE') allow(res, 'GET', 'PUT', 'DELETE')
+    const id = textId(savedText[1])
+    if (method === 'GET') {
+      const found = readSavedText(ctx.textsDir, id)
+      if (!found) throw new HttpError(404, 'No such text')
+      sendJson(res, 200, found)
+      return
+    }
+    if (method === 'DELETE') {
+      if (!deleteSavedText(ctx.textsDir, id)) throw new HttpError(404, 'No such text')
+      sendJson(res, 200, { ok: true })
+      return
+    }
+    const body = savedTextBody(asObject(await readBody(req, res)))
+    // The limit counts distinct texts; saving over an existing one is always fine.
+    if (!readSavedText(ctx.textsDir, id) && listTexts(ctx.textsDir).length >= MAX_TEXTS) {
+      throw new HttpError(400, `At most ${MAX_TEXTS} texts can be saved`)
+    }
+    writeSavedText(ctx.textsDir, id, body)
+    sendJson(res, 200, { id, ...body })
+    return
+  }
+
   throw new HttpError(404, 'Not found')
 }
 
@@ -578,6 +637,7 @@ export function createServer(opts: ServerOptions): Server {
     journalDir: join(dataDir, 'journal'),
     notesDir: join(dataDir, 'notes'),
     reportsDir: join(dataDir, 'reports'),
+    textsDir: join(dataDir, 'texts'),
     ensureDataDir: () => {
       mkdirSync(dataDir, { recursive: true })
     },

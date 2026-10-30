@@ -340,3 +340,53 @@ export async function getReport(month: string, fetchFn: FetchFn = defaultFetch):
 export async function putReport(month: string, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
   await request(fetchFn, 'PUT', reportPath(month), { text })
 }
+
+// Saved texts for real-text practice. The id goes into the path only when it fits the id pattern,
+// so a bad value can never build a strange URL; it is refused before any request.
+export interface SavedTextSummary {
+  id: string
+  name: string
+  chars: number
+}
+
+export interface SavedText {
+  id: string
+  name: string
+  text: string
+}
+
+// The same pattern as isTextId in server/texts.ts, which cannot be imported here (it reads files).
+const TEXT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
+
+function textPath(id: string): string {
+  if (typeof id !== 'string' || id.length > 40 || !TEXT_ID.test(id)) {
+    throw new RangeError(`Not a text id: ${String(id)}`)
+  }
+  return `/api/texts/${id}`
+}
+
+export async function listTexts(fetchFn: FetchFn = defaultFetch): Promise<SavedTextSummary[]> {
+  return (await request(fetchFn, 'GET', '/api/texts')) as SavedTextSummary[]
+}
+
+// null when there is no such text.
+export async function getText(id: string, fetchFn: FetchFn = defaultFetch): Promise<SavedText | null> {
+  try {
+    return (await request(fetchFn, 'GET', textPath(id))) as SavedText
+  } catch (err) {
+    if (err instanceof HttpStatusError && err.status === 404) return null
+    throw err
+  }
+}
+
+export async function putText(
+  id: string,
+  body: { name: string; text: string },
+  fetchFn: FetchFn = defaultFetch,
+): Promise<SavedText> {
+  return (await request(fetchFn, 'PUT', textPath(id), { name: body.name, text: body.text })) as SavedText
+}
+
+export async function deleteText(id: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
+  await request(fetchFn, 'DELETE', textPath(id))
+}

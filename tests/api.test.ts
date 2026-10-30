@@ -4,6 +4,7 @@ import {
   appendJournal,
   createTestLogger,
   deleteMark,
+  deleteText,
   getDays,
   getFixup,
   getGhosts,
@@ -15,16 +16,19 @@ import {
   getResults,
   getSettings,
   getStats,
+  getText,
   getTest,
   listJournal,
   listNotes,
   listReports,
   listTests,
+  listTexts,
   putJournal,
   putMark,
   putNote,
   putReport,
   putSettings,
+  putText,
 } from '../src/api.ts'
 import type { StrokeRecord, TestRow } from '../server/archive.ts'
 
@@ -713,5 +717,62 @@ describe('results and progress calls', () => {
       await expect(getReport(m, fetch), m).rejects.toBeInstanceOf(RangeError)
     }
     expect(calls).toHaveLength(0)
+  })
+})
+
+describe('saved text calls', () => {
+  it('listTexts GETs the list', async () => {
+    const { calls, fetch } = fakeFetch(() => json([{ id: 'frost', name: 'Frost', chars: 9 }]))
+    await expect(listTexts(fetch)).resolves.toEqual([{ id: 'frost', name: 'Frost', chars: 9 }])
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/texts' })
+  })
+
+  it('getText returns the text, or null on a 404', async () => {
+    const found = fakeFetch(() => json({ id: 'frost', name: 'Frost', text: 'Two roads' }))
+    await expect(getText('frost', found.fetch)).resolves.toEqual({ id: 'frost', name: 'Frost', text: 'Two roads' })
+    expect(found.calls[0]).toMatchObject({ method: 'GET', url: '/api/texts/frost' })
+    const missing = fakeFetch(() => json({ error: 'Not found' }, 404))
+    await expect(getText('frost', missing.fetch)).resolves.toBeNull()
+  })
+
+  it('getText still rejects on other failures', async () => {
+    await expect(getText('frost', fakeFetch(() => json({ error: 'x' }, 500)).fetch)).rejects.toBeInstanceOf(
+      HttpStatusError,
+    )
+    await expect(getText('frost', fakeFetch(() => new Error('down')).fetch)).rejects.toThrow()
+  })
+
+  it('putText PUTs the name and text and returns the saved text', async () => {
+    const { calls, fetch } = fakeFetch((c) => json({ id: 'frost', ...(c.body as object) }))
+    await expect(putText('frost', { name: 'Frost', text: 'a b' }, fetch)).resolves.toEqual({
+      id: 'frost',
+      name: 'Frost',
+      text: 'a b',
+    })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/texts/frost', body: { name: 'Frost', text: 'a b' } })
+  })
+
+  it('deleteText sends DELETE with no body', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ ok: true }))
+    await expect(deleteText('frost', fetch)).resolves.toBeUndefined()
+    expect(calls[0]).toEqual({ method: 'DELETE', url: '/api/texts/frost', body: undefined })
+  })
+
+  it('rejects a bad id with a RangeError and makes no request', async () => {
+    const { calls, fetch } = fakeFetch(() => json({}))
+    for (const id of ['../x', 'a/b', 'A', '', 'a'.repeat(41)]) {
+      await expect(getText(id, fetch), id).rejects.toBeInstanceOf(RangeError)
+      await expect(putText(id, { name: 'n', text: 't' }, fetch), id).rejects.toBeInstanceOf(RangeError)
+      await expect(deleteText(id, fetch), id).rejects.toBeInstanceOf(RangeError)
+    }
+    expect(calls).toHaveLength(0)
+  })
+
+  it('reject on a non-2xx with an HttpStatusError', async () => {
+    const bad = () => fakeFetch(() => json({ error: 'bad' }, 400)).fetch
+    await expect(listTexts(bad())).rejects.toBeInstanceOf(HttpStatusError)
+    await expect(putText('a', { name: 'n', text: 't' }, bad())).rejects.toBeInstanceOf(HttpStatusError)
+    await expect(deleteText('a', bad())).rejects.toBeInstanceOf(HttpStatusError)
   })
 })
