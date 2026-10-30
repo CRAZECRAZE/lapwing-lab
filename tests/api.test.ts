@@ -15,6 +15,9 @@ import {
   getTest,
   listJournal,
   listNotes,
+  listReports,
+  getReport,
+  putReport,
   listTests,
   putJournal,
   putMark,
@@ -638,6 +641,44 @@ describe('results and progress calls', () => {
     await expect(getNote(NaN, fetch)).rejects.toBeInstanceOf(RangeError)
     await expect(getNote(Infinity, fetch)).rejects.toBeInstanceOf(RangeError)
     await expect(putNote('5/../6' as unknown as number, 'x', fetch)).rejects.toBeInstanceOf(RangeError)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('listReports returns the months with notes', async () => {
+    const { calls, fetch } = fakeFetch(() => json([{ month: '2026-10', chars: 12 }]))
+    await expect(listReports(fetch)).resolves.toEqual([{ month: '2026-10', chars: 12 }])
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/reports' })
+  })
+
+  it('getReport returns the text of one month', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ month: '2026-10', text: 'hello' }))
+    await expect(getReport('2026-10', fetch)).resolves.toBe('hello')
+    expect(calls[0]).toMatchObject({ method: 'GET', url: '/api/reports/2026-10' })
+  })
+
+  it('putReport PUTs the text to its month', async () => {
+    const { calls, fetch } = fakeFetch((c) => json({ month: '2026-10', text: String((c.body as { text: string }).text) }))
+    await expect(putReport('2026-10', 'a b', fetch)).resolves.toBeUndefined()
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({ method: 'PUT', url: '/api/reports/2026-10', body: { text: 'a b' } })
+  })
+
+  it('report calls reject on a non-2xx with an HttpStatusError', async () => {
+    const bad = () => fakeFetch(() => json({ error: 'bad' }, 400)).fetch
+    await expect(listReports(bad())).rejects.toBeInstanceOf(HttpStatusError)
+    await expect(getReport('2026-10', bad())).rejects.toBeInstanceOf(HttpStatusError)
+    const err = await putReport('2026-10', 'x', fakeFetch(() => json({ error: 'bad' }, 409)).fetch).catch((e) => e)
+    expect(err).toBeInstanceOf(HttpStatusError)
+    expect(err.status).toBe(409)
+    expect(err.message).toBe('PUT /api/reports/2026-10 failed with 409')
+  })
+
+  it('report calls reject a non-month with a RangeError and make no request', async () => {
+    const { calls, fetch } = fakeFetch(() => json({ month: '2026-10', text: '' }))
+    for (const m of ['2026-13', '2026-1', '../x', '2026-10/../..', '']) {
+      await expect(putReport(m, 'x', fetch), m).rejects.toBeInstanceOf(RangeError)
+      await expect(getReport(m, fetch), m).rejects.toBeInstanceOf(RangeError)
+    }
     expect(calls).toHaveLength(0)
   })
 })

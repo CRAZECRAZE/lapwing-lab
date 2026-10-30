@@ -5,6 +5,7 @@ import {
   __resetPendingSavesForTests,
   journalStore,
   notesStore,
+  reportsStore,
   useAutosave,
   type AutosaveStore,
 } from '../../src/ui/useAutosave.ts'
@@ -14,12 +15,16 @@ vi.mock('../../src/api.ts', () => ({
   putJournal: vi.fn(),
   getNote: vi.fn(),
   putNote: vi.fn(),
+  getReport: vi.fn(),
+  putReport: vi.fn(),
 }))
 const api = await import('../../src/api.ts')
 const getJournal = vi.mocked(api.getJournal)
 const putJournal = vi.mocked(api.putJournal)
 const getNote = vi.mocked(api.getNote)
 const putNote = vi.mocked(api.putNote)
+const getReport = vi.mocked(api.getReport)
+const putReport = vi.mocked(api.putReport)
 
 /** Lets pending promises and the given amount of fake time run, inside act. */
 async function advance(ms = 0): Promise<void> {
@@ -66,11 +71,13 @@ describe('useAutosave over the notes store', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 9, 27, 12, 0, 0))
-    for (const m of [getJournal, putJournal, getNote, putNote]) m.mockReset()
+    for (const m of [getJournal, putJournal, getNote, putNote, getReport, putReport]) m.mockReset()
     getJournal.mockResolvedValue('journal words')
     putJournal.mockResolvedValue(undefined)
     getNote.mockResolvedValue('note words')
     putNote.mockResolvedValue(undefined)
+    getReport.mockResolvedValue('report words')
+    putReport.mockResolvedValue(undefined)
   })
   afterEach(() => {
     cleanup()
@@ -229,5 +236,28 @@ describe('useAutosave over the notes store', () => {
     await expect(notesStore.get('')).rejects.toBeInstanceOf(Error)
     expect(getNote).not.toHaveBeenCalled()
     expect(putNote).not.toHaveBeenCalled()
+  })
+
+  it('round-trips a report through getReport and putReport, keyed by the month', async () => {
+    render(<Probe store={reportsStore} id="2026-10" label="report" />)
+    await advance()
+    expect(getReport).toHaveBeenCalledWith('2026-10')
+    expect(getNote).not.toHaveBeenCalled()
+    expect(box('report').value).toBe('report words')
+    type(box('report'), 'report words, more')
+    await advance(800)
+    expect(putReport).toHaveBeenCalledTimes(1)
+    expect(putReport).toHaveBeenCalledWith('2026-10', 'report words, more')
+    expect(putNote).not.toHaveBeenCalled()
+    expect(putJournal).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-month report key without any request', async () => {
+    for (const key of ['2026-13', '2026-1', '5', '../x', '2026-10/../..', '']) {
+      await expect(reportsStore.get(key), key).rejects.toBeInstanceOf(Error)
+      await expect(reportsStore.put(key, 'text'), key).rejects.toBeInstanceOf(Error)
+    }
+    expect(getReport).not.toHaveBeenCalled()
+    expect(putReport).not.toHaveBeenCalled()
   })
 })

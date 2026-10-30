@@ -296,3 +296,23 @@ export async function getNote(chapter: number, fetchFn: FetchFn = defaultFetch):
 export async function putNote(chapter: number, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
   await request(fetchFn, 'PUT', notePath(chapter), { text })
 }
+
+// Month-end report notes: one per month. The month goes into the path only as a valid YYYY-MM,
+// so a bad value can never build a strange URL; it is refused before any request.
+function reportPath(month: string): string {
+  if (!isYearMonth(month)) throw new RangeError(`Not a month: ${String(month)}`)
+  return `/api/reports/${month}`
+}
+
+export async function listReports(fetchFn: FetchFn = defaultFetch): Promise<{ month: string; chars: number }[]> {
+  return (await request(fetchFn, 'GET', '/api/reports')) as { month: string; chars: number }[]
+}
+
+export async function getReport(month: string, fetchFn: FetchFn = defaultFetch): Promise<string> {
+  const entry = (await request(fetchFn, 'GET', reportPath(month))) as { text: string }
+  return entry.text
+}
+
+export async function putReport(month: string, text: string, fetchFn: FetchFn = defaultFetch): Promise<void> {
+  await request(fetchFn, 'PUT', reportPath(month), { text })
+}

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { getJournal, getNote, putJournal, putNote } from '../api.ts'
+import { getJournal, getNote, getReport, putJournal, putNote, putReport } from '../api.ts'
+import { isYearMonth } from '../core/dates.ts'
 
 export type LoadPhase = 'loading' | 'error' | 'ready'
 export type SaveStatus = 'saved' | 'pending' | 'saving' | 'failed'
@@ -33,6 +34,18 @@ export const notesStore: AutosaveStore = {
   id: 'notes',
   get: async (key) => getNote(chapterOf(key)),
   put: async (key, text) => putNote(chapterOf(key), text),
+}
+
+/** Month-end reports are keyed by their month, `YYYY-MM`; any other key is refused before a request. */
+function monthOf(key: string): string {
+  if (!isYearMonth(key)) throw new RangeError(`Not a month key: ${key}`)
+  return key
+}
+
+export const reportsStore: AutosaveStore = {
+  id: 'reports',
+  get: async (key) => getReport(monthOf(key)),
+  put: async (key, text) => putReport(monthOf(key), text),
 }
 
 // ---------------------------------------------------------------------------------------------

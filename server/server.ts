@@ -11,6 +11,7 @@ import { MissingRowError, openArchive } from './archive.ts'
 import type { Archive } from './archive.ts'
 import { appendEntry, isJournalDate, listEntries, readEntry, writeEntry } from './journal.ts'
 import { isNoteChapter, listNotes, readNote, writeNote } from './notes.ts'
+import { isReportMonth, listReports, readReport, writeReport } from './reports.ts'
 import { readSettings, writeSettings } from './settings.ts'
 import { buildStats, emptyStats, STATS_MODES } from './stats.ts'
 import type { StatsMode } from './stats.ts'
@@ -233,6 +234,11 @@ function noteChapter(raw: string): number {
   return /^\d+$/.test(raw) && isNoteChapter(v) ? v : bad('chapter', 'an integer between 1 and 26')
 }
 
+// A report month from a path segment: YYYY-MM with the month 01-12, nothing else.
+function reportMonth(raw: string): string {
+  return isReportMonth(raw) ? raw : bad('month', 'a month as YYYY-MM')
+}
+
 const RESULT_MODES = ['stage0', 'section', 'chapter-test']
 
 function allow(res: ServerResponse, ...methods: string[]): never {
@@ -247,6 +253,7 @@ interface ApiContext {
   settingsFile: string
   journalDir: string
   notesDir: string
+  reportsDir: string
   ensureDataDir(): void
 }
 
@@ -503,6 +510,27 @@ async function route(req: IncomingMessage, res: ServerResponse, pathname: string
     return
   }
 
+  if (pathname === '/api/reports') {
+    if (method !== 'GET') allow(res, 'GET')
+    sendJson(res, 200, listReports(ctx.reportsDir))
+    return
+  }
+
+  // The month segment excludes '/', and reportMonth admits only YYYY-MM before any file access.
+  const report = /^\/api\/reports\/([^/]+)$/.exec(pathname)
+  if (report) {
+    if (method !== 'GET' && method !== 'PUT') allow(res, 'GET', 'PUT')
+    const month = reportMonth(report[1])
+    if (method === 'GET') {
+      sendJson(res, 200, { month, text: readReport(ctx.reportsDir, month) })
+      return
+    }
+    const text = journalText(asObject(await readBody(req, res)), true)
+    writeReport(ctx.reportsDir, month, text)
+    sendJson(res, 200, { month, text })
+    return
+  }
+
   throw new HttpError(404, 'Not found')
 }
 
@@ -519,6 +547,7 @@ export function createServer(opts: ServerOptions): Server {
     settingsFile: join(dataDir, 'settings.json'),
     journalDir: join(dataDir, 'journal'),
     notesDir: join(dataDir, 'notes'),
+    reportsDir: join(dataDir, 'reports'),
     ensureDataDir: () => {
       mkdirSync(dataDir, { recursive: true })
     },

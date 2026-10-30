@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { writeFileAtomic } from './atomic.ts'
 
 const FILE = /^ch(\d\d)\.md$/
 
@@ -26,15 +27,7 @@ export function readNote(dir: string, chapter: number): string {
 
 export function writeNote(dir: string, chapter: number, text: string): void {
   const file = noteFile(dir, chapter)
-  mkdirSync(dir, { recursive: true })
-  const tmp = `${file}.${process.pid}.tmp`
-  try {
-    writeFileSync(tmp, text)
-    renameSync(tmp, file)
-  } catch (err) {
-    rmSync(tmp, { force: true })
-    throw err
-  }
+  writeFileAtomic(dir, file, text)
 }
 
 export function listNotes(dir: string): { chapter: number; chars: number }[] {

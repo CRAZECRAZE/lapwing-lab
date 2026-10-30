@@ -691,6 +691,8 @@ describe('lab routes', () => {
     expect(await json('GET', '/api/journal/2026-10-27')).toEqual({ date: '2026-10-27', text: '' })
     expect(await json('GET', '/api/notes')).toEqual([])
     expect(await json('GET', '/api/notes/5')).toEqual({ chapter: 5, text: '' })
+    expect(await json('GET', '/api/reports')).toEqual([])
+    expect(await json('GET', '/api/reports/2026-10')).toEqual({ month: '2026-10', text: '' })
     expect((await call('GET', '/api/tests/1')).status).toBe(404)
     expect(existsSync(dataDir)).toBe(false)
   })
@@ -949,5 +951,75 @@ describe('lab routes', () => {
     await json('PUT', '/api/notes/5', { text: 'n' })
     expect(await json('GET', '/api/journal')).toEqual([{ date: '2026-10-27', chars: 1 }])
     expect(await json('GET', '/api/notes')).toEqual([{ chapter: 5, chars: 1 }])
+  })
+
+  it('round-trips a report through PUT, GET and the list', async () => {
+    expect(await json('PUT', '/api/reports/2026-10', { text: 'héllo\r\nworld' })).toEqual({ month: '2026-10', text: 'héllo\r\nworld' })
+    expect(await json('GET', '/api/reports/2026-10')).toEqual({ month: '2026-10', text: 'héllo\r\nworld' })
+    expect(await json('GET', '/api/reports')).toEqual([{ month: '2026-10', chars: 12 }])
+    expect(readFileSync(join(dataDir, 'reports', '2026-10.md'), 'utf8')).toBe('héllo\r\nworld')
+    await json('PUT', '/api/reports/2026-02', { text: 'b' })
+    expect(await json('GET', '/api/reports')).toEqual([
+      { month: '2026-02', chars: 1 },
+      { month: '2026-10', chars: 12 },
+    ])
+    expect(await json('PUT', '/api/reports/2026-10', { text: '' })).toEqual({ month: '2026-10', text: '' })
+    expect(await json('GET', '/api/reports')).toEqual([{ month: '2026-02', chars: 1 }])
+    expect(readdirSync(join(dataDir, 'reports')).sort()).toEqual(['2026-02.md', '2026-10.md'])
+  })
+
+  it('accepts a report of exactly 200000 characters', async () => {
+    expect((await call('PUT', '/api/reports/2026-12', { text: 'x'.repeat(200000) })).status).toBe(200)
+  })
+
+  it('400s bad report bodies and months, and creates nothing for them', async () => {
+    const long = 'x'.repeat(200001)
+    const cases: [string, string, unknown][] = [
+      ['PUT', '/api/reports/2026-10', { text: 5 }],
+      ['PUT', '/api/reports/2026-10', { text: null }],
+      ['PUT', '/api/reports/2026-10', {}],
+      ['PUT', '/api/reports/2026-10', []],
+      ['PUT', '/api/reports/2026-10', { text: long }],
+      ['PUT', '/api/reports/2026-13', { text: 'x' }],
+      ['PUT', '/api/reports/2026-00', { text: 'x' }],
+      ['PUT', '/api/reports/2026-1', { text: 'x' }],
+      ['PUT', '/api/reports/abc', { text: 'x' }],
+      ['PUT', '/api/reports/2026-10-01', { text: 'x' }],
+      ['GET', '/api/reports/2026-13', undefined],
+      ['GET', '/api/reports/2026-00', undefined],
+      ['GET', '/api/reports/2026-1', undefined],
+      ['GET', '/api/reports/abc', undefined],
+    ]
+    for (const [method, path, body] of cases) {
+      const res = await call(method, path, body)
+      expect(res.status, `${method} ${path} ${JSON.stringify(body)?.slice(0, 40)}`).toBe(400)
+      expect(typeof ((await res.json()) as { error: string }).error).toBe('string')
+    }
+    // An encoded slash decodes into a longer path, which matches no route.
+    expect((await call('PUT', '/api/reports/2026-10%2F..', { text: 'x' })).status).toBe(404)
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('405s wrong report methods with an Allow header', async () => {
+    const cases: [string, string, string][] = [
+      ['DELETE', '/api/reports/2026-10', 'GET, PUT'],
+      ['POST', '/api/reports/2026-10', 'GET, PUT'],
+      ['POST', '/api/reports', 'GET'],
+      ['PUT', '/api/reports', 'GET'],
+      ['DELETE', '/api/reports', 'GET'],
+    ]
+    for (const [method, path, allowed] of cases) {
+      const res = await call(method, path)
+      expect(res.status, `${method} ${path}`).toBe(405)
+      expect(res.headers.get('allow'), `${method} ${path}`).toBe(allowed)
+    }
+    expect(existsSync(dataDir)).toBe(false)
+  })
+
+  it('does not let the reports routes shadow the notes routes', async () => {
+    await json('PUT', '/api/notes/5', { text: 'n' })
+    await json('PUT', '/api/reports/2026-10', { text: 'r' })
+    expect(await json('GET', '/api/notes')).toEqual([{ chapter: 5, chars: 1 }])
+    expect(await json('GET', '/api/reports')).toEqual([{ month: '2026-10', chars: 1 }])
   })
 })
