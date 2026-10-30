@@ -61,11 +61,12 @@ The full dictionary lookup and the Progress page (M6a) are done (see "The dictio
 
 ## Quick tour
 
-A short walkthrough of every feature, in twelve steps: the book, practice, fix-up, real text and routines, ghosts, History, Days, Progress, Journal, the dock tools and where your data lives. Each step is a small card over the page with **Back**, **Skip** and **Next** (the last step has **Done**). Where a step is about a tab or the tools, a thin ring marks it in the top bar. The tour never changes the page you are on, and it never opens by itself.
+A short walkthrough of every feature, in a few short steps: the book, practice, fix-up, real text and routines, ghosts, History, Days, Progress, Journal, the dock tools and where your data lives. Each step is a small card over the page with **Back**, **Skip** and **Next** (the last step has **Done**). Where a step is about a tab or the tools, a thin ring marks it in the top bar. The tour never changes the page you are on, and it never opens by itself.
 
 - **Open it** with `Ctrl+Shift+T` from anywhere in the app, or with the **Tour** button at the end of the top bar's tool group. The key goes by the physical key, so it works on any layout. Browsers keep `Ctrl+Shift+T` for "reopen closed tab" and may never hand it to the page; if it reopens a tab instead, use the button (an installed app or `--app` window may get the key).
 - **Keys in the tour.** `Esc` skips, `Right arrow` goes to the next step, `Left arrow` back, `Tab` stays inside the card, and the focus returns to where it was when the tour closes. The dock's keys do nothing while the tour is open.
 - **Not during a run.** The key and the button are off while a drill, free-type run, fix-up run or text run is on screen, so a run is never disturbed; an open tour closes if one starts.
+- **Plover's Output.** With the Uni connected and Plover's Output on, a stray Space or Enter can press the focused **Next** or **Done** button, so turn Output off while you take the tour (see "Turn Plover's Output off while practicing" above).
 - Offline, nothing is stored: the tour writes nothing to `data/` or to the browser. The steps are in `src/ui/tourSteps.ts`. See `docs/superpowers/tour-checklist.md` for what to check in your own browser.
 
 ## Chapter practice and gates

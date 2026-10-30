@@ -69,7 +69,7 @@ export function TopBar({ current }: { current: Tab }): JSX.Element {
               type="button"
               class="topbar__tool"
               aria-keyshortcuts="Control+Shift+T"
-              title="Quick tour (Ctrl+Shift+T)"
+              title={tour.disabled ? 'Quick tour (not during a run)' : 'Quick tour (Ctrl+Shift+T)'}
               disabled={tour.disabled}
               onClick={() => tour.start()}
             >

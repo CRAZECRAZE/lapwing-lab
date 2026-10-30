@@ -46,6 +46,22 @@ describe('Tour card', () => {
     expect(counter()).toBe(`Step 1 of ${COUNT}`)
   })
 
+  it('announces a step change: the count, title and text sit in one polite live region', () => {
+    render(<Tour onClose={onClose} />)
+    const region = dialog().querySelector('[aria-live="polite"]') as HTMLElement
+    expect(region).not.toBeNull()
+    for (const part of ['.tour__count', '.tour__title', '.tour__body']) expect(region.querySelector(part)).not.toBeNull()
+    expect(region.contains(next())).toBe(false) // the buttons are not announced
+    const before = region.textContent
+    expect(before).toContain(TOUR_STEPS[0].title)
+    fireEvent.click(next())
+    expect(region.isConnected).toBe(true) // the same region, its text replaced
+    expect(region.textContent).not.toBe(before)
+    expect(region.textContent).toContain(`Step 2 of ${COUNT}`)
+    expect(region.textContent).toContain(TOUR_STEPS[1].title)
+    expect(region.textContent).toContain(TOUR_STEPS[1].body)
+  })
+
   it('goes forward with Next and back with Back, hiding Back on step 1', () => {
     render(<Tour onClose={onClose} />)
     expect(back()).toBeNull()

@@ -28,7 +28,7 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
   {
     id: 'practice',
     title: 'Practice',
-    body: 'Free type, the Stage 0 drills, chapter drills and tests, and the gates between chapters.',
+    body: "Free type, the Stage 0 drills, and the current chapter's drills and test, in the Where you are panel.",
     target: tab('/practice'),
   },
   {
@@ -61,7 +61,7 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
     title: 'Progress',
     body:
       'Speed, accuracy and steadiness over time, the keys and mix-ups that hold typing back, and month-end reports. ' +
-      'A plateau notice appears when progress levels off.',
+      'A plateau notice appears when free-type speed stays flat for a few weeks.',
     target: tab('/progress'),
   },
   {
@@ -74,8 +74,8 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
     id: 'tools',
     title: 'The tools',
     body:
-      'Lookup (/), Key chart (K), Briefs (B) and Notes (N) open as a drawer. While drilling, Alt plus the key does ' +
-      'the same. Esc closes the drawer.',
+      'Lookup (/), Key chart (K), Briefs (B) and Notes (N) open as a drawer. Alt plus the key works from anywhere, ' +
+      'which is the form to use while drilling. Esc closes the drawer.',
     target: '.topbar__tools',
   },
   {

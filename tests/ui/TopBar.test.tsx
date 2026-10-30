@@ -159,7 +159,7 @@ describe('TopBar Tour button', () => {
     ])
     expect(buttons[4]).toBe(tourButton())
     expect(tourButton().type).toBe('button')
-    expect(tourButton().title).toContain('Ctrl+Shift+T')
+    expect(tourButton().title).toBe('Quick tour (Ctrl+Shift+T)')
     expect(tourButton().getAttribute('aria-keyshortcuts')).toBe('Control+Shift+T')
     expect(tourButton().querySelector('kbd')).toBeNull()
     expect(tourButton().disabled).toBe(false)
@@ -195,6 +195,7 @@ describe('TopBar Tour button', () => {
       </TourProvider>,
     )
     expect(tourButton().disabled).toBe(true)
+    expect(tourButton().title).toBe('Quick tour (not during a run)')
     fireEvent.click(tourButton())
     expect(open).toBe(false)
   })

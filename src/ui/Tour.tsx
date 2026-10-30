@@ -122,13 +122,16 @@ export function Tour({ onClose }: { onClose(): void }): JSX.Element {
         aria-describedby={`${id}-body`}
         tabIndex={-1}
       >
-        <p class="tour__count">{`Step ${index + 1} of ${TOUR_STEPS.length}`}</p>
-        <h2 id={`${id}-title`} class="tour__title">
-          {step.title}
-        </h2>
-        <p id={`${id}-body`} class="tour__body">
-          {step.body}
-        </p>
+        {/* One polite region, so a screen reader reads the new step while the focus stays on Next. */}
+        <div aria-live="polite">
+          <p class="tour__count">{`Step ${index + 1} of ${TOUR_STEPS.length}`}</p>
+          <h2 id={`${id}-title`} class="tour__title">
+            {step.title}
+          </h2>
+          <p id={`${id}-body`} class="tour__body">
+            {step.body}
+          </p>
+        </div>
         <div class="tour__footer">
           <div class="tour__dots" aria-hidden="true">
             {TOUR_STEPS.map((s, i) => (
