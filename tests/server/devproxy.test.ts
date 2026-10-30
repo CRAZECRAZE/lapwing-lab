@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -61,6 +61,22 @@ describe('Vite dev proxy', () => {
     expect(write.status).toBe(200)
     expect(JSON.parse(write.body)).toMatchObject({ hints: 'always' })
     expect((await viaVite('GET', '/content/book.json', browser())).status).toBe(200)
+  })
+
+  it('does not relabel a foreign Origin, so the server refuses it and writes nothing', async () => {
+    const dataDir = join(root, 'data')
+    rmSync(dataDir, { recursive: true, force: true }) // an earlier test saved settings here
+    for (const origin of ['https://evil.example', 'http://evil.example', 'null', 'http://localhost:5173']) {
+      const res = await viaVite('PUT', '/api/settings', {
+        Host: `localhost:${vitePort}`,
+        Origin: origin,
+        'Content-Type': 'text/plain',
+      })
+      expect(res.status, origin).toBe(403)
+      expect(res.body).toBe('Forbidden origin')
+    }
+    expect((await viaVite('GET', '/api/settings', { Host: `localhost:${vitePort}`, Origin: 'https://evil.example' })).status).toBe(403)
+    expect(existsSync(dataDir)).toBe(false)
   })
 
   it('also works for a same-origin read without an Origin header', async () => {

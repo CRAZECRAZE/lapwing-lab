@@ -239,3 +239,9 @@ Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks 
 - `selectLast` (the "last test" lookup) still calls `json_extract` on `meta_json` without the `json_valid` guard that `selectGhostRuns` and `selectTimings` have; a hand-edited row with malformed meta would make it throw. The server only writes valid JSON.
 - Pressing Check on a blank box stores an empty string as the unsaved text on purpose (it clears an old one); that is not covered by a test.
 - `tests/core/dictsearch.test.ts` ("does not grow worse than linearly") is a timing test and failed once under load during the M7 full run; it passed three times in isolation and the file is not touched by M7.
+
+**Left open by the server guard**
+
+- A cross-site GET without an `Origin` header passes the guard (the page cannot read the response). Optional defence in depth: also refuse `Sec-Fetch-Site: cross-site` and `same-site`.
+- A `GET` can lazily create `data/` through `archive()`.
+- A request with `Expect: 100-continue` skips the dev proxy's Origin rewrite (cosmetic; dev mode only).
