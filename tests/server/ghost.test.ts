@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseStroke } from '../../src/core/steno.ts'
 import { openArchive } from '../../server/archive.ts'
@@ -74,6 +78,23 @@ describe('Archive.ghostRuns', () => {
     const ids = [1000, 2000, 2000, 3000].map((endedAt) => seedRun(a, { words: 1, wpm: 10, endedAt }))
     expect(a.ghostRuns('section', 'rows-star', 3).map((r) => r.testId)).toEqual([ids[3], ids[2], ids[1]])
     expect(a.ghostRuns('section', 'rows-star', 1).map((r) => r.testId)).toEqual([ids[3]])
+  })
+
+  it('does not throw on a malformed meta_json and treats it as not abandoned', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lapwing-ghost-'))
+    try {
+      const file = join(dir, 'steno.db')
+      const a = openArchive(file)
+      open.push(a)
+      const good = seedRun(a, { words: 1, wpm: 20, endedAt: 2000 })
+      const bad = seedRun(a, { words: 1, wpm: 30, endedAt: 3000 })
+      const raw = new DatabaseSync(file)
+      raw.prepare('UPDATE tests SET meta_json = ? WHERE id = ?').run('{nope', bad)
+      raw.close()
+      expect(a.ghostRuns('section', 'rows-star', 10).map((r) => r.testId)).toEqual([bad, good])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('is empty when nothing matches', () => {

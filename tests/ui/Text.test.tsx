@@ -62,6 +62,28 @@ async function check(text: string): Promise<void> {
 }
 
 describe('Text page: checking', () => {
+  it('starts with the last pasted text still in the box', async () => {
+    setPasted('sap tap kept')
+    await mount()
+    expect(textarea().value).toBe('sap tap kept')
+  })
+
+  it('keeps a checked text for when the page is opened again, started or not', async () => {
+    await check('sap tap again')
+    await screen.findByText('2 of 3 words can be stroked (67%)')
+    expect(getPasted()).toBe('sap tap again')
+    cleanup()
+    await mount()
+    expect(textarea().value).toBe('sap tap again')
+    expect(screen.queryByText(/can be stroked/)).toBeNull() // the check itself is not kept
+  })
+
+  it('does not store text that was typed but not checked', async () => {
+    await mount()
+    enter('sap tap typed')
+    expect(getPasted()).toBe('')
+  })
+
   it('has a text box, a name field and Check', async () => {
     await mount()
     expect(textarea()).toBeTruthy()

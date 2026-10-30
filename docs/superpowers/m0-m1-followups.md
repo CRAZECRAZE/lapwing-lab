@@ -201,7 +201,6 @@ Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks 
 **Ghosts**
 
 - Ghost times include the pauses of the old run: they come from the wall-clock times of its strokes, so a run with a long break in it makes a slow ghost. Known and accepted; the replay is the one the fix-up drill uses and nothing new is stored.
-- Unsaved texts all share the section `text/pasted/<part>`, so the ghost for an unsaved text's part comes from any earlier unsaved text's same part, not from the same text.
 - A drill on a chapter that is still locked still asks for its ghost (a request that is harmless but not needed).
 - A result with 0 words still shows the ghost note.
 - A ghost that arrives late shifts the layout by a line.
@@ -219,6 +218,9 @@ Deferred from the M7 reviews (ghosts, real text, routines). Nothing here blocks 
 - No test for a large multibyte `PUT` or a 413, and none for an empty text `PUT` through the API.
 - Prettier noise: the repo has no formatter config, so a formatter run rewrites unrelated lines.
 - `MAX_TEXTS` and `MAX_NAME_CHARS` are written twice (`src/ui/useSavedTexts.ts` and `server/texts.ts`).
+- `listTexts` reads and parses every saved text in full on each call (it only needs names and character counts); fine on localhost, and a cache or a stored `chars` would fix it.
+- Deleting a saved text and then saving a different one under the same name reuses the id, so its runs share the old text's ghosts and History relabels the old runs with the new name.
+- A routine named only with symbols or non-Latin letters gets the id `text`, `text-2`… (the `textIdFor` fallback).
 - A saved text's row in the list may show its id for a moment before the name (label flicker).
 - After a successful save the hint `Add a name to save it.` shows beside `Saved.` (cosmetic).
 

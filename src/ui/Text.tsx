@@ -4,7 +4,7 @@ import { putText } from '../api.ts'
 import { MAX_TEXT_CHARS, planText, textIdFor } from '../core/realtext.ts'
 import type { TextPlan } from '../core/realtext.ts'
 import { navigate } from '../router.ts'
-import { setPasted } from '../state/pastedtext.ts'
+import { getPasted, setPasted } from '../state/pastedtext.ts'
 import { SavedTexts } from './SavedTexts.tsx'
 import { MAX_NAME_CHARS, MAX_SAVED_TEXTS, useSavedTexts } from './useSavedTexts.ts'
 import { useTextLookup } from './useTextLookup.ts'
@@ -76,7 +76,7 @@ function Verdict({ checked }: { checked: Checked }): JSX.Element | null {
 export function Text(): JSX.Element {
   const { lookup, retry: retryLookup } = useTextLookup()
   const { saved, retry: retryList, add, remove } = useSavedTexts()
-  const [text, setText] = useState('')
+  const [text, setText] = useState(getPasted)
   const [name, setName] = useState('')
   const [checked, setChecked] = useState<Checked | null>(null)
   const [saving, setSaving] = useState(false)
@@ -86,6 +86,8 @@ export function Text(): JSX.Element {
     if (lookup.status !== 'ready') return
     setNote(null)
     if (text.length > MAX_TEXT_CHARS) return setChecked({ kind: 'too-long' })
+    // What was checked is kept for the run and for coming back to this page.
+    setPasted(text)
     if (text.trim() === '') return setChecked({ kind: 'empty' })
     const plan = planText(text, lookup.lookup)
     setChecked(plan.words === 0 ? { kind: 'no-words' } : { kind: 'plan', text, plan })

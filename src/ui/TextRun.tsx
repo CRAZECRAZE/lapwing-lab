@@ -136,7 +136,9 @@ function RunHost({ id, name, part, parts, items }: HostProps): JSX.Element {
   const [result, setResult] = useState<DrillResult | null>(null)
 
   const logTest = { mode: TEXT_MODE, chapter: null, section: `text/${id}/${part}` }
-  const ghost = useGhost(logTest.mode, logTest.section, ghostChoice, run, ghostReady)
+  // Unsaved texts all log `text/pasted/<part>`, so a ghost there would be some other text's pace: they have none.
+  const raced = id !== PASTED
+  const ghost = useGhost(logTest.mode, raced ? logTest.section : null, ghostChoice, run, ghostReady)
   // A new attempt gets a new logger. The Drill starts the logger at the first stroke.
   const logger = useMemo(() => createTestLogger(), [run])
   const title = `Text · ${name} · part ${part}`
@@ -161,7 +163,7 @@ function RunHost({ id, name, part, parts, items }: HostProps): JSX.Element {
       <div class="stage0-pickers">
         <VisibilityPicker value={visibility} onPick={pick} />
         <HintPicker value={hints} onPick={pickHints} />
-        <GhostPicker value={ghostChoice} onPick={pickGhost} />
+        {raced && <GhostPicker value={ghostChoice} onPick={pickGhost} />}
       </div>
       <div class="text-run__where">
         <p class="text-run__name">{name === PASTED ? 'Pasted text' : name}</p>
