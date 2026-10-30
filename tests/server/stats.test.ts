@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runRhythm } from '../../src/core/rhythm.ts'
-import { formatStroke, slotMask, SLOTS } from '../../src/core/steno.ts'
+import { formatStroke, parseStroke, slotMask, SLOTS } from '../../src/core/steno.ts'
 import { openArchive } from '../../server/archive.ts'
 import type { Archive, StrokeRecord } from '../../server/archive.ts'
 import { buildStats, MAX_MIXUPS } from '../../server/stats.ts'
@@ -252,6 +252,62 @@ describe('buildStats', () => {
       expect(buildStats(a, { ...RANGE, mode: 'free' }).days[0]).toMatchObject({
         runs: 2,
         steadiness: steadinessOfStamps(good),
+      })
+    })
+
+    it('ignores the first (start) gap of a free run', () => {
+      const a = memory()
+      const stamps = gapStamps(start, steady)
+      run(a, { stamps, latencyMs: 9000 }) // a very slow first stroke would wreck the score if it were counted
+      expect(buildStats(a, { ...RANGE, mode: 'free' }).days[0]?.steadiness).toBe(100)
+    })
+
+    describe('chapter tests', () => {
+      // 6 words x 3 showings = 18 strokes: 6 first showings (the first is the start), 12 scored repeats.
+      const WORDS = ['SAP', 'KAT', 'TPH', 'RAOE', 'PWAEU', 'HR-F']
+      function wordRun(a: Archive, mode: string): number {
+        const id = a.startTest({
+          sessionId: a.createSession(1000),
+          startedAt: start,
+          mode,
+          chapter: null,
+          section: null,
+          itemCount: WORDS.length * 3,
+        })
+        let ts = start
+        WORDS.forEach((w) => {
+          for (let rep = 0; rep < 3; rep++) {
+            const first = rep === 0
+            ts += first ? 1500 : 400
+            a.addStroke({
+              testId: id,
+              tsMs: ts,
+              prompt: w.toLowerCase(),
+              expected: [w],
+              pressedLevers: [],
+              pressedMask: parseStroke(w),
+              correct: true,
+              latencyMs: first ? 1500 : 400,
+              attemptNo: 1,
+            })
+          }
+        })
+        a.finishTest(id, { endedAt: ts, wpm: 10, accuracy: 0.9, meta: { elapsedMs: 120000 } })
+        return id
+      }
+
+      it('scores a chapter test on its repeats only: slow first showings do not count', () => {
+        const a = memory()
+        wordRun(a, 'chapter-test')
+        expect(buildStats(a, { ...RANGE, mode: 'drills' }).days[0]?.steadiness).toBe(100)
+      })
+
+      it('scores the same strokes in a free run low, as nothing marks the first showings', () => {
+        const a = memory()
+        wordRun(a, 'free')
+        const free = buildStats(a, { ...RANGE, mode: 'free' }).days[0]?.steadiness
+        expect(free).not.toBeNull()
+        expect(free).toBeLessThan(60)
       })
     })
 

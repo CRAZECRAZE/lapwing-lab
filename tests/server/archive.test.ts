@@ -588,6 +588,42 @@ describe('archive stats reads', () => {
       expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['correct', 'latencyMs', 'testId', 'tsMs'])
     })
 
+    it('adds expected and pressedMask only to rows of chapter-test runs', () => {
+      const a = memory()
+      const free = run(a, { stamps: [at(27, 10)], stroke: { expected: ['TKOG'], pressedMask: 5 } })
+      const test = run(a, {
+        stamps: [at(27, 11), at(27, 11, 0, 1)],
+        mode: 'chapter-test',
+        stroke: { expected: ['TKOG', 'SAP'], pressedMask: 9 },
+      })
+      const rows = a.timingsInRange('2026-10-27', '2026-10-27')
+      expect(rows.map((r) => r.testId)).toEqual([free, test, test])
+      expect(rows[0]).not.toHaveProperty('expected')
+      expect(rows[0]?.expected).toBeUndefined()
+      expect(rows[0]?.pressedMask).toBeUndefined()
+      expect(rows[1]?.expected).toEqual(['TKOG', 'SAP'])
+      expect(rows[1]?.pressedMask).toBe(9)
+      expect(rows[2]?.expected).toEqual(['TKOG', 'SAP'])
+    })
+
+    it('leaves expected out of a chapter-test row whose expected_json is malformed', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lapwing-stats-'))
+      try {
+        const file = join(dir, 'steno.db')
+        const a = openArchive(file)
+        open.push(a)
+        const t = run(a, { mode: 'chapter-test' })
+        const raw = new DatabaseSync(file)
+        raw.prepare('UPDATE strokes SET expected_json = ? WHERE test_id = ?').run('{nope', t)
+        raw.close()
+        const rows = a.timingsInRange('2026-10-27', '2026-10-27')
+        expect(rows.map((r) => r.testId)).toEqual([t])
+        expect(rows[0]?.expected).toBeUndefined()
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
     it('leaves out unfinished and left-early runs but keeps timed-out and no-meta runs', () => {
       const a = memory()
       run(a, { finish: null })

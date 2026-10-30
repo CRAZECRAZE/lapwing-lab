@@ -56,7 +56,15 @@ export type RunRow = {
   activeMs: number
 }
 
-export type StrokeTiming = { testId: number; tsMs: number; correct: boolean; latencyMs: number }
+/** One stroke's timing. `expected` and `pressedMask` are present only for rows of `chapter-test` runs (to find first showings). */
+export type StrokeTiming = {
+  testId: number
+  tsMs: number
+  correct: boolean
+  latencyMs: number
+  expected?: string[]
+  pressedMask?: number
+}
 
 export type KeyRow = { expected: string[]; pressedMask: number; correct: boolean; n: number }
 
@@ -253,7 +261,9 @@ export function openArchive(path: string): Archive {
      ORDER BY t.id`,
   )
   const selectTimings = db.prepare(
-    `SELECT st.test_id, st.ts_ms, st.correct, st.latency_ms
+    `SELECT st.test_id, st.ts_ms, st.correct, st.latency_ms,
+            CASE WHEN t.mode = 'chapter-test' THEN st.expected_json END AS expected_json,
+            CASE WHEN t.mode = 'chapter-test' THEN st.pressed_slots_mask END AS pressed_slots_mask
      ${WITH_STROKES}
      JOIN strokes st ON st.test_id = t.id
      WHERE ${LOCAL_DAY} BETWEEN ? AND ?
@@ -431,12 +441,19 @@ export function openArchive(path: string): Archive {
     },
     timingsInRange(from, to) {
       const [lo, hi] = dateRange(from, to)
-      return selectTimings.all(lo, hi).map((r) => ({
-        testId: r.test_id as number,
-        tsMs: r.ts_ms as number,
-        correct: r.correct === 1,
-        latencyMs: r.latency_ms as number,
-      }))
+      return selectTimings.all(lo, hi).map((r) => {
+        const row: StrokeTiming = {
+          testId: r.test_id as number,
+          tsMs: r.ts_ms as number,
+          correct: r.correct === 1,
+          latencyMs: r.latency_ms as number,
+        }
+        if (r.expected_json === null) return row
+        const expected = parseJson(r.expected_json)
+        if (Array.isArray(expected)) row.expected = expected as string[]
+        row.pressedMask = r.pressed_slots_mask as number
+        return row
+      })
     },
     keyRowsInRange(from, to) {
       const [lo, hi] = dateRange(from, to)
