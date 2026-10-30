@@ -2,7 +2,8 @@ import { formatStroke, maskToSlots, parseOutline, slotMask } from './steno.ts'
 import type { Slot, SlotMask } from './steno.ts'
 import type { RawStroke } from './uni.ts'
 
-export type DrillItem = { prompt: string; outlines: string[] }
+export type DrillKind = 'stroke' | 'word'
+export type DrillItem = { prompt: string; outlines: string[]; kind?: DrillKind }
 export type Diff = { missing: Slot[]; extra: Slot[] }
 
 export type StrokeResult =
@@ -20,6 +21,16 @@ export type DrillStats = {
   wpm: number
 }
 
+/** What a drill host needs from a session; `DrillSession` and the fix-up Focus session both satisfy it. */
+export interface DrillRun {
+  readonly total: number
+  readonly index: number
+  readonly current: DrillItem | undefined
+  readonly finished: boolean
+  submit(stroke: RawStroke): StrokeResult
+  stats(): DrillStats
+}
+
 export function diffMasks(expected: SlotMask, pressed: SlotMask): Diff {
   return {
     missing: maskToSlots(expected & ~pressed),
@@ -35,7 +46,7 @@ function popcount(mask: number): number {
   return n
 }
 
-export class DrillSession {
+export class DrillSession implements DrillRun {
   readonly total: number
   private readonly items: readonly DrillItem[]
   private readonly parsed: SlotMask[][][]

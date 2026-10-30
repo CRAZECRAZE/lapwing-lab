@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DrillSession, diffMasks } from '../../src/core/drill.ts'
-import type { DrillItem } from '../../src/core/drill.ts'
+import type { DrillItem, DrillRun } from '../../src/core/drill.ts'
 import { parseStroke } from '../../src/core/steno.ts'
 import type { RawStroke } from '../../src/core/uni.ts'
 
@@ -311,5 +311,15 @@ describe('stats', () => {
     s.submit(press('SAP'))
     expect(s.stats().elapsedMs).toBeGreaterThanOrEqual(0)
     expect(Number.isFinite(s.stats().wpm)).toBe(true)
+  })
+})
+
+describe('DrillItem kind', () => {
+  it('accepts an optional kind and runs as before', () => {
+    const tagged: DrillItem = { prompt: 'cat', outlines: ['KAT'], kind: 'word' }
+    const s: DrillRun = new DrillSession([tagged, { prompt: 'SAP', outlines: ['SAP'], kind: 'stroke' }])
+    expect(s.total).toBe(2)
+    expect(s.submit(press('KAT'))).toEqual({ kind: 'correct', item: tagged, firstTry: true })
+    expect(s.current?.kind).toBe('stroke')
   })
 })

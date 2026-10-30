@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'preact
 import type { Settings } from '../../server/settings.ts'
 import type { TestLogger } from '../api.ts'
 import { DrillSession } from '../core/drill.ts'
-import type { DrillItem, DrillStats } from '../core/drill.ts'
+import type { DrillItem, DrillKind, DrillStats } from '../core/drill.ts'
 import { formatStroke, parseOutline, parseStroke, slotMask } from '../core/steno.ts'
 import type { Slot, SlotMask } from '../core/steno.ts'
 import type { RawStroke } from '../core/uni.ts'
@@ -12,7 +12,7 @@ import { useUni } from '../state/uni-context.tsx'
 import { Board } from './Board.tsx'
 import './drill.css'
 
-export type DrillKind = 'stroke' | 'word'
+export type { DrillKind }
 export type DrillResult = { stats: DrillStats; passed: boolean | null; meta: unknown }
 
 /** The session and the logger are fixed at mount: the parent must `key` the Drill per test/drill. */
