@@ -729,8 +729,10 @@
   margin-top: 0.5rem;
 }
 
-.rhythm__chapternote {
-  margin-top: 0.75rem;
+.rhythm__tag {
+  margin-top: 0.1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .rhythm__figures {
@@ -844,6 +846,19 @@
 .rhythm__bar--stall {
   fill: var(--stall);
   fill-opacity: 1;
+}
+
+.rhythm__bar--start {
+  fill: var(--link);
+  fill-opacity: 0.55;
+}
+
+.rhythm__bar--fresh {
+  fill: var(--muted);
+  fill-opacity: 0.18;
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
 .rhythm__break {

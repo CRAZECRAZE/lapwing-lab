@@ -2,15 +2,16 @@ import type { JSX } from 'preact'
 import { useMemo } from 'preact/hooks'
 import type { StrokeRecord, TestRow } from '../../../server/archive.ts'
 import { dateTickOffsets, labelsThatFit, niceMax, num, scaleLinear, stripCeiling, textWidth, ticks } from '../../core/chartmath.ts'
+import { firstShowings } from '../../core/chaptertest.ts'
 import { quarterWpm, RHYTHM_DEFAULTS, runRhythm } from '../../core/rhythm.ts'
-import type { Rhythm } from '../../core/rhythm.ts'
+import type { Rhythm, RhythmGap } from '../../core/rhythm.ts'
 import { completedWords } from '../../core/words.ts'
 import { ChartSvg, DataTable, Grid, Tip, useChartPoints, VIEW_H, VIEW_W, XLabels } from './Chart.tsx'
 import type { Box, Margins } from './Chart.tsx'
 import '../progress.css'
 
 type RunInfo = Pick<TestRow, 'wpm' | 'accuracy' | 'meta' | 'mode'>
-type StrokeInfo = Pick<StrokeRecord, 'tsMs' | 'correct' | 'latencyMs'>
+type StrokeInfo = Pick<StrokeRecord, 'tsMs' | 'correct' | 'latencyMs' | 'expected' | 'pressedMask'>
 
 // The strip: room on the left for the seconds, under for the stroke numbers and their title.
 const STRIP_MARGINS: Margins = { l: 52, r: 12, t: 22, b: 28 }
@@ -24,9 +25,6 @@ const MAX_FIT = 300
 const WIDE_SLOT = 3
 const QUARTER_MARGINS: Margins = { l: 46, r: 12, t: 24, b: 30 }
 const QUARTER_NAMES = ['1st', '2nd', '3rd', '4th']
-
-const CHAPTER_NOTE =
-  "A chapter test shows each word three times in a row. The pause before a word's first showing includes reading time, and the stalls and the steadiness count it, so compare this score with other chapter tests, not with free type."
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n))
 const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
@@ -45,17 +43,19 @@ const tickSeconds = (s: number): string => `${Math.round(s * 1000) / 1000} s`
  * Shared by the Progress panel and the History run page. `strokes` are the run's strokes in order.
  */
 export function RhythmView({ test, strokes }: { test: RunInfo; strokes: readonly StrokeInfo[] }): JSX.Element {
-  const rhythm = useMemo(
-    () => runRhythm(strokes.map((s) => ({ tsMs: s.tsMs, correct: s.correct, latencyMs: s.latencyMs }))),
-    [strokes],
-  )
+  // In a chapter test the first showing of a word includes reading time: those strokes are `fresh` and not scored.
+  const chapterTest = test.mode === 'chapter-test'
+  const rhythm = useMemo(() => {
+    const fresh = chapterTest ? firstShowings(strokes) : null
+    return runRhythm(strokes.map((s, i) => ({ tsMs: s.tsMs, correct: s.correct, latencyMs: s.latencyMs, fresh: fresh?.[i] === true })))
+  }, [strokes, chapterTest])
   const words = useMemo(() => completedWords(test.wpm, test.accuracy, test.meta), [test.wpm, test.accuracy, test.meta])
   // a run with no words has no speed to share out: every quarter is unknown
   const quarters = useMemo(() => (words > 0 ? quarterWpm(rhythm, words) : [null, null, null, null]), [rhythm, words])
 
   if (rhythm.gaps.length === 0) return <p class="progress__muted">No strokes recorded for this run.</p>
 
-  const scoredGaps = rhythm.gaps.length - rhythm.breaks
+  const scoredGaps = rhythm.gaps.filter(isScored).length
   const first = quarters[0]
   const last = quarters[3]
   const change = first !== null && last !== null ? last - first : null
@@ -66,6 +66,7 @@ export function RhythmView({ test, strokes }: { test: RunInfo; strokes: readonly
         <div class="rhythm__figure">
           <dt>Steadiness</dt>
           <dd class="rhythm__value">{rhythm.steadiness === null ? '—' : `${rhythm.steadiness} / 100`}</dd>
+          {chapterTest && <dd class="rhythm__tag">repeats only</dd>}
           <dd class="rhythm__meaning">
             {rhythm.steadiness === null ? 'not enough strokes to score' : 'How evenly your strokes were spaced. Higher is steadier.'}
           </dd>
@@ -86,7 +87,6 @@ export function RhythmView({ test, strokes }: { test: RunInfo; strokes: readonly
           <dd class="rhythm__meaning">Last quarter against the first, estimated.</dd>
         </div>
       </dl>
-      {test.mode === 'chapter-test' && <p class="panel__note rhythm__chapternote">{CHAPTER_NOTE}</p>}
       {rhythm.steadiness === null && (
         <p class="panel__note">
           {scoredGaps < RHYTHM_DEFAULTS.minGaps
@@ -99,6 +99,24 @@ export function RhythmView({ test, strokes }: { test: RunInfo; strokes: readonly
       <Quarters quarters={quarters} rhythm={rhythm} wpm={test.wpm} words={words} />
     </div>
   )
+}
+
+/** A gap that counts towards the typical gap, the stalls and the steadiness. */
+const isScored = (g: RhythmGap): boolean => g.kind === 'normal' || g.kind === 'stall'
+const KIND_WORDS: Record<RhythmGap['kind'], string> = {
+  normal: 'normal',
+  stall: 'stall',
+  break: 'break',
+  start: 'start',
+  fresh: 'first showing',
+}
+
+const BAR_CLASS: Record<RhythmGap['kind'], string> = {
+  normal: 'rhythm__bar',
+  stall: 'rhythm__bar rhythm__bar--stall',
+  break: 'rhythm__bar',
+  start: 'rhythm__bar rhythm__bar--start',
+  fresh: 'rhythm__bar rhythm__bar--fresh',
 }
 
 function signedWpm(diff: number): string {
@@ -123,7 +141,10 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
   const centre = (i: number): number => num(box.left + slot * (i + 0.5))
 
   // The scale: the tallest bar is the longest pause, but no more than 3 times the 95th percentile.
-  const topSeconds = niceMax(stripCeiling(gaps.filter((g) => g.kind !== 'break').map((g) => g.ms)) / 1000)
+  // The scale comes from the scored gaps: a long start or first-showing pause is capped (and marked) instead of squashing
+  // the rest. A run with no scored gap falls back to every gap that is not a break.
+  const scored = gaps.filter(isScored)
+  const topSeconds = niceMax(stripCeiling((scored.length > 0 ? scored : gaps.filter((g) => g.kind !== 'break')).map((g) => g.ms)) / 1000)
   const y = scaleLinear([0, topSeconds], [box.bottom, box.top])
   const yOf = (ms: number): number => num(y(clamp(ms / 1000, 0, topSeconds)))
   const left = ticks(topSeconds).map((v) => ({ value: v, y: y(v), text: tickSeconds(v) }))
@@ -133,9 +154,10 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
 
   const detail = (i: number): string => {
     const g = gaps[i]
-    return `${pause(g.ms)} pause${g.kind === 'normal' ? '' : `, ${g.kind}`}`
+    return `${pause(g.ms)} pause${g.kind === 'normal' ? '' : `, ${KIND_WORDS[g.kind]}`}`
   }
   const label = (i: number): string => `Stroke ${i + 1}: ${detail(i)}`
+  const fresh = gaps.filter((g) => g.kind === 'fresh').length
   const typicalY = typicalGapMs === null ? null : yOf(typicalGapMs)
 
   // a `break` word over the dotted line, unless another is close to it
@@ -148,7 +170,7 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
     }
   })
 
-  const rows = gaps.map((g, i) => ({ key: String(i), cells: [String(i + 1), (g.ms / 1000).toFixed(2), g.kind] }))
+  const rows = gaps.map((g, i) => ({ key: String(i), cells: [String(i + 1), (g.ms / 1000).toFixed(2), KIND_WORDS[g.kind]] }))
   const shown = active !== null ? gaps[active] : null
   const shownY = shown === null ? 0 : shown.kind === 'break' ? box.top : yOf(shown.ms)
 
@@ -220,7 +242,7 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
                     </>
                   ) : (
                     <rect
-                      class={g.kind === 'stall' ? 'rhythm__bar rhythm__bar--stall' : 'rhythm__bar'}
+                      class={BAR_CLASS[g.kind]}
                       x={num(x - barWidth / 2)}
                       y={top}
                       width={num(barWidth)}
@@ -238,9 +260,12 @@ function Strip({ rhythm }: { rhythm: Rhythm }): JSX.Element {
       </div>
       <p class="rhythm__xtitle">Stroke number</p>
       <p class="panel__note">
-        This run: {plural(rhythm.stalls, 'stall')}, {plural(rhythm.breaks, 'break')}. Each bar is the pause before one stroke; red bars are
-        stalls. A dotted line marked break is a pause over 10 seconds, left out of the scores. A short line over a bar means it is taller
-        than the chart. The dashed line is your typical gap.
+        This run: {plural(rhythm.stalls, 'stall')}, {plural(rhythm.breaks, 'break')}. Started after {pause(gaps[0].ms)}. Each bar is the pause
+        before one stroke; red bars are stalls. The first bar is the start: the time from the word appearing to your first key, left out of
+        the scores.
+        {fresh > 0 && ` The ${plural(fresh, 'pale dashed bar')} ${fresh === 1 ? 'is a first showing' : 'are first showings'} of a word (reading time), left out of the scores.`}
+        {' '}A dotted line marked break is a pause over 10 seconds, left out of the scores. A short line over a bar means it is taller than
+        the chart. The dashed line is your typical gap.
       </p>
       <DataTable
         lazy

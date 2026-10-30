@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render } from '@testing-library/preact'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { StrokeRecord } from '../../../server/archive.ts'
+import { parseStroke } from '../../../src/core/steno.ts'
 import { RhythmView } from '../../../src/ui/progress/RhythmView.tsx'
 import { even, strokesOf, testRow } from './rhythmFixtures.ts'
 import { badNumbers } from './fixtures.ts'
@@ -29,25 +31,121 @@ const openNumbers = (details: Element): void => {
 }
 const stripNumbers = (c: Element): Element => c.querySelector('.rhythm__strip details')!
 
-const CHAPTER_NOTE =
-  "A chapter test shows each word three times in a row. The pause before a word's first showing includes reading time, and the stalls and the steadiness count it, so compare this score with other chapter tests, not with free type."
+const OUTLINES = ['KAT', 'TKOG', 'SAP', 'PWAT', 'TAPB', 'PAT', 'RAT', 'HAT', 'SAT', 'PHAT']
 
-describe('RhythmView: the chapter-test note', () => {
-  it('explains the three showings under the four figures of a chapter test', () => {
-    const { container } = view(even(60), testRow({ mode: 'chapter-test' }))
-    const note = Array.from(container.querySelectorAll('p')).filter((p) => p.textContent === CHAPTER_NOTE)
-    expect(note).toHaveLength(1)
-    const figures = container.querySelector('.rhythm__figures')!
-    expect(figures.compareDocumentPosition(note[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(note[0].compareDocumentPosition(container.querySelector('.rhythm__strip')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+/** A chapter test run: `words` words three times each, one correct stroke per showing. Stroke 0 starts after 3.2 s, the
+ * first showing of each later word follows a 2 s pause and every repeat 0.4 s. */
+function chapterStrokes(words: number): StrokeRecord[] {
+  const gaps = Array.from({ length: words * 3 }, (_, i) => (i === 0 ? 3200 : i % 3 === 0 ? 2000 : 400))
+  return strokesOf(gaps).map((s, i) => {
+    const expected = [OUTLINES[Math.floor(i / 3) % OUTLINES.length]]
+    return { ...s, expected, pressedMask: parseStroke(expected[0]) }
+  })
+}
+const chapterView = (words = 20) => render(<RhythmView test={testRow({ mode: 'chapter-test' })} strokes={chapterStrokes(words)} />)
+
+describe('RhythmView: the first bar, start', () => {
+  it('says how long the run took to start, in seconds like the rest of the view', () => {
+    const { container } = view([3200, ...even(59)])
+    const note = container.querySelector('.rhythm__strip .panel__note')!.textContent!
+    expect(note).toContain('Started after 3.2 s')
+    expect(hits(container)[0].getAttribute('aria-label')).toBe('Stroke 1: 3.2 s pause, start')
   })
 
-  it('is not shown for a free run or any other mode', () => {
-    for (const mode of ['free', 'section', 'stage0'] as const) {
-      const { container, unmount } = view(even(60), testRow({ mode }))
-      expect(container.textContent).not.toContain('shows each word three times')
-      unmount()
+  it('draws the start bar in its own class and counts it as neither stall nor break', () => {
+    const { container } = view([30_000, ...even(59)])
+    expect(strip(container).querySelectorAll('rect.rhythm__bar--start')).toHaveLength(1)
+    expect(hits(container)[0].querySelector('rect.rhythm__bar--start')).not.toBeNull()
+    expect(hits(container)[0].getAttribute('aria-label')).toBe('Stroke 1: 30 s pause, start')
+    expect(figure(container, 'Stalls')).toMatch(/^0/)
+    expect(container.querySelector('.rhythm__strip')!.textContent).toContain('0 stalls, 0 breaks')
+    expect(breaks(container)).toHaveLength(0)
+    expect(container.textContent).toContain('Started after 30 s')
+  })
+
+  it('does not let a huge start gap squash the other bars: it is capped and marked', () => {
+    const { container } = view([60_000, ...even(59)])
+    const heights = bars(container).map((b) => Number(b.getAttribute('height')))
+    expect(Math.max(...heights)).toBeLessThanOrEqual(190)
+    expect(Math.min(...heights.slice(1))).toBeGreaterThan(190 * 0.2)
+    expect(hits(container)[0].querySelector('.rhythm__capmark')).not.toBeNull()
+  })
+
+  it('has the word start in the table kind column', () => {
+    const { container } = view([3200, ...even(59)])
+    openNumbers(stripNumbers(container))
+    expect(Array.from(stripNumbers(container).querySelectorAll('tbody tr')[0].children).map((c) => c.textContent)).toEqual(['1', '3.20', 'start'])
+  })
+
+  it('does not count a start gap as a scored stroke when there are too few to score', () => {
+    const { container } = view([3200, ...even(9)]) // 10 strokes, only 9 scored
+    expect(figure(container, 'Steadiness')).toMatch(/^—/)
+    expect(container.textContent).toContain('Rhythm needs at least 10 strokes to be scored.')
+  })
+})
+
+describe('RhythmView: chapter tests', () => {
+  it('draws first showings paler, labelled first showing, and keeps them out of stalls and breaks', () => {
+    const { container } = chapterView()
+    const fresh = hits(container).filter((h) => h.querySelector('rect.rhythm__bar--fresh'))
+    expect(fresh).toHaveLength(19) // words 2 to 20: word 1's first showing is the start
+    expect(fresh[0].getAttribute('aria-label')).toBe('Stroke 4: 2.0 s pause, first showing')
+    expect(stallBars(container)).toHaveLength(0)
+    expect(figure(container, 'Stalls')).toMatch(/^0/)
+    expect(container.querySelector('.rhythm__strip')!.textContent).toContain('0 stalls, 0 breaks')
+    expect(figure(container, 'Typical gap')).toMatch(/^0\.40 s/)
+  })
+
+  it('says first showing in the table kind column and in the tooltip', () => {
+    const { container } = chapterView()
+    openNumbers(stripNumbers(container))
+    const rows = Array.from(stripNumbers(container).querySelectorAll('tbody tr'))
+    expect(Array.from(rows[3].children).map((c) => c.textContent)).toEqual(['4', '2.00', 'first showing'])
+    expect(Array.from(rows[4].children).map((c) => c.textContent)).toEqual(['5', '0.40', 'normal'])
+    fireEvent.focus(hits(container)[3])
+    expect(strip(container).querySelector('.chart__tip')!.textContent).toContain('first showing')
+  })
+
+  it('explains the paler bars in words', () => {
+    const { container } = chapterView()
+    const text = container.querySelector('.rhythm__strip')!.textContent!
+    expect(text).toContain('first showing')
+    expect(text).toContain('Started after 3.2 s')
+  })
+
+  it('labels the steadiness figure repeats only, and replaces the old explanatory note', () => {
+    const { container } = chapterView()
+    const steadiness = figure(container, 'Steadiness')
+    expect(steadiness).toContain('repeats only')
+    expect(Number(/^(\d+) \/ 100/.exec(steadiness)![1])).toBeGreaterThanOrEqual(95)
+    expect(container.textContent).not.toContain('shows each word three times')
+    expect(container.textContent).not.toContain('compare this score with other chapter tests')
+    expect(container.querySelector('.rhythm__chapternote')).toBeNull()
+  })
+
+  it('draws no first-showing bars and no repeats only label for a free run, even with the same strokes', () => {
+    const { container } = render(<RhythmView test={testRow({ mode: 'free' })} strokes={chapterStrokes(20)} />)
+    expect(strip(container).querySelectorAll('rect.rhythm__bar--fresh')).toHaveLength(0)
+    expect(container.textContent).not.toContain('repeats only')
+    expect(container.textContent).not.toContain('first showing')
+    expect(figure(container, 'Stalls')).not.toMatch(/^0/) // the 2 s pauses are stalls in a free run
+    for (const mode of ['section', 'stage0'] as const) {
+      const other = render(<RhythmView test={testRow({ mode })} strokes={chapterStrokes(20)} />)
+      expect(other.container.textContent).not.toContain('repeats only')
+      other.unmount()
     }
+  })
+
+  it('does not throw and shows no first showings when stroke rows cannot be replayed', () => {
+    const strokes = strokesOf(even(30)).map((s) => ({ ...s, expected: [], pressedMask: 0 }))
+    const { container } = render(<RhythmView test={testRow({ mode: 'chapter-test' })} strokes={strokes} />)
+    expect(badNumbers(container)).toEqual([])
+  })
+
+  it('stays finite when every stroke is a first showing', () => {
+    const strokes = chapterStrokes(5).map((s, i) => ({ ...s, expected: [`${OUTLINES[i % 10]}`], pressedMask: 0 }))
+    const { container } = render(<RhythmView test={testRow({ mode: 'chapter-test' })} strokes={strokes} />)
+    expect(badNumbers(container)).toEqual([])
   })
 })
 
@@ -441,6 +539,18 @@ describe('progress.css: the rules the long strip depends on', () => {
     expect(body('.rhythm__stripbox')).toMatch(/display:\s*flex/)
     expect(body('.rhythm__scroll')).toMatch(/min-width:\s*0/)
     expect(body('.rhythm__yaxis')).toMatch(/flex:\s*none/)
+  })
+
+  it('styles start and first showing bars with colours from the :root tokens only', () => {
+    const reader = readFileSync('src/ui/reader.css', 'utf8')
+    const tokens = new Set(Array.from(/:root\s*\{([^}]*)\}/.exec(reader)![1].matchAll(/(--[a-z-]+):/g), (m) => m[1]))
+    for (const selector of ['.rhythm__bar--start', '.rhythm__bar--fresh']) {
+      const rule = body(selector)
+      expect(rule, selector).not.toBe('')
+      expect(rule, selector).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i)
+      for (const m of rule.matchAll(/var\((--[a-z-]+)\)/g)) expect(tokens.has(m[1]), `${selector} ${m[1]}`).toBe(true)
+    }
+    expect(body('.rhythm__bar--fresh')).toMatch(/stroke-dasharray/)
   })
 
   it('draws stalls with the --stall token, defined once in :root of reader.css with the keyboard miss red', () => {

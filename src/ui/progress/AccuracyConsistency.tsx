@@ -21,7 +21,7 @@ import { MODE_SCOPES } from './Tiles.tsx'
 import type { ReadyData } from './Tiles.tsx'
 
 const TITLE = 'Accuracy and consistency'
-const CHAPTER_LINE = 'Chapter tests show each word three times, so their steadiness reads lower than free type. Compare like with like.'
+const CHAPTER_LINE = 'Chapter tests count their repeats only.'
 const LINE = 'Line: first-try accuracy per day. Bars: how steady your stroke timing was (taller is steadier).'
 
 // Room on the right for the steadiness axis.
