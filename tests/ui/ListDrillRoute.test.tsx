@@ -122,6 +122,25 @@ describe('ListDrillRoute', () => {
     expect(location.pathname).toBe('/page/ch06')
   })
 
+  it('leads back to the routine from Exit and the result card when opened from a routine', async () => {
+    history.replaceState(null, '', '/drill/list/6-fqm?from=routine')
+    stubContent(CONTENT)
+    const rig = await mountRig(<ListDrillRoute listId="6-fqm" />)
+    rig.stroke(SAP)
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(within(card).queryByRole('link', { name: 'Back to Chapter 6' })).toBeNull()
+    expect(within(card).getByRole('link', { name: 'Back to routine' }).getAttribute('href')).toBe('/practice/routine')
+  })
+
+  it('leads back to the routine on Exit when opened from a routine', async () => {
+    history.replaceState(null, '', '/drill/list/6-fqm?from=routine')
+    stubContent(CONTENT)
+    await mountRig(<ListDrillRoute listId="6-fqm" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    expect(location.pathname).toBe('/practice/routine')
+  })
+
   it('shows the locked notice for a list of a locked chapter', async () => {
     getProgress.mockResolvedValue([])
     stubContent(CONTENT)

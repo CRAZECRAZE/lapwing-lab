@@ -6,6 +6,7 @@ import { requirementText } from '../core/progress.ts'
 import { shuffle } from '../stage0/lists.ts'
 import { useProgress } from '../state/progress.tsx'
 import { DrillRunner, RunnerMessage } from './DrillRunner.tsx'
+import { backTarget } from './backTarget.ts'
 
 const HOME = '/'
 const LIST_ID = /^(\d+)-[A-Za-z0-9_-]+$/
@@ -67,8 +68,10 @@ export function ListDrillRoute({ listId }: { listId: string }): JSX.Element {
 
   const chapter = entry?.chapter ?? Number(valid[1])
   const info = progress.chapters.find((c) => c.chapter === chapter)
-  const backHref = info ? `/page/${info.pageId}` : HOME
-  const backLabel = info ? `Back to Chapter ${chapter}` : 'Back to the book'
+  const { href: backHref, label: backLabel } = backTarget(
+    info ? `/page/${info.pageId}` : HOME,
+    info ? `Back to Chapter ${chapter}` : 'Back to the book',
+  )
   const items = list.list.items
   if (items.length === 0) return <RunnerMessage text="This list has no words yet." href={backHref} label={backLabel} />
 

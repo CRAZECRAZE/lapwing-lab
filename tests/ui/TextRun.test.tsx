@@ -257,3 +257,29 @@ describe('TextRun', () => {
     expect(await screen.findByText('Part 1 of 1')).toBeTruthy()
   })
 })
+
+describe('TextRun opened from a routine', () => {
+  beforeEach(() => history.replaceState(null, '', '/practice/text/run/pasted/1?from=routine'))
+
+  it('leads back to the routine on Exit', async () => {
+    setPasted('sap tap')
+    await mount('pasted', 1)
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    expect(location.pathname).toBe('/practice/routine')
+  })
+
+  it('leads back to the routine from the result card', async () => {
+    setPasted('sap')
+    const rig = await mount('pasted', 1)
+    rig.stroke(SAP)
+    const card = await screen.findByRole('region', { name: 'Result' })
+    expect(within(card).queryByRole('link', { name: 'Back to text' })).toBeNull()
+    expect(within(card).getByRole('link', { name: 'Back to routine' }).getAttribute('href')).toBe('/practice/routine')
+  })
+
+  it('leads back to the routine from a message', async () => {
+    getText.mockResolvedValue(null)
+    await mount('nope', 1)
+    expect(screen.getByRole('link', { name: 'Back to routine' }).getAttribute('href')).toBe('/practice/routine')
+  })
+})

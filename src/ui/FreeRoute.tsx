@@ -16,6 +16,7 @@ import { GhostNote } from './GhostLine.tsx'
 import { GhostPicker, useGhostChoice } from './GhostPicker.tsx'
 import { HintPicker, useHints } from './HintPicker.tsx'
 import { QuickNote } from './QuickNote.tsx'
+import { backTarget } from './backTarget.ts'
 import { useGhost } from './useGhost.ts'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
 import './practice.css'
@@ -50,16 +51,17 @@ async function loadSource(id: string): Promise<Data> {
 }
 
 function BackLink(): JSX.Element {
+  const back = backTarget(PRACTICE_HREF, 'Back to Practice')
   return (
     <a
-      href={PRACTICE_HREF}
+      href={back.href}
       onClick={(e) => {
         if (!isPlainClick(e)) return
         e.preventDefault()
-        navigate(PRACTICE_HREF)
+        navigate(back.href)
       }}
     >
-      Back to Practice
+      {back.label}
     </a>
   )
 }
@@ -91,6 +93,7 @@ function FreeResult({
   onAgain(): void
 }): JSX.Element {
   const { stats, meta } = result
+  const back = backTarget(PRACTICE_HREF, 'Back to Practice')
   const timedOut = (meta as { timedOut?: unknown } | null)?.timedOut === true
   return (
     <section class="stage0-run stage0-summary free-result" aria-label="Result">
@@ -106,7 +109,7 @@ function FreeResult({
       <QuickNote title={title} stats={stats.completed === 0 ? null : { accuracy: stats.accuracy, wpm: stats.wpm }} />
       <div class="stage0-summary__actions">
         <button type="button" class="stage0-button" onClick={onAgain}>Again</button>
-        <button type="button" class="stage0-button" onClick={() => navigate(PRACTICE_HREF)}>Back to Practice</button>
+        <button type="button" class="stage0-button" onClick={() => navigate(back.href)}>{back.label}</button>
       </div>
     </section>
   )
@@ -196,7 +199,7 @@ export function FreeRoute({ source: sourceId, mode: modeId }: { source: string; 
         view="flow"
         timeLimitMs={mode.seconds === undefined ? undefined : mode.seconds * 1000}
         onDone={setResult}
-        onExit={() => navigate(PRACTICE_HREF)}
+        onExit={() => navigate(backTarget(PRACTICE_HREF, 'Back to Practice').href)}
       />
     </div>
   )

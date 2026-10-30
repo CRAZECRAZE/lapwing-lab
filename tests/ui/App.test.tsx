@@ -20,6 +20,9 @@ beforeEach(() => {
         const word = (prompt: string) => ({ prompt, outlines: ['SAP'], kind: 'word', attempts: 9, misses: 3, rate: 0.3, lastTsMs: 1 })
         return new Response(JSON.stringify({ from: '', to: '', words: [word('one'), word('two')], patterns: [] }), { status: 200 })
       }
+      if (url === '/api/routines') {
+        return new Response('{"routines":[{"id":"morning","name":"Morning","steps":[{"kind":"fixup","tab":"words"}]}],"active":"morning"}', { status: 200 })
+      }
       if (url === '/api/texts') return new Response('[{"id":"moby","name":"Moby Dick","chars":9}]', { status: 200 })
       if (url === '/content/dictionary.json') {
         return new Response('{"commit":"x","letters":{},"cards":[{"t":"sap","r":[{"o":"SAP"}]}]}', { status: 200 })
@@ -202,6 +205,14 @@ describe('App shell', () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Real text' })).toBeTruthy()
     expect(await screen.findByRole('link', { name: 'Moby Dick' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('shows the routine page under the Practice tab', async () => {
+    history.replaceState(null, '', '/practice/routine')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Morning' })).toBeTruthy()
+    expect(await screen.findByText('0 of 1 done today')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Practice' }).getAttribute('aria-current')).toBe('page')
   })
 

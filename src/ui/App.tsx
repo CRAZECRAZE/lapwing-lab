@@ -19,6 +19,7 @@ import { Progress } from './Progress.tsx'
 import { Reader } from './Reader.tsx'
 import { Report } from './Report.tsx'
 import { Reports } from './Reports.tsx'
+import { RoutinePage } from './Routine.tsx'
 import { StatusLine } from './StatusLine.tsx'
 import { Stage0Route } from './Stage0Route.tsx'
 import { TestDetail } from './TestDetail.tsx'
@@ -46,6 +47,7 @@ export function App(): JSX.Element {
               {route.name === 'fixup-run' && <FixupRun key={`${route.kind}${location.search}`} kind={route.kind} />}
               {route.name === 'text' && <Text />}
               {route.name === 'text-run' && <TextRun key={`${route.id}/${route.part}`} id={route.id} part={route.part} />}
+              {route.name === 'routine' && <RoutinePage />}
               {route.name === 'history' && <History />}
               {route.name === 'test' && <TestDetail id={route.id} key={route.id} />}
               {route.name === 'days' && <Days key={route.date ?? 'month'} date={route.date} />}

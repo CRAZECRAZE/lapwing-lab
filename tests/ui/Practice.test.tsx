@@ -16,10 +16,16 @@ vi.mock('../../src/api.ts', () => ({
   getSettings: vi.fn(async () => ({ plateauSnoozedUntil: null })),
   putSettings: vi.fn(),
   getFixup: vi.fn(),
+  getRoutines: vi.fn(),
+  listTests: vi.fn(),
+  listTexts: vi.fn(),
 }))
 const api = await import('../../src/api.ts')
 const getLastTest = vi.mocked(api.getLastTest)
 const getFixup = vi.mocked(api.getFixup)
+const getRoutines = vi.mocked(api.getRoutines)
+const listTests = vi.mocked(api.listTests)
+const listTexts = vi.mocked(api.listTexts)
 
 const lists = (words: number, patterns: number): FixupLists => ({
   from: '2026-10-02',
@@ -84,6 +90,9 @@ beforeEach(() => {
   history.replaceState(null, '', '/practice')
   fake.value = progress('ready')
   getFixup.mockReset().mockResolvedValue(lists(0, 0))
+  getRoutines.mockReset().mockResolvedValue({ routines: [], active: null })
+  listTests.mockReset().mockResolvedValue([])
+  listTexts.mockReset().mockResolvedValue([])
   getLastTest.mockReset().mockImplementation(async (mode, section) => {
     if (mode === 'free' && section === 'pseudo/words-25') return row({ accuracy: 0.92, wpm: 41.2 })
     if (mode === 'free' && section === 'ch-8/words-25') return row({ accuracy: 0.81, wpm: 30.6 })
@@ -493,5 +502,62 @@ describe('Practice', () => {
       render(<Practice />)
       expect(card()).toBeTruthy()
     })
+  })
+})
+
+describe('Practice Routine card', () => {
+  const card = (): HTMLElement => screen.getByRole('region', { name: 'Routine' })
+  const doc = {
+    routines: [
+      {
+        id: 'morning',
+        name: 'Morning',
+        steps: [
+          { kind: 'list' as const, listId: '5-cvc' },
+          { kind: 'fixup' as const, tab: 'words' as const },
+          { kind: 'fixup' as const, tab: 'patterns' as const },
+        ],
+      },
+    ],
+    active: 'morning',
+  }
+
+  it('shows the active routine and how much of it is done today, with a link to the page', async () => {
+    getRoutines.mockResolvedValue(doc)
+    listTests.mockResolvedValue([row({ mode: 'section', section: '5-cvc' })] as never)
+    stubIndex(INDEX)
+    render(<Practice />)
+    expect(await within(card()).findByText('1 of 3 done today')).toBeTruthy()
+    expect(within(card()).getByText('Morning')).toBeTruthy()
+    const go = within(card()).getByRole('link')
+    expect(go.getAttribute('href')).toBe('/practice/routine')
+    expect(fireEvent.click(go)).toBe(false)
+    expect(location.pathname).toBe('/practice/routine')
+  })
+
+  it('says there is none, and links to plan one, when there is no routine', async () => {
+    stubIndex(INDEX)
+    render(<Practice />)
+    expect(await within(card()).findByText('No routine yet.')).toBeTruthy()
+    expect(within(card()).getByRole('link', { name: 'Plan a routine' }).getAttribute('href')).toBe('/practice/routine')
+  })
+
+  it('says none is active when routines exist but none is', async () => {
+    getRoutines.mockResolvedValue({ ...doc, active: null })
+    stubIndex(INDEX)
+    render(<Practice />)
+    expect(await within(card()).findByText('No routine is active.')).toBeTruthy()
+    expect(within(card()).getByRole('link').getAttribute('href')).toBe('/practice/routine')
+  })
+
+  it('shows only the link when the routines do not load', async () => {
+    getRoutines.mockRejectedValue(new Error('offline'))
+    stubIndex(INDEX)
+    render(<Practice />)
+    await waitFor(() => expect(getRoutines).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 10))
+    expect(within(card()).queryByRole('alert')).toBeNull()
+    expect(card().textContent).not.toMatch(/\d/)
+    expect(within(card()).getByRole('link').getAttribute('href')).toBe('/practice/routine')
   })
 })

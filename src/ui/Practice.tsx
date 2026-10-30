@@ -4,6 +4,7 @@ import type { PracticeIndexEntry } from '../../scripts/build-content.ts'
 import type { TestRow } from '../../server/archive.ts'
 import { getLastTest } from '../api.ts'
 import { currentChapter } from '../core/progress.ts'
+import type { Routine } from '../core/routine.ts'
 import {
   FREE_MODES,
   MAX_CUSTOM_SECONDS,
@@ -20,6 +21,7 @@ import { AppLink } from './AppLink.tsx'
 import { ChapterPanel } from './ChapterPanel.tsx'
 import { Stage0Panel } from './Stage0Panel.tsx'
 import { useFixup } from './useFixup.ts'
+import { useRoutineToday, useRoutines } from './useRoutines.ts'
 import './practice.css'
 
 /** The quiet "last time" text for one free-type combination. */
@@ -224,6 +226,36 @@ function RealTextCard(): JSX.Element {
   )
 }
 
+/** The count line for the active routine; only once today's tests have loaded. */
+function RoutineCount({ routine }: { routine: Routine }): JSX.Element | null {
+  const today = useRoutineToday(routine.steps)
+  if (routine.steps.length === 0) return <p class="fixup-card__count">No steps yet.</p>
+  if (today.tests !== 'ready') return null
+  return <p class="fixup-card__count">{`${today.done.filter(Boolean).length} of ${routine.steps.length} done today`}</p>
+}
+
+/** The routine card: the active routine and how much of it is done today, and the way in. Nothing but the link if it will not load. */
+function RoutineCard(): JSX.Element {
+  const { status, doc } = useRoutines()
+  const active = doc.routines.find((r) => r.id === doc.active)
+  const none = status === 'ready' && !active
+  return (
+    <section class="practice__box fixup-card" aria-labelledby="routine-card-heading">
+      <h2 id="routine-card-heading" class="practice__heading">Routine</h2>
+      {active && (
+        <>
+          <p class="fixup-card__count">{active.name}</p>
+          <RoutineCount routine={active} />
+        </>
+      )}
+      {none && <p class="fixup-card__count">{doc.routines.length === 0 ? 'No routine yet.' : 'No routine is active.'}</p>}
+      <p class="fixup-card__go">
+        <AppLink href="/practice/routine">{none && doc.routines.length === 0 ? 'Plan a routine' : 'Open routine'}</AppLink>
+      </p>
+    </section>
+  )
+}
+
 /** The Practice tab: where you are, fix-up, free type, real text, then the Chapter 4 drills. */
 export function Practice(): JSX.Element {
   return (
@@ -233,6 +265,7 @@ export function Practice(): JSX.Element {
       <FixupCard />
       <FreeType />
       <RealTextCard />
+      <RoutineCard />
       {/* The panel brings its own heading ("Practice — Stage 0"); the region name says where it sits. */}
       <section class="practice__drills" aria-label="Chapter 4 drills">
         <Stage0Panel />

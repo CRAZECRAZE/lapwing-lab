@@ -16,6 +16,7 @@ import { GhostNote } from './GhostLine.tsx'
 import { GhostPicker, useGhostChoice } from './GhostPicker.tsx'
 import { HintPicker, useHints } from './HintPicker.tsx'
 import { QuickNote } from './QuickNote.tsx'
+import { backTarget } from './backTarget.ts'
 import { useGhost } from './useGhost.ts'
 import { useTextLookup } from './useTextLookup.ts'
 import { VisibilityPicker, useBoardVisibility } from './VisibilityPicker.tsx'
@@ -55,6 +56,7 @@ function useSource(id: string): { source: Source; retry(): void } {
 
 /** A calm message in place of the drill, with a way back and, for a failed load, a retry. */
 function Message({ children, retry }: { children: string; retry?: () => void }): JSX.Element {
+  const back = backTarget(TEXT_HREF, 'Back to text')
   return (
     <div class="stage0-run">
       <p class="page__status" role="alert">
@@ -69,7 +71,7 @@ function Message({ children, retry }: { children: string; retry?: () => void }):
         )}
       </p>
       <p>
-        <AppLink href={TEXT_HREF}>Back to text</AppLink>
+        <AppLink href={back.href}>{back.label}</AppLink>
       </p>
     </div>
   )
@@ -86,6 +88,7 @@ type ResultProps = {
 /** The card after a finished part. */
 function TextResult({ title, result, ghost, nextHref, onAgain }: ResultProps): JSX.Element {
   const { stats } = result
+  const back = backTarget(TEXT_HREF, 'Back to text')
   return (
     <section class="stage0-run stage0-summary free-result" aria-label="Result">
       <h2 class="stage0-summary__title">{title}</h2>
@@ -114,7 +117,7 @@ function TextResult({ title, result, ghost, nextHref, onAgain }: ResultProps): J
         <button type="button" class="stage0-button" onClick={onAgain}>
           Again
         </button>
-        <AppLink href={TEXT_HREF}>Back to text</AppLink>
+        <AppLink href={back.href}>{back.label}</AppLink>
       </div>
     </section>
   )
@@ -177,7 +180,7 @@ function RunHost({ id, name, part, parts, items }: HostProps): JSX.Element {
         ghost={ghost}
         view="flow"
         onDone={setResult}
-        onExit={() => navigate(TEXT_HREF)}
+        onExit={() => navigate(backTarget(TEXT_HREF, 'Back to text').href)}
       />
     </div>
   )

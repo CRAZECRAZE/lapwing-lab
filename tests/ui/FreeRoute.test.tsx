@@ -416,3 +416,33 @@ describe('FreeRoute', () => {
     })
   })
 })
+
+describe('FreeRoute opened from a routine', () => {
+  beforeEach(() => history.replaceState(null, '', '/practice/free/pseudo/words-25?from=routine'))
+
+  it('leads back to the routine from the message link', () => {
+    stubContent({})
+    render(<FreeRoute source="pseudo" mode="words-501" />)
+    const back = screen.getByRole('link', { name: 'Back to routine' })
+    expect(back.getAttribute('href')).toBe('/practice/routine')
+    expect(screen.queryByRole('link', { name: 'Back to Practice' })).toBeNull()
+    fireEvent.click(back)
+    expect(location.pathname).toBe('/practice/routine')
+  })
+
+  it('leads back to the routine from the result card', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    const rig = await mount('pseudo', 'words-25')
+    for (let i = 0; i < 25; i++) rig.stroke(SAP)
+    expect(screen.queryByRole('button', { name: 'Back to Practice' })).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to routine' }))
+    expect(location.pathname).toBe('/practice/routine')
+  })
+
+  it('leads back to the routine on Exit', async () => {
+    stubContent({ '/content/stage0.json': { test: ['SAP'], extra: [] } })
+    await mount('pseudo', 'words-25')
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    expect(location.pathname).toBe('/practice/routine')
+  })
+})

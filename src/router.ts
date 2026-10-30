@@ -9,6 +9,7 @@ export type Route =
   | { name: 'fixup-run'; kind: 'words' | 'patterns' }
   | { name: 'text' }
   | { name: 'text-run'; id: string; part: number }
+  | { name: 'routine' }
   | { name: 'history' }
   | { name: 'test'; id: number }
   | { name: 'days'; date?: string }
@@ -29,6 +30,7 @@ export function tabOf(route: Route): Tab {
     case 'fixup-run':
     case 'text':
     case 'text-run':
+    case 'routine':
       return 'practice'
     case 'history':
     case 'test':
@@ -81,6 +83,7 @@ export function parseRoute(pathname: string): Route {
   const fixupRun = FIXUP_RUN_PATH.exec(pathname)
   if (fixupRun) return { name: 'fixup-run', kind: fixupRun[1] as 'words' | 'patterns' }
   if (/^\/practice\/text\/?$/.test(pathname)) return { name: 'text' }
+  if (/^\/practice\/routine\/?$/.test(pathname)) return { name: 'routine' }
   const textRun = TEXT_RUN_PATH.exec(pathname)
   if (textRun) {
     const part = Number(textRun[2])
