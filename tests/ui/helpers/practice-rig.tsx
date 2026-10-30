@@ -99,6 +99,7 @@ export const passed = (section: string): SectionResult => ({
   passed: true,
   best: { accuracy: 1, wpm: 40 },
   last: { accuracy: 1, wpm: 40, endedAt: 1, passed: true },
+  firstPassedAt: 1,
 })
 
 /** Stubs fetch for `/content/...`: a reply per URL, an Error to reject, or 'fail' for HTTP 500; anything else is a 404. */

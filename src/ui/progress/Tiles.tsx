@@ -1,8 +1,8 @@
 import type { JSX } from 'preact'
-import type { DayStat } from '../../../server/archive.ts'
-import type { DayQuality, StatsMode } from '../../../server/stats.ts'
+import type { StatsMode } from '../../../server/stats.ts'
 import { addDays, formatDuration } from '../../core/days.ts'
-import { change, enough, weekStart } from '../../core/progressview.ts'
+import { change, decimalChange, qualityMean, strokesChange, sumOf, thousands, timeChange, weekStart } from '../../core/progressview.ts'
+import type { Window } from '../../core/progressview.ts'
 import type { ProgressData } from './useProgressData.ts'
 
 /** The data of a loaded page: what the panels receive. */
@@ -12,58 +12,7 @@ export type ReadyData = ProgressData & {
   days: NonNullable<ProgressData['days']>
 }
 
-type Window = { from: string; to: string }
-
-const inWindow = (date: string, w: Window): boolean => date >= w.from && date <= w.to
-
-/** `12,345`: fixed so the text does not depend on the locale of the machine. */
-export function thousands(n: number): string {
-  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
-
-function sumOf(days: readonly DayStat[], w: Window, field: 'activeMs' | 'strokes'): number {
-  let total = 0
-  for (const d of days) if (inWindow(d.date, w)) total += d[field]
-  return total
-}
-
-/**
- * The words-weighted mean of a quality figure over a window, or null when fewer than 3 runs lie behind
- * the window or there are no words to weigh it by.
- */
-function qualityMean(days: readonly DayQuality[], w: Window, field: 'wpm' | 'accuracy'): number | null {
-  let runs = 0
-  let words = 0
-  let sum = 0
-  for (const d of days) {
-    if (!inWindow(d.date, w)) continue
-    runs += d.runs
-    const value = d[field]
-    if (value === null || !(d.words > 0)) continue
-    words += d.words
-    sum += value * d.words
-  }
-  return enough(runs) && words > 0 ? sum / words : null
-}
-
-const signed = (n: number, text: string): string => `${n < 0 ? '-' : '+'}${text}`
-
-export function timeChange(now: number, before: number): string {
-  if (now === before) return 'same as last week'
-  return `${signed(now - before, formatDuration(Math.abs(now - before)))} vs last week`
-}
-
-export function strokesChange(now: number, before: number): string {
-  if (now === before) return 'same as last week'
-  return `${signed(now - before, thousands(Math.abs(now - before)))} vs last week`
-}
-
-/** `+1.4 wpm` / `+2.1 points`; a difference that rounds to zero is the same. */
-function decimalChange(diff: number, unit: string): string {
-  const text = Math.abs(diff).toFixed(1)
-  if (text === '0.0') return 'same as the 7 days before'
-  return `${signed(diff, text)} ${unit} vs the 7 days before`
-}
+export { thousands }
 
 /** The muted scope of a figure that follows the mode switch. */
 export const MODE_SCOPES: Record<StatsMode, string> = { free: 'free type', drills: 'drills and tests', all: 'all modes' }

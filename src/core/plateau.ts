@@ -1,7 +1,7 @@
 // Plateau detector: has the typing speed held flat for several weeks? Pure: no DOM, no Node.
 
 import type { DayQuality } from '../../server/stats.ts'
-import { daysBetween } from './progressview.ts'
+import { daysBetween, medianInt } from './progressview.ts'
 
 export type Plateau = {
   /** Counted weeks in the plateau, this one included. */
@@ -26,13 +26,6 @@ type Week = { wpm: number | null; accuracy: number | null; steadiness: number | 
 
 function finite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
-}
-
-/** Median of a list (the mean of the two middle values when the count is even), rounded to an integer. */
-function medianInt(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = sorted.length >> 1
-  return Math.round(sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2)
 }
 
 /** Words-weighted mean of a field over days, or null when no day has both a value and words. */

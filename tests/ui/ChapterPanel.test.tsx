@@ -49,6 +49,7 @@ const result = (section: string, passed: boolean, best: [number, number] | null,
   passed,
   best: best && { accuracy: best[0], wpm: best[1] },
   last: last && { accuracy: last[0], wpm: last[1], endedAt: 1, passed },
+  firstPassedAt: passed ? 1 : null,
 })
 
 const mark = (chapter: number, kind: 'read' | 'override'): ProgressMark => ({ chapter, kind, at: 1 })

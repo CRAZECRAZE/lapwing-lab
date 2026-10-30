@@ -1,7 +1,8 @@
 // Date and trend helpers for the Progress page. Pure: no DOM, no Node, no clock reads.
 // Dates are local `YYYY-MM-DD` strings; weeks start on Monday.
 import type { DayStat } from '../../server/archive.ts'
-import { addDays } from './days.ts'
+import type { DayQuality } from '../../server/stats.ts'
+import { addDays, formatDuration } from './days.ts'
 
 export type RangeId = '4w' | '3m' | 'all'
 
@@ -119,4 +120,67 @@ export function change(now: number | null, before: number | null): number | null
 export function rangeBounds(range: RangeId, today: string): { from: string; to: string } {
   const days = RANGES.find((r) => r.id === range)?.days ?? null
   return { from: addDays(today, days === null ? -ALL_TIME_DAYS : -(days - 1)), to: today }
+}
+
+/** An inclusive date window. */
+export type Window = { from: string; to: string }
+
+export const inWindow = (date: string, w: Window): boolean => date >= w.from && date <= w.to
+
+/** `12,345`: fixed so the text does not depend on the locale of the machine. */
+export function thousands(n: number): string {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+/** The sum of a field over the days inside a window; a value that is not a finite number counts as nothing. */
+export function sumOf(days: readonly DayStat[], w: Window, field: 'activeMs' | 'strokes'): number {
+  let total = 0
+  for (const d of days) if (inWindow(d.date, w)) total += finite(d[field])
+  return total
+}
+
+/**
+ * The words-weighted mean of a quality figure over a window, or null when fewer than 3 runs lie behind
+ * the window or there are no words to weigh it by. Values that are not finite numbers are left out.
+ */
+export function qualityMean(days: readonly DayQuality[], w: Window, field: 'wpm' | 'accuracy'): number | null {
+  let runs = 0
+  let words = 0
+  let sum = 0
+  for (const d of days) {
+    if (!inWindow(d.date, w)) continue
+    runs += Number.isFinite(d.runs) ? d.runs : 0
+    const value = d[field]
+    if (value === null || !Number.isFinite(value) || !Number.isFinite(d.words) || !(d.words > 0)) continue
+    words += d.words
+    sum += value * d.words
+  }
+  return enough(runs) && words > 0 ? sum / words : null
+}
+
+const signed = (n: number, text: string): string => `${n < 0 ? '-' : '+'}${text}`
+
+/** `+12 min vs last week`; `against` names what the figure is compared with. */
+export function timeChange(now: number, before: number, against = 'last week'): string {
+  if (now === before) return `same as ${against}`
+  return `${signed(now - before, formatDuration(Math.abs(now - before)))} vs ${against}`
+}
+
+export function strokesChange(now: number, before: number, against = 'last week'): string {
+  if (now === before) return `same as ${against}`
+  return `${signed(now - before, thousands(Math.abs(now - before)))} vs ${against}`
+}
+
+/** `+1.4 wpm` / `+2.1 points`; a difference that rounds to zero is the same. */
+export function decimalChange(diff: number, unit: string, against = 'the 7 days before'): string {
+  const text = Math.abs(diff).toFixed(1)
+  if (text === '0.0') return `same as ${against}`
+  return `${signed(diff, text)} ${unit} vs ${against}`
+}
+
+/** Median of a list (the mean of the two middle values when the count is even), rounded to an integer. */
+export function medianInt(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = sorted.length >> 1
+  return Math.round(sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2)
 }

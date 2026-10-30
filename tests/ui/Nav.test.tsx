@@ -45,6 +45,7 @@ const STAGE0_PASSED: SectionResult = {
   passed: true,
   best: { accuracy: 0.96, wpm: 20 },
   last: { accuracy: 0.96, wpm: 20, endedAt: 1, passed: true },
+  firstPassedAt: 1,
 }
 
 function progress(status: Progress['status'], stage0: SectionResult[] = [], marks: ProgressMark[] = []): Progress {

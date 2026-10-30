@@ -403,6 +403,7 @@ describe('practice links and the chapter panel', () => {
     passed: accuracy >= 0.9,
     best: { accuracy, wpm },
     last: { accuracy, wpm, endedAt: 1, passed: accuracy >= 0.9 },
+    firstPassedAt: accuracy >= 0.9 ? 1 : null,
   })
   const STAGE0_PASSED = result('pseudo-test', 0.96, 20)
 

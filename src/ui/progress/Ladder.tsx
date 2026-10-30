@@ -4,8 +4,8 @@ import type { SectionResult } from '../../../server/archive.ts'
 import { drillPassMark } from '../../core/chaptertest.ts'
 import { num } from '../../core/chartmath.ts'
 import { formatAccuracy, formatWpm } from '../../core/format.ts'
+import { resultOf } from '../../core/progress.ts'
 import { useProgress } from '../../state/progress.tsx'
-import type { Progress } from '../../state/progress.tsx'
 import { DataTable, Panel } from './Chart.tsx'
 
 const TITLE = 'Chapter tests (ignores the mode switch)'
@@ -23,13 +23,6 @@ type Row = {
 }
 
 const finite = (n: number): boolean => Number.isFinite(n)
-
-/** The chapter's test result: Chapter 4 is judged by the Stage 0 test, the others by their own chapter test list. */
-function resultOf(info: ChapterInfo, results: Progress['results']): SectionResult | undefined {
-  return info.gate === 'stage0'
-    ? results.stage0.find((r) => r.section === 'pseudo-test')
-    : results['chapter-test'].find((r) => r.section === info.testListId)
-}
 
 /** True when the best result is at the mark, by its raw numbers (the mark's accuracy, and its wpm when it has one). */
 function reaches(best: { accuracy: number; wpm: number }, mark: Mark): boolean {

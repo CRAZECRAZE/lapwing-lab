@@ -39,6 +39,8 @@ export type SectionResult = {
   passed: boolean
   best: { accuracy: number; wpm: number } | null
   last: { accuracy: number; wpm: number; endedAt: number; passed: boolean | null } | null
+  /** The earliest `ended_at` of a finished, non-abandoned run with `meta.passed` true; null when none passed. */
+  firstPassedAt: number | null
 }
 
 export type RunRow = {
@@ -396,12 +398,15 @@ export function openArchive(path: string): Archive {
         const passed = r.passed === 'true' ? true : r.passed === 'false' ? false : null
         let entry = out.get(section)
         if (!entry) {
-          entry = { result: { section, runs: 0, passed: false, best: null, last: null }, bestEndedAt: 0 }
+          entry = { result: { section, runs: 0, passed: false, best: null, last: null, firstPassedAt: null }, bestEndedAt: 0 }
           out.set(section, entry)
         }
         const res = entry.result
         res.runs++
-        if (passed === true) res.passed = true
+        if (passed === true) {
+          res.passed = true
+          if (res.firstPassedAt === null || endedAt < res.firstPassedAt) res.firstPassedAt = endedAt
+        }
         const b = res.best
         if (
           !b ||

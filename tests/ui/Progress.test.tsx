@@ -700,7 +700,7 @@ describe('Progress key, mix-up, ladder and year panels', () => {
       results: {
         stage0: [],
         section: [],
-        'chapter-test': [{ section: '5-test', runs: 2, passed: false, best: { accuracy: 0.95, wpm: 9.96 }, last: null }],
+        'chapter-test': [{ section: '5-test', runs: 2, passed: false, best: { accuracy: 0.95, wpm: 9.96 }, last: null, firstPassedAt: null }],
       },
     }
   }

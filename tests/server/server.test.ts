@@ -561,6 +561,7 @@ describe('archive API', () => {
         passed: true,
         best: { accuracy: 0.95, wpm: 30 },
         last: { accuracy: 0.95, wpm: 30, endedAt: 2000, passed: true },
+        firstPassedAt: 2000,
       },
     ])
     expect(((await (await call('GET', '/api/results?mode=stage0')).json()) as { section: string }[]).map((r) => r.section)).toEqual(['other'])

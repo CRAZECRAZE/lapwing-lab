@@ -841,6 +841,7 @@ describe('archive section results', () => {
         passed: false,
         best: { accuracy: 0.8, wpm: 20 },
         last: { accuracy: 0.8, wpm: 20, endedAt: 2000, passed: null },
+        firstPassedAt: null,
       },
     ])
   })
@@ -867,6 +868,31 @@ describe('archive section results', () => {
     expect(by.kept?.last?.passed).toBe(false)
   })
 
+  it('firstPassedAt is the earliest passing run end, null when none passed, unaffected by later failures', () => {
+    const a = memory()
+    run(a, { section: 'late-first', endedAt: 5000, meta: { passed: true } })
+    run(a, { section: 'late-first', endedAt: 3000, meta: { passed: true } })
+    run(a, { section: 'late-first', endedAt: 1000, meta: { passed: false } })
+    run(a, { section: 'late-first', endedAt: 9000, meta: { passed: false } })
+    run(a, { section: 'never', endedAt: 2000, meta: { passed: false } })
+    run(a, { section: 'never', endedAt: 3000 })
+    const by = Object.fromEntries(a.sectionResults('drill').map((r) => [r.section, r]))
+    expect(by['late-first']?.firstPassedAt).toBe(3000)
+    expect(by.never?.firstPassedAt).toBeNull()
+  })
+
+  it('firstPassedAt ignores abandoned and unfinished passing runs', () => {
+    const a = memory()
+    run(a, { section: 'a', endedAt: 1000, meta: { abandoned: true, passed: true } })
+    run(a, { section: 'a', endedAt: null, meta: { passed: true } })
+    run(a, { section: 'a', endedAt: 4000, meta: { passed: true } })
+    run(a, { section: 'b', endedAt: 1000, meta: { abandoned: true, passed: true } })
+    run(a, { section: 'b', endedAt: 2000 })
+    const by = Object.fromEntries(a.sectionResults('drill').map((r) => [r.section, r]))
+    expect(by.a?.firstPassedAt).toBe(4000)
+    expect(by.b?.firstPassedAt).toBeNull()
+  })
+
   it('picks best by accuracy then wpm and last by newest end, inserted out of order', () => {
     const a = memory()
     run(a, { section: 'a', accuracy: 0.9, wpm: 30, endedAt: 3000, meta: { passed: true } })
@@ -880,6 +906,7 @@ describe('archive section results', () => {
       passed: true,
       best: { accuracy: 0.95, wpm: 25 },
       last: { accuracy: 0.9, wpm: 30, endedAt: 3000, passed: true },
+      firstPassedAt: 3000,
     })
   })
 
@@ -1008,6 +1035,7 @@ CREATE INDEX tests_lookup ON tests(mode, section, ended_at);
         passed: true,
         best: { accuracy: 1, wpm: 12.5 },
         last: { accuracy: 1, wpm: 12.5, endedAt: 2000, passed: true },
+        firstPassedAt: 2000,
       },
     ])
     expect(a.listMarks()).toEqual([])

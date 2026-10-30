@@ -30,6 +30,7 @@ const passed = (section: string): SectionResult => ({
   passed: true,
   best: { accuracy: 0.95, wpm: 30 },
   last: { accuracy: 0.95, wpm: 30, endedAt: 1, passed: true },
+  firstPassedAt: 1,
 })
 const override4: ProgressMark = { chapter: 4, kind: 'override', at: 1 }
 

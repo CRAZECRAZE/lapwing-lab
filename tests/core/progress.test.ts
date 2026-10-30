@@ -36,7 +36,7 @@ const CHAPTERS: ChapterInfo[] = [
 ]
 
 function res(section: string, passed: boolean): SectionResult {
-  return { section, runs: 1, passed, best: { accuracy: 0.95, wpm: 12 }, last: null }
+  return { section, runs: 1, passed, best: { accuracy: 0.95, wpm: 12 }, last: null, firstPassedAt: null }
 }
 
 function results(r: Partial<ResultsByMode> = {}): ResultsByMode {

@@ -22,6 +22,13 @@ function passedSections(results: readonly SectionResult[] | undefined): Set<stri
   return new Set((results ?? []).filter((r) => r.passed).map((r) => r.section))
 }
 
+/** The chapter's test result: Chapter 4 is judged by the Stage 0 test, the others by their own chapter test list. */
+export function resultOf(info: ChapterInfo, results: ResultsByMode): SectionResult | undefined {
+  return info.gate === 'stage0'
+    ? results.stage0.find((r) => r.section === 'pseudo-test')
+    : results['chapter-test'].find((r) => r.section === info.testListId)
+}
+
 /** The state of every chapter in `chapters`, keyed by chapter number. */
 export function chapterStates(
   chapters: readonly ChapterInfo[],
