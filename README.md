@@ -43,7 +43,7 @@ The top bar has six tabs: **Book · Practice · History · Days · Progress · J
 - **Practice** has a **Where you are** panel (the chapter you are on, see below), **free type** and the Chapter 4 **Stage 0 drills**. Free type is a flowing line of words: 25 or 50 words, or 30 or 60 seconds, or choose **Custom** and type your own number of words (1 to 500) or seconds (5 to 600); Start stays off until the number is in range. A timed run starts counting on your first stroke. Stage 0 is six key-row drills (left bottom, right bottom, left top, right top, vowels, star), the 100-word layout test with the book's pass mark (90% accuracy within 10 minutes), and two extra practice lists. The board can be always visible, shown on hover, or hidden.
 - **History** lists every test with accuracy and speed; open one to see its rhythm (see "Progress" below), its misses (what was required, what you pressed, which keys were missing or extra) and its slowest words.
 - **Days** is a month calendar shaded by how long you practiced each day, with totals; pick a day to see its tests and its journal note. Your current streak of consecutive days is shown in the status line as well.
-- **Progress** is the page that shows whether practice is working: speed and accuracy by day, how steady your typing is, how much you practice, which keys and mix-ups hold you back and how you stand against the book's chapter marks (see "Progress" below).
+- **Progress** is the page that shows whether practice is working: speed and accuracy by day, how steady your typing is, how much you practice, which keys and mix-ups hold you back and how you stand against the book's chapter marks, with a Reports link to the month-end reports (see "Progress" and "Reports and the plateau notice" below).
 - **Journal** is one markdown note per day, saved automatically as you type. A result card also has **Add a note**, which appends to today's note under a stamped heading.
 
 Free type draws only on words the book has taught: the Chapter 4 pseudo-words, or the practice lists of Chapters 5 up to a chapter you pick (each chapter that has practice lists in the built content is offered as a source).
@@ -52,7 +52,7 @@ For the chapter word lists, the **Hint** setting chooses when the keys a word ne
 
 "Time practiced" is approximate: for each test it is the time from the first stroke to the last, so pauses inside a test count and time before the first stroke does not.
 
-The full dictionary lookup and the Progress page (M6a) are done (see "The dictionary" and "Progress" below). What remains is the plateau notice and the month report (M6b), briefs memory (M5b) and the routine planner (M7); the order is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
+The full dictionary lookup and the Progress page (M6a) are done (see "The dictionary" and "Progress" below). The Progress page now has a plateau notice and a month-end report (M6b, see "Reports and the plateau notice" below). What remains is briefs memory (M5b) and the routine planner (M7); the order is in `docs/superpowers/specs/2026-10-27-lapwing-lab-design.md` section 9.
 
 ## Chapter practice and gates
 
@@ -114,7 +114,7 @@ Lookup reads one generated file, `content/build/dictionary.json`: about 58,000 c
 
 ## Progress
 
-The **Progress** tab (the fifth in the top bar, or `/progress`) draws your existing history as panels. It needs no setup and nothing new is recorded: it works from the tests and strokes already in `data/steno.db`, the same ones History and Days read, and the panels write nothing (they create no file in `data/`, and on a fresh install the page shows `No practice recorded yet.`; the snooze and the report banner described in the next section are the only exceptions). Reloading gives the same numbers.
+The **Progress** tab (the fifth in the top bar, or `/progress`) draws your existing history as panels. It needs no setup and nothing new is recorded: it works from the tests and strokes already in `data/steno.db`, the same ones History and Days read, and the panels write nothing (they create no file in `data/`, and on a fresh install the page shows `No practice recorded yet.`; the snooze and opening a finished month's report, described in the next section, are the only exceptions; the banner itself writes nothing). Reloading gives the same numbers.
 
 **The two switches** sit at the top.
 
@@ -142,7 +142,7 @@ The **Progress** tab (the fifth in the top bar, or `/progress`) draws your exist
 
 **Rhythm, in plain words.** The strokes of a run are timed against each other.
 
-- A **gap** is the time between one stroke and the one before it (a missed stroke and its retry are two gaps). The first bar is the **start**: the time from the word appearing to your first key. It is drawn, labelled `start` and timed (`Started after 3.2 s`), but never counts as a stall or a break and is left out of the typical gap and the steadiness.
+- A **gap** is the time between one stroke and the one before it (a missed stroke and its retry are two gaps). The first bar is the **start**: the time from the word appearing to your first key. It is drawn, timed in the note under the strip (`Started after 3.2 s`) and named `start` in the bar's hover or focus note and in the `Show the numbers` table (the strip itself prints only `break`), but never counts as a stall or a break and is left out of the typical gap and the steadiness.
 - A pause over 10 seconds is a **break** (you stepped away): it is drawn as a dotted line marked `break` and left out of every score.
 - The **typical gap** is the middle one of the run's gaps. A **stall** is a gap more than 2.5 times the typical gap and over 1 second (a red bar).
 - **Steadiness**, 0 to 100, is how evenly the gaps fall around the typical gap: 100 means every gap alike, and a run that keeps swinging between quick and slow scores lower. It looks at the middle half of the gaps, so one stall barely changes it. A run with fewer than 10 scored strokes gets no score.
@@ -156,13 +156,13 @@ The **Progress** tab (the fifth in the top bar, or `/progress`) draws your exist
 
 **Keyboard.** Each chart is one tab stop: Tab reaches it, Left and Right move between its dots and bars, and Home and End go to the first and last. In the heatmap Left and Right move a week, Up and Down a day. Under every chart a **Show the numbers** disclosure holds the same figures as a table.
 
-**How it is built.** The page asks the local server for `GET /api/stats?from=&to=&mode=` (mode `free`, `drills` or `all`; read-only; the strokes are summed on the server and only totals leave it) and for `GET /api/days`, which both accept a span of up to 1,100 days. Neither creates `data/` if there is no archive. The charts are drawn as SVG, with no charting library. The design is in `docs/superpowers/specs/2026-10-28-lapwing-lab-m6-progress-design.md`; `docs/superpowers/m6a-checklist.md` lists what to check against your real history.
+**How it is built.** The page asks the local server for `GET /api/stats?from=&to=&mode=` (mode `free`, `drills` or `all`; read-only; the strokes are summed on the server and only totals leave it) and for `GET /api/days`, which both accept a span of up to 1,100 days. Neither creates `data/` if there is no archive. The notice and the banner also read `GET /api/settings`, and the report notes use `GET /api/reports` (the months that have a note) and `GET`/`PUT /api/reports/:month`. The charts are drawn as SVG, with no charting library. The design is in `docs/superpowers/specs/2026-10-28-lapwing-lab-m6-progress-design.md`; `docs/superpowers/m6a-checklist.md` lists what to check against your real history.
 
 ## Reports and the plateau notice
 
 Two quiet extras sit around the Progress page. Neither nags, sets a goal or tells you what to practice.
 
-**The month-end report.** Click **Reports** on the Progress page (or open `/progress/reports`) for a list of months, newest first, from your first month of practice to the current one. Each row shows the month, the practice time, the strokes and a `note` mark if you wrote one. A row opens `/progress/reports/YYYY-MM`, which is still the Progress tab. A report shows:
+**The month-end report.** Click **Reports** on the Progress page (or open `/progress/reports`) for a list of months, newest first. A month is listed when it has practice or a note (whitespace-only notes are ignored); months in between with neither are left out, and the list runs from the earliest such month to the current one. Each row shows the month, the practice time, the strokes and a `note` mark if you wrote one. A row opens `/progress/reports/YYYY-MM`, which is still the Progress tab. A report shows:
 
 - a header with the month and the days you practiced (`October 2026 · 6 practice days`);
 - six tiles: practice time, strokes, free-type wpm, accuracy, steadiness and chapters passed. Time and strokes cover every mode; speed, accuracy and steadiness cover free type (a line says so). Under a tile is the change against the month before when both months have data, in the plain colour whether better or worse. In your first month there is nothing to compare with, so the speed and accuracy tiles show `first day 22, last day 41` instead. A tile resting on fewer than 3 free-type runs shows a dash and `not enough runs yet`;
@@ -178,7 +178,7 @@ The numbers are never stored: they are recomputed from your archive every time y
 
 **The plateau notice.** It looks at your free-type wpm over the last 56 days, cut into eight weeks of 7 days ending today. A week counts when it has at least 2 free-type runs, and its speed is the average of those runs weighted by words. Counting back from this week, a week is part of the plateau when its speed is within 2 wpm (or 4% of this week's speed, whichever is more) of this week's. A week without 2 free-type runs, such as a week off, is skipped: it neither counts nor ends the plateau. A week outside the tolerance ends it. When 3 or more weeks are in the plateau, the notice says `Your speed has been flat for N weeks`, gives this week's wpm and up to two earlier ones, and adds `Plateaus like this are common while learning steno.` A `Meanwhile` line appears only for a figure that rose over the plateau (steadiness by at least 3 points, accuracy by at least 1.5 points); it never mentions anything that got worse. It links to the `Weakest keys` and `Mix-ups` panels and gives no advice. So it cannot appear before about three weeks of regular free-type practice. It ignores the Progress page's Mode and Range switches.
 
-It shows in two places: above the tiles on the Progress page, and as one small gold line (`Speed flat for 3 weeks, see Progress`) in the header of a chapter's panel in the reader (chapter pages only, not the home page or the appendices). **Not now (14 days)** hides it in both places until 14 days later; it also stops by itself when the plateau ends. If the numbers cannot be loaded, the notice and the banner are simply not shown.
+It shows above the tiles on the Progress page, and as one small gold line (`Speed flat for 3 weeks, see Progress`) in the chapter panel: on the Book's chapter pages and in `Where you are` on the Practice tab (not on the Book's home page or the appendices). **Not now (14 days)**, on the Progress page, hides it everywhere until 14 days later; it also stops by itself when the plateau ends. If the numbers cannot be loaded, the notice and the banner are simply not shown.
 
 **What is written to `data/`.** Only `data/reports/YYYY-MM.md` (your notes) and two fields in `data/settings.json`: `plateauSnoozedUntil` (a date, from **Not now**) and `reportSeen` (a month, from opening a finished month's report). Opening Progress, the reports list or a report creates no file, apart from `reportSeen` when you open a finished month's report. Nothing in `steno.db` changes. The design is in `docs/superpowers/specs/2026-10-30-lapwing-lab-m6b-reports-design.md`; `docs/superpowers/m6b-checklist.md` lists what to check against your real history.
 
